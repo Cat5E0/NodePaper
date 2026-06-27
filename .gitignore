@@ -1,0 +1,34 @@
+# Build outputs
+build/
+
+# Logs
+logs/
+
+# LaTeX auxiliary files
+*.aux
+*.fls
+*.fdb_latexmk
+*.out
+*.toc
+*.synctex.gz
+*.xdv
+*.bbl
+*.blg
+*.run.xml
+
+# Compiled outputs at project root
+/Paper.pdf
+/Paper.tex
+
+# Bundled third-party binaries (distributed separately)
+tools/windows-x64/
+!tools/versions.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+Thumbs.db
+.DS_Store

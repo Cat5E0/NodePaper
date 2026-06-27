@@ -1,0 +1,465 @@
+% !TEX program = latexmk
+% !TEX options = -xelatex -synctex=1 -interaction=nonstopmode -file-line-error "%DOC%"
+\documentclass[a4paper, 12pt, oneside]{article}
+
+% ================= 基础宏包与环境设定 =================
+\usepackage[UTF8]{ctex} % 自动调用宋体、黑体、楷体等
+\xeCJKsetup{AutoFakeBold=true} % 允许伪粗体，防止宋体加粗报错
+
+% 将正文的英文和数字字体设为 Times New Roman
+\setmainfont{Times New Roman}
+
+\usepackage[a4paper, top=2.55cm, bottom=2.75cm, left=2.4cm, right=2.4cm, bindingoffset=0.5cm, headheight=15pt, headsep=0.37cm, footskip=0.85cm]{geometry}
+\usepackage{setspace} % 行距设置宏包
+\setstretch{1.70} % 复刻 Word 1.5 倍行距（LaTeX的1.625 ≈ Word的1.5）
+
+\usepackage{amsmath} % 数学公式宏包
+\allowdisplaybreaks[4]
+\usepackage{amssymb} % 数学符号宏包
+\usepackage{amsthm} % 必须引入的数学定理宏包
+\usepackage{newtxmath} % 兼容 XeLaTeX，让公式也是 Times 风格，且不干扰正文新罗马
+\usepackage{tikz}             % 绘图基础包
+\usepackage{pgfplots}         % 绘制二维/三维坐标图
+\pgfplotsset{compat=1.18}     % 设定 pgfplots 版本以避免警告
+\usepackage{graphicx} % 插图宏包
+\graphicspath{{./}{image/}{../image/}} % 自动搜索当前目录和 image 子目录
+\usepackage{booktabs} % 三线表宏包
+\usepackage{multirow} % 单元格合并宏包
+\usepackage{longtable} % 跨页长表格宏包
+\usepackage{tabularx} % 自动调整宽度的表格宏包
+\usepackage{array} % 增强型表格列宏包
+\usepackage{calc} % 维度算术表达式支持
+\providecommand{\real}[1]{#1} % Pandoc 在 longtable 中沿用 tabularx 的 \real，补上通用定义
+\usepackage{caption} % 图表标题定制
+\usepackage{subcaption} % 子图定制
+
+% ================= 图、表、公式编号与样式自动化 =================
+% 规范8：公式编号如“(式1)”，写在右边行末。
+\makeatletter
+\def\tagform@#1{\maketag@@@{(式#1\unskip\@@italiccorr)}}
+\makeatother
+\renewcommand{\theequation}{\arabic{equation}} % 内部编号恢复纯数字，防交叉引用套娃
+
+% 规范7：表格采用三线表，上下线用1.5磅粗线，中间线用1磅细线
+\setlength{\heavyrulewidth}{1.5pt}
+\setlength{\lightrulewidth}{1pt}
+
+% 定义图表标题字体为宋体五号
+\DeclareCaptionFont{wuhao}{\zihao{5}\songti}
+
+% 规范6/7：图号/表号后空1个字距写图题/表题
+\DeclareCaptionLabelFormat{myfig}{图#2}
+\DeclareCaptionLabelFormat{mytab}{表#2}
+
+% 规范6：图题放图下方居中，图表上下各空一行(通过skip调整)
+\captionsetup[figure]{labelformat=myfig, labelsep=quad, font=wuhao, position=bottom, skip=1.5ex}
+
+% 规范7：表题放表格上方居中
+\captionsetup[table]{labelformat=mytab, labelsep=quad, font=wuhao, position=top, skip=1.5ex}
+
+% 规范6：图中若有分图时，分图号用“(a)”“(b)”置于分图之下
+\captionsetup[subfigure]{labelformat=simple, labelsep=space, font=wuhao}
+\renewcommand\thesubfigure{(\alph{subfigure})}
+
+% ================= 标题格式与目录自动化 =================
+\usepackage{titlesec} % 自定义章节标题
+\usepackage{tocloft} % 自定义目录样式
+
+% 规范3/4：标题阿拉伯数字连续编号后空一个字距，无空行
+% 一级标题：黑体四号字，左顶格
+\titleformat{\section}{\zihao{4}\heiti}{\thesection\quad}{0pt}{}
+\titlespacing*{\section}{0pt}{*1.5}{*1.5} % 使用相对单位替代 0pt，恢复正常行距缓冲
+
+% 二级标题：黑体小四号字，左顶格
+\titleformat{\subsection}{\zihao{-4}\heiti}{\thesubsection\quad}{0pt}{}
+\titlespacing*{\subsection}{0pt}{*1.2}{*1.2}
+
+% 三级标题：楷体小四号字，左顶格
+\titleformat{\subsubsection}{\zihao{-4}\kaishu}{\thesubsubsection\quad}{0pt}{}
+\titlespacing*{\subsubsection}{0pt}{*1}{*1}
+
+% 四级标题：楷体小四号字，左顶格
+\titleformat{\paragraph}{\zihao{-4}\kaishu}{\theparagraph\quad}{0pt}{}
+\titlespacing*{\paragraph}{0pt}{*1}{*1}
+
+% 规范目录：目录两字居中，空4个字距，黑体四号；显示三级标题，内容宋体小四
+\setcounter{tocdepth}{3}
+\renewcommand{\cfttoctitlefont}{\hfill\zihao{4}\heiti}
+\renewcommand{\cftaftertoctitle}{\hfill}
+\renewcommand{\contentsname}{目\hspace{4em}录}
+\renewcommand{\cftsecfont}{\zihao{-4}\songti}
+\renewcommand{\cftsecpagefont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsecfont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsecpagefont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsubsecfont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsubsecpagefont}{\zihao{-4}\songti}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+
+% 层次标题序号一律左对齐
+\setlength{\cftsecindent}{0pt}
+\setlength{\cftsubsecindent}{0pt}
+\setlength{\cftsubsubsecindent}{0pt}
+
+% 统一目录行距（增加一定的弹性）
+\setlength{\cftbeforesecskip}{0pt plus 5pt}
+\setlength{\cftbeforesubsecskip}{0pt plus 3pt}
+\setlength{\cftbeforesubsubsecskip}{0pt plus 3pt}
+
+% 调整编号宽度，防止左对齐后长编号（如 1.1.1）与后续汉字粘连
+\setlength{\cftsecnumwidth}{1.5em}
+\setlength{\cftsubsecnumwidth}{2.2em}
+\setlength{\cftsubsubsecnumwidth}{3.0em}
+
+% ================= 页眉页脚与脚注设定 =================
+\usepackage{fancyhdr}
+% 规范4：全部不加页眉。页码数字两侧不加修饰线，位于页脚居中，五号字。
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \renewcommand{\headrulewidth}{0pt}
+  \fancyfoot[C]{\zihao{5}\thepage}
+}
+\pagestyle{plain}
+
+% 规范5：脚注右上标连续编号，宋体小五号字
+\renewcommand{\footnotesize}{\zihao{-5}\songti}
+
+\usepackage[hidelinks]{hyperref} % 提供目录及交叉引用跳转
+
+% ================= 终极交叉引用神器 cleveref (必须放最后) =================
+\usepackage{cleveref}
+
+% 汉化并消除英式空格（#2和#3是超链接锚点，#1是数字）
+\crefformat{figure}{#2图#1#3}
+\crefformat{table}{#2表#1#3}
+\crefformat{equation}{#2式#1#3}
+\crefformat{theorem}{#2定理#1#3}
+\crefformat{lemma}{#2引理#1#3}
+\crefformat{remark}{#2注解#1#3}
+\crefformat{section}{#2第#1节#3}
+
+% 汉化多重引用时的连词（比如同时引用两个图，三个公式）
+\newcommand{\crefpairconjunction}{~和~}
+\newcommand{\crefmiddleconjunction}{、}
+\newcommand{\creflastconjunction}{~和~}
+
+% ================= 定理、引理与注解环境定制 =================
+
+% 自定义一个适合中文排版的定理样式 "cn_theorem"
+\newtheoremstyle{cn_theorem}
+  {0pt}           % 段前间距：0pt
+  {0pt}           % 段后间距：0pt
+  {\normalfont}   % 正文字体：强制使用正常字体（宋体，绝不倾斜）
+  {2\ccwd}        % 缩进：首行自动缩进两个中文字符
+  {\heiti}        % 表头字体：让“定理”、“引理”显示为黑体
+  {}              % 表头后的标点：留空
+  {\ccwd}         % 表头与正文之间的空格：空一个中文字符
+  {}              % 表头自定义格式：使用默认
+
+% 激活并应用上述样式
+\theoremstyle{cn_theorem}
+
+% 【最简单且绝对不会错的方案】：全部独立计数，全挂载在 section 之下！
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}{引理}[section]   % 不再共享 theorem 的计数器，独立使用自己的
+\newtheorem{remark}{注解}[section]  % 注解也独立
+
+% 将默认的证明环境英文 "Proof" 替换为中文黑体的 "证明"
+\renewcommand{\proofname}{\heiti 证明}
+
+% ================= 附录自动化命令 =================
+\newcommand{\startappendix}{
+    \setcounter{section}{0}
+    \renewcommand{\thesection}{附录\Alph{section}} 
+    \renewcommand{\thefigure}{\Alph{section}\arabic{figure}}
+    \renewcommand{\thetable}{\Alph{section}\arabic{table}}
+    \renewcommand{\theequation}{式\Alph{section}\arabic{equation}}
+    
+    \renewcommand{\theHsection}{\Alph{section}}
+    \renewcommand{\theHfigure}{\Alph{section}\arabic{figure}}
+    \renewcommand{\theHtable}{\Alph{section}\arabic{table}}
+    \renewcommand{\theHequation}{\Alph{section}\arabic{equation}}
+    
+    \setcounter{figure}{0}
+    \setcounter{table}{0}
+    \setcounter{equation}{0}
+
+    \titleformat{\section}{\zihao{4}\heiti\centering}{\thesection\quad}{0pt}{}
+    \addtocontents{toc}{\protect\setlength{\cftsecnumwidth}{4.5em}}
+}
+
+% ================= NodePaper generated-template helpers =================
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{color}
+\usepackage{fancyvrb}
+\IfFileExists{fvextra.sty}{
+  \usepackage{fvextra}
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\},breaklines,breakanywhere,fontsize=\small}
+}{
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\},fontsize=\small}
+}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\usepackage{adjustbox}
+\newcommand{\pandocbounded}[1]{\adjustbox{max width=\linewidth,max height=.8\textheight,keepaspectratio}{#1}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}
+}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\scauSafeIncludeGraphics}[2][]{%
+  \IfFileExists{#2}{\includegraphics[#1]{#2}}{\fbox{\zihao{5} Missing image: #2}}%
+}
+\newcommand{\scauSubmissionDate}{%%__DATE__}
+
+\begin{document}
+\pagenumbering{alph}
+
+% 正文基础字体设定为宋体小四，首行缩进两字距
+\zihao{-4}\songti
+\setlength{\parindent}{2em}
+
+% --------------------封面--------------------
+\clearpage
+\thispagestyle{empty}
+\vfill
+\begin{center}
+    \scauSafeIncludeGraphics[width=0.8\textwidth]{image/SCAU-LOGO.jpg}
+\end{center}
+\vfill
+\begin{center}
+    {\zihao{-0} \songti \textbf{本科毕业论文}}
+\end{center}
+\vfill
+\begin{center}
+    {\zihao{2} \heiti \textbf{%%__TITLE_ZH__}}
+\end{center}
+\vfill
+\vfill
+\vfill
+\begin{center}
+    \zihao{-3} \songti
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{ll}
+        \makebox[4em][s]{学\hfill 院}： & \underline{\makebox[9.5cm]{%%__COLLEGE__}} \\
+        \makebox[4em][s]{专\hfill 业}： & \underline{\makebox[9.5cm]{%%__MAJOR__}} \\
+        \makebox[4em][s]{姓\hfill 名}： & \underline{\makebox[9.5cm]{%%__AUTHOR_ZH__}} \\
+        \makebox[4em][s]{学\hfill 号}： & \underline{\makebox[9.5cm]{%%__STUDENT_ID__}} \\
+        \makebox[4em][s]{指导教师}： & \underline{\makebox[3.8cm]{%%__SUPERVISOR__}}\makebox[1.9cm][c]{职称}\underline{\makebox[3.8cm]{%%__SUPERVISOR_TITLE__}} \\
+        \makebox[4em][s]{提交日期}： & \underline{\makebox[6.5cm]{%%__DATE__}} \\
+    \end{tabular}
+\end{center}
+\vspace{3em}
+\clearpage
+
+% --------------------原创性声明及授权声明--------------------
+\clearpage
+\thispagestyle{empty}
+\vspace{2em}
+\begin{center}
+    {\zihao{4}\heiti 华南农业大学本科毕业论文（设计）原创性声明}
+\end{center}
+
+本人郑重声明：所呈交的毕业论文（设计），是本人在导师的指导下，独立进行研究工作所取得的成果。除文中已经注明引用的内容外，本论文不包含任何其他个人或集体已经发表或撰写过的作品成果。对本文的研究做出重要贡献的个人和集体，均已在文中以明确方式标明。本人完全意识到本声明的法律结果由本人承担。
+\vspace{3em}
+\begin{center}
+    \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+        作者签名：%%__AUTHOR_ZH__ & 日期：%%__DATE__ \\
+    \end{tabular}
+\end{center}
+
+\vspace{5em}
+\begin{center}
+    {\zihao{4}\heiti 华南农业大学本科毕业论文（设计）版权使用授权书}
+\end{center}
+
+本人完全了解学校有关保留、使用毕业论文（设计）的规定，同意学校保留并向有关部门或机构送交论文（设计）的复印件和电子版，允许论文（设计）被查阅和借阅。
+\vspace{3em}
+\begin{center}
+    \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+        作者签名：%%__AUTHOR_ZH__ & 日期：%%__DATE__ \\
+        指导教师签名：%%__SUPERVISOR__ & 日期：%%__DATE__ \\
+    \end{tabular}
+\end{center}
+
+% --------------------中文摘要-------------------
+\clearpage
+\pagenumbering{Roman}
+\setcounter{page}{1}
+\centerline{\zihao{4}\heiti 摘\hspace{4em}要}
+\vspace{0.5em}
+%%__ABSTRACT_ZH__
+
+\noindent{\zihao{-4}\heiti 关键词：} %%__KEYWORDS_ZH__
+
+% --------------------英文摘要-------------------
+\clearpage
+\begin{center}
+    {\zihao{4}\textbf{%%__TITLE_EN__}}
+
+    {\zihao{-4} %%__AUTHOR_EN__}
+
+    {\zihao{-4} (%%__COLLEGE__, South China Agricultural University, Guangzhou, 510642, China)}
+\end{center}
+\vspace{-0.89em}
+\noindent{\zihao{-4}\textbf{Abstract:}
+%%__ABSTRACT_EN__
+}
+
+\noindent{\zihao{-4}\textbf{Key words:} %%__KEYWORDS_EN__}
+
+% --------------------符号表-------------------
+\clearpage
+\centerline{\zihao{4}\heiti 英文缩略词（符号表）}
+\begin{center}
+    \zihao{-4}
+    \begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+        \toprule
+        英文缩写 & 英文全称 & 中文全称 \\
+        \midrule
+        LMI & Linear Matrix Inequality & 线性矩阵不等式 \\
+        LKF & Lyapunov-Krasovskii Functional & Lyapunov-Krasovskii 泛函 \\
+        \bottomrule
+    \end{tabularx}
+\end{center}
+
+% --------------------目录--------------------
+\clearpage
+\tableofcontents
+
+% --------------------正文--------------------
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+%%__BODY__
+
+% --------------------参考文献--------------------
+\clearpage
+\phantomsection
+\addcontentsline{toc}{section}{参考文献}
+\centerline{\zihao{4}\heiti 参考文献}
+\vspace{1em}
+
+% 重新定义参考文献环境：取消数字编号，设置悬挂缩进
+\makeatletter
+\renewcommand{\@biblabel}[1]{} % 取消方括号和数字编号
+\renewenvironment{thebibliography}[1]
+     {\list{}{\usecounter{enumiv}
+              \setlength{\labelwidth}{0pt}
+              \setlength{\leftmargin}{2em}    % 整体向右缩进（第二行及之后的缩进量）
+              \setlength{\itemindent}{-2em}   % 首行反向缩进，形成悬挂效果
+              \setlength{\labelsep}{0pt}      
+              \setlength{\itemsep}{0ex}       % 条目之间的垂直间距
+              \setlength{\parsep}{0pt}}
+      \sloppy
+      \clubpenalty4000
+      \widowpenalty4000}
+     {\endlist}
+\makeatother
+
+{\zihao{-4}\songti\rmfamily
+\begin{thebibliography}{0}
+%%__REFERENCES__
+\end{thebibliography}
+\par}
+
+% --------------------致谢--------------------
+\clearpage
+\phantomsection
+\addcontentsline{toc}{section}{致谢}
+\centerline{\zihao{4}\heiti 致\hspace{4em}谢}
+\vspace{1em}
+%%__ACKNOWLEDGEMENTS__
+
+% --------------------成绩评定表--------------------
+\clearpage
+\thispagestyle{empty}
+\vspace{1em}
+
+\begin{center}
+    {\zihao{3}\heiti 华南农业大学本科毕业论文评分参考标准}
+\end{center}
+
+{\zihao{5}\songti
+\linespread{1}\selectfont 
+\renewcommand{\arraystretch}{1.6} 
+\renewcommand{\tabularxcolumn}[1]{m{#1}} 
+
+\noindent 
+\begin{tabularx}{\textwidth}{|m{2.2cm}<{\centering}|X|m{1.2cm}<{\centering}|}
+    \hline
+    \textbf{评价项目} & \multicolumn{1}{c|}{\textbf{评价指标}} & \textbf{分值} \\
+    \hline
+    \multicolumn{3}{|c|}{\textbf{指导教师评阅}} \\
+    \hline
+    学习态度\newline 与工作量 & 学习态度认真，工作作风严谨务实；工作量饱满，按期圆满完成规定的任务。 &  \\
+    \hline
+    资料收集\newline 与分析 & 具有一定的查阅、整理、分析中外文文献的能力；能较好理解课题任务并提出实施方案；查阅文献有一定广泛性，资料收集充分。 &  \\
+    \hline
+    研究水平\newline 与能力 & 能熟练掌握和运用所学专业基本理论、基本知识和基本技能分析解决相关理论和实际问题；论点鲜明，论据充分；实验设计合理，数据准确可靠，理论分析与计算正确；具有从事科学研究工作或专门技术工作的初步能力。 &  \\
+    \hline
+    论文撰写\newline 质\qquad 量 & 论文结构严谨，逻辑性强，层次清晰，技术用语准确；行文流畅，语句通顺；论文格式符合规范要求。 &  \\
+    \hline
+    学术水平\newline 与创新 & 具有一定的学术水平或实践应用价值；对与课题相关的理论或实际问题有较深刻的认识，有新的见解，有一定的创新。 &  \\
+    \hline
+    
+    \multicolumn{3}{|c|}{\textbf{评阅教师评阅}} \\
+    \hline
+    选 题 质 量 & 选题符合专业培养目标要求；与科学研究、生产实际或社会实践问题紧密结合；工作量饱满，难度适中，综合训练强。 &  \\
+    \hline
+    资料收集\newline 与分析 & 具有一定的查阅、整理、分析中外文文献的能力；能较好理解课题任务并提出实施方案；查阅文献有一定广泛性，资料收集充分。 &  \\
+    \hline
+    研究水平\newline 与能力 & 能熟练掌握和运用所学专业基本理论、基本知识和基本技能分析解决相关理论和实际问题；论点鲜明，论据充分；实验设计合理，数据准确可靠，理论分析与计算正确；具有从事科学研究工作或专门技术工作的初步能力。 &  \\
+    \hline
+    论文撰写\newline 质\qquad 量 & 论文结构严谨，逻辑性强，层次清晰，技术用语准确；行文流畅，语句通顺；论文格式符合规范要求。 &  \\
+    \hline
+    学术水平\newline 与创新 & 具有一定的学术水平或实践应用价值；对与课题相关的理论或实际问题有较深刻的认识，有新的见解，有一定的创新。 &  \\
+    \hline
+    
+    \multicolumn{3}{|c|}{\textbf{答辩小组评阅}} \\
+    \hline
+    选 题 质 量 & 选题符合专业培养目标要求；与科学研究、生产实际或社会实践问题紧密结合；工作量饱满，难度适中，综合训练强。 &  \\
+    \hline
+    研究水平\newline 与能力 & 能熟练掌握和运用所学专业基本理论、基本知识和基本技能分析解决相关理论和实际问题；论点鲜明，论据充分；实验设计合理，数据准确可靠，理论分析与计算正确；具有从事科学研究工作或专门技术工作的初步能力。 &  \\
+    \hline
+    论文撰写\newline 质\qquad 量 & 论文结构严谨，逻辑性强，层次清晰，技术用语准确；行文流畅，语句通顺；论文格式符合规范要求。 &  \\
+    \hline
+    学术水平\newline 与创新 & 具有一定的学术水平或实践应用价值；对与课题相关的理论或实际问题有较深刻的认识，有新的见解，有一定的创新。 &  \\
+    \hline
+    答\qquad 辩 & 能简明扼要阐述论文主要内容，思路清晰，语言表达准确、顺畅；回答问题有理论根据，基本概念清楚，逻辑性强，对主要问题回答准确、有深度。 &  \\
+    \hline
+\end{tabularx}
+\par}
+
+
+\end{document}
