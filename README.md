@@ -36,6 +36,17 @@ Use the experiment report template:
 .\Build-Paper.ps1 -Input '实验一 GPIO输出控制实验.md' -TemplateName experiment
 ```
 
+Optional cover and last-page PDFs:
+
+```powershell
+.\Build-Paper.ps1 -Input 'exp1.md' -TemplateName experiment `
+    -CoverPdf '.\cover.pdf' -LastPagePdf '.\last-page.pdf'
+
+# Or use page 1 as cover and last page as last page from the same file:
+.\Build-Paper.ps1 -Input 'exp1.md' -TemplateName experiment `
+    -CoverLastPdf '.\cover-and-last.pdf'
+```
+
 Use the thesis template:
 
 ```powershell
@@ -350,6 +361,8 @@ The experiment report template (`-TemplateName experiment`) is designed for cour
 - **No cover page, no table of contents**: Body content starts directly, no cover or TOC pages.
 - **All headings in Songti (宋体)**: Level-1 headings (`#`) are centered, size 4 Songti; level-2/3 headings (`##`, `###`) are left-aligned, size small-4 Songti.
 - **Body format**: Songti small-4, 1.5× line spacing, 2-em first-line indent.
+- **Footer**: "人工智能教研室制" centered, page number on the right.
+- **External PDF cover/last-page**: Supports `-CoverPdf`, `-LastPagePdf`, and `-CoverLastPdf` (page 1 as cover, last page as last page from the same file). Uses LaTeX's pdfpages package — no extra tools required.
 
 Suitable for quickly formatting lab reports for courses.
 

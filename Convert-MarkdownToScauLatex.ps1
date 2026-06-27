@@ -12,7 +12,13 @@ param(
 
     [string]$BuildDirectory = ".\build",
 
-    [switch]$AllowSystemPandoc
+    [switch]$AllowSystemPandoc,
+
+    [string]$CoverPdf = "",
+
+    [string]$LastPagePdf = "",
+
+    [string]$CoverLastPdf = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -470,6 +476,40 @@ else {
     $teacherLine = "        \makebox[4em][s]{任课教师}： & \underline{\makebox[9.5cm]{$teacherEscaped}} \\"
     $templateText = Replace-Placeholder $templateText "TEACHER_LINE" $teacherLine
 }
+
+# Handle %%__COVER_PDF__ / %%__LAST_PAGE_PDF__ placeholders
+# Priority: CoverLastPdf overrides CoverPdf + LastPagePdf
+$coverLatex = ""
+$lastPageLatex = ""
+
+if ($CoverLastPdf) {
+    $coverLastAbs = Resolve-ProjectPath $CoverLastPdf
+    if (-not (Test-Path -LiteralPath $coverLastAbs -PathType Leaf)) {
+        throw "CoverLastPdf not found: $coverLastAbs"
+    }
+    # pages={1,last} — first page as cover, last page as last page
+    $coverLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf[pages={1}]{$coverLastAbs}"
+    $lastPageLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf[pages={last}]{$coverLastAbs}"
+}
+else {
+    if ($CoverPdf) {
+        $coverAbs = Resolve-ProjectPath $CoverPdf
+        if (-not (Test-Path -LiteralPath $coverAbs -PathType Leaf)) {
+            throw "CoverPdf not found: $coverAbs"
+        }
+        $coverLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf{{$coverAbs}}"
+    }
+    if ($LastPagePdf) {
+        $lastAbs = Resolve-ProjectPath $LastPagePdf
+        if (-not (Test-Path -LiteralPath $lastAbs -PathType Leaf)) {
+            throw "LastPagePdf not found: $lastAbs"
+        }
+        $lastPageLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf{{$lastAbs}}"
+    }
+}
+
+$templateText = Replace-Placeholder $templateText "COVER_PDF" $coverLatex
+$templateText = Replace-Placeholder $templateText "LAST_PAGE_PDF" $lastPageLatex
 
 $unresolved = [regex]::Matches($templateText, "%%__[A-Z0-9_]+__") | ForEach-Object { $_.Value } | Sort-Object -Unique
 if ($unresolved.Count -gt 0) {

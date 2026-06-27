@@ -36,6 +36,17 @@
 .\Build-Paper.ps1 -Input '实验一 GPIO输出控制实验.md' -TemplateName experiment
 ```
 
+指定封面和尾页 PDF（可选）：
+
+```powershell
+.\Build-Paper.ps1 -Input '实验一 GPIO输出控制实验.md' -TemplateName experiment `
+    -CoverPdf '.\封面.pdf' -LastPagePdf '.\尾页.pdf'
+
+# 或者使用同一个文件的第1页做封面、最后1页做尾页：
+.\Build-Paper.ps1 -Input '实验一 GPIO输出控制实验.md' -TemplateName experiment `
+    -CoverLastPdf '.\封面加尾页.pdf'
+```
+
 使用毕业论文模板：
 
 ```powershell
@@ -358,6 +369,8 @@ eig(A)
 - **无封面、无目录**：正文直接开始，不需要封面页和目录页。
 - **标题全部使用宋体**：一级标题（`#`）四号宋体居中，二、三级标题（`##`、`###`）小四宋体左顶格。
 - **正文格式**：宋体小四，1.5 倍行距，首行缩进两字距。
+- **页脚**：居中显示"人工智能教研室制"，右侧显示页码。
+- **外部 PDF 封面/尾页**：支持 `-CoverPdf`（封面 PDF）、`-LastPagePdf`（尾页 PDF）、`-CoverLastPdf`（同一文件第1页做封面、最后1页做尾页）。基于 LaTeX 的 pdfpages 宏包，无需额外安装工具。
 
 适合用于实验课程报告的快速排版。
 

@@ -22,7 +22,7 @@ param(
 
     [string]$LastPagePdf = "",
 
-    [string]$PythonPath = "python"
+    [string]$CoverLastPdf = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -172,6 +172,15 @@ if (-not [string]::IsNullOrWhiteSpace($Template)) {
 if ($AllowSystemPandoc) {
     $convertParams.AllowSystemPandoc = $true
 }
+if ($CoverPdf) {
+    $convertParams.CoverPdf = (Resolve-ProjectPath $CoverPdf)
+}
+if ($LastPagePdf) {
+    $convertParams.LastPagePdf = (Resolve-ProjectPath $LastPagePdf)
+}
+if ($CoverLastPdf) {
+    $convertParams.CoverLastPdf = (Resolve-ProjectPath $CoverLastPdf)
+}
 
 $convertCode = Invoke-LoggedScript -FilePath $convertScript -Parameters $convertParams -StepName "Convert"
 if ($convertCode -ne 0) {
@@ -223,52 +232,4 @@ if ($code -ne 0) {
 $pdfPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtension($outputPath) + ".pdf")
 Write-Log "Generated PDF: $pdfPath"
 Copy-LatexLog $buildDir $outputPath $logDir $stamp
-
-# Merge external cover / last-page PDFs if specified
-if ($CoverPdf -or $LastPagePdf) {
-    $mergeScript = Join-Path $PSScriptRoot "tools\merge_pdfs.py"
-    $mergedPath = $pdfPath
-    $bodyPdf = $pdfPath
-    $tempBody = Join-Path $buildDir "_body_temp.pdf"
-
-    Rename-Item -LiteralPath $bodyPdf -NewName "_body_temp.pdf"
-    $mergeArgs = @(
-        $mergeScript,
-        $mergedPath,
-        $tempBody
-    )
-    if ($CoverPdf) {
-        $mergeArgs += "--cover"
-        $mergeArgs += (Resolve-ProjectPath $CoverPdf)
-    }
-    if ($LastPagePdf) {
-        $mergeArgs += "--last"
-        $mergeArgs += (Resolve-ProjectPath $LastPagePdf)
-    }
-
-    $pyCmd = Get-Command $PythonPath -ErrorAction SilentlyContinue
-    if (-not $pyCmd) {
-        # Try python3 then python
-        $pyCmd = Get-Command python3 -ErrorAction SilentlyContinue
-        if (-not $pyCmd) {
-            $pyCmd = Get-Command python -ErrorAction SilentlyContinue
-        }
-    }
-    if (-not $pyCmd) {
-        Write-Log "Python not found. Skipping PDF merge; body PDF kept as-is at $pdfPath" "WARN"
-        Rename-Item -LiteralPath $tempBody -NewName ([System.IO.Path]::GetFileName($bodyPdf))
-    }
-    else {
-        $mergeCode = Invoke-LoggedCommand -FilePath $pyCmd.Source -Arguments $mergeArgs -StepName "MergePDF"
-        if ($mergeCode -ne 0) {
-            Write-Log "PDF merge failed. Body PDF kept at $tempBody" "WARN"
-            Rename-Item -LiteralPath $tempBody -NewName ([System.IO.Path]::GetFileName($bodyPdf))
-        }
-        else {
-            Remove-Item -LiteralPath $tempBody -Force
-            Write-Log "Merged PDF: $pdfPath"
-        }
-    }
-}
-
 Write-Log "Build complete."
