@@ -1,5 +1,7 @@
 # Build outputs
 build/
+**/.nodepaper/
+**/dist/
 
 # Logs
 logs/
