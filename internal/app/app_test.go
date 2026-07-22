@@ -48,6 +48,13 @@ func TestRequestsExposeProjectDir(t *testing.T) {
 	}
 }
 
+func TestCleanRequestSupportsAll(t *testing.T) {
+	request := CleanRequest{ProjectDir: `D:\papers\cumcm-a`, All: true}
+	if !request.All {
+		t.Fatal("CleanRequest.All = false, want true")
+	}
+}
+
 func TestResultJSONFieldNames(t *testing.T) {
 	tests := []struct {
 		name   string

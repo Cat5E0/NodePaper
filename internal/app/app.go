@@ -42,6 +42,7 @@ type BuildRequest struct {
 
 type CleanRequest struct {
 	ProjectDir string
+	All        bool
 }
 
 type InitResult struct {
