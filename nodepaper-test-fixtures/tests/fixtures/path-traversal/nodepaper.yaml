@@ -1,0 +1,5 @@
+version: 1
+profile: cumcm
+source: paper.md
+output:
+  file: ../outside.pdf

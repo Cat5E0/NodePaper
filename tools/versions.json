@@ -1,0 +1,13 @@
+{
+  "platform": "windows-x64",
+  "pandoc": {
+    "version": "3.9",
+    "url": "https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-windows-x86_64.zip",
+    "target": "tools/windows-x64/pandoc/pandoc.exe"
+  },
+  "pandoc_crossref": {
+    "version": "0.3.24",
+    "url": "https://github.com/lierdakil/pandoc-crossref/releases/download/v0.3.24/pandoc-crossref-Windows-X64.7z",
+    "target": "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe"
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 2,
+  "notes": [
+    "Each fixture is copied to an isolated temporary directory before execution.",
+    "expectedDiagnosticCodes is an exact contract for deterministic validate and lock cases.",
+    "Table-caption and equation-label syntax still requires final Pandoc/pandoc-crossref E2E confirmation."
+  ],
+  "fixtures": [
+    {
+      "path": "minimal-valid",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "fast smoke validation and minimum real E2E input"
+    },
+    {
+      "path": "powershell-baseline-valid",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "M2 PowerShell transition build-chain E2E; not a formal CUMCM Profile"
+    },
+    {
+      "path": "complete-single-file",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "full single-file E2E"
+    },
+    {
+      "path": "complete-multi-file",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "full multi-file and cross-file references"
+    },
+    {
+      "path": "invalid-yaml",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP1501"],
+      "phase": "config"
+    },
+    {
+      "path": "missing-frontmatter",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP2101"],
+      "phase": "validate"
+    },
+    {
+      "path": "missing-abstract",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP2201"],
+      "phase": "validate"
+    },
+    {
+      "path": "missing-image",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP2302"],
+      "phase": "validate"
+    },
+    {
+      "path": "missing-bib",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP2301"],
+      "phase": "validate"
+    },
+    {
+      "path": "missing-citation-key",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP3101"],
+      "phase": "validate"
+    },
+    {
+      "path": "duplicate-crossref",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP3201"],
+      "phase": "validate"
+    },
+    {
+      "path": "unknown-crossref",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP3202"],
+      "phase": "validate"
+    },
+    {
+      "path": "source-and-sources",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP1502"],
+      "phase": "config"
+    },
+    {
+      "path": "duplicated-source",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP2001"],
+      "phase": "validate"
+    },
+    {
+      "path": "raw-latex-warning",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": ["NP2401"],
+      "phase": "validate"
+    },
+    {
+      "path": "中文路径测试",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "Chinese project and image paths"
+    },
+    {
+      "path": "path with spaces",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "paths containing spaces"
+    },
+    {
+      "path": "path-traversal",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP1503"],
+      "phase": "security"
+    },
+    {
+      "path": "damaged-lock",
+      "command": "build",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP1299"],
+      "phase": "lock"
+    },
+    {
+      "path": "stale-lock",
+      "command": "build",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": ["NP1202"],
+      "phase": "lock"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# Test run output
+**/.nodepaper/
+**/dist/
+tests/tmp/
+tests/results/
+generated-images/
+
+# LaTeX temporary files
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Built executable and coverage
+nodepaper.exe
+coverage.out

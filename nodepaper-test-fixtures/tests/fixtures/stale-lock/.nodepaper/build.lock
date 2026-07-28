@@ -1,0 +1,6 @@
+{
+  "buildId": "stale-build-001",
+  "pid": 999999,
+  "startedAt": "2020-01-01T00:00:00+08:00",
+  "projectRoot": "<replace-at-runtime>"
+}

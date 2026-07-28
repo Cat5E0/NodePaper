@@ -1,0 +1,14 @@
+version: 1
+profile: cumcm
+
+sources:
+  - sections/01-frontmatter-abstract.md
+  - sections/02-problem.md
+  - sections/03-assumptions-symbols.md
+  - sections/04-data.md
+  - sections/05-model.md
+  - sections/06-solution-results.md
+  - sections/07-evaluation-appendix.md
+
+output:
+  file: dist/paper.pdf
