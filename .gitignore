@@ -1,7 +1,13 @@
 # Build outputs
-build/
+/build/
 **/.nodepaper/
 **/dist/
+
+# Lock-state Fixture inputs are source test data, not generated artifacts.
+!nodepaper-test-fixtures/tests/fixtures/damaged-lock/.nodepaper/
+!nodepaper-test-fixtures/tests/fixtures/damaged-lock/.nodepaper/build.lock
+!nodepaper-test-fixtures/tests/fixtures/stale-lock/.nodepaper/
+!nodepaper-test-fixtures/tests/fixtures/stale-lock/.nodepaper/build.lock
 
 # Logs
 logs/
