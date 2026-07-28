@@ -53,9 +53,18 @@ type InitResult struct {
 }
 
 type DoctorResult struct {
-	Success     bool         `json:"success"`
-	ProjectRoot string       `json:"projectRoot"`
-	Diagnostics []Diagnostic `json:"diagnostics"`
+	Success     bool          `json:"success"`
+	ProjectRoot string        `json:"projectRoot"`
+	Diagnostics []Diagnostic  `json:"diagnostics"`
+	Checks      []DoctorCheck `json:"checks,omitempty"`
+}
+
+// DoctorCheck is a structured pass/warn/fail item from the doctor package.
+type DoctorCheck struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
+	Suggestion string `json:"suggestion,omitempty"`
 }
 
 type ValidateResult struct {
