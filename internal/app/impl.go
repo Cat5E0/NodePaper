@@ -215,16 +215,19 @@ func writeConfig(root string, cfg projectConfig) error {
 }
 
 func findProfileDir() string {
-	// Try profiles/ relative to the executable first.
+	if override := os.Getenv("NODEPAPER_PROFILE_DIR"); override != "" {
+		return override
+	}
+	// Try profiles/cumcm relative to the executable first.
 	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Join(filepath.Dir(exe), "profiles")
+		dir := filepath.Join(filepath.Dir(exe), "profiles", "cumcm")
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
 			return dir
 		}
 	}
 	// Fallback: look relative to the current working directory (dev mode).
 	if wd, err := os.Getwd(); err == nil {
-		dir := filepath.Join(wd, "profiles")
+		dir := filepath.Join(wd, "profiles", "cumcm")
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
 			return dir
 		}

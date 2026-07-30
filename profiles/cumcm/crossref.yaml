@@ -1,0 +1,22 @@
+# pandoc-crossref 0.3.24 metadata for NodePaper's Chinese source style.
+# Authors write “图 @fig:id”, “表 @tbl:id”, “式 @eq:id” and “节 @sec:id”,
+# so reference prefixes are intentionally empty to avoid duplicated words.
+cref: false
+linkReferences: true
+nameInLink: true
+figureTitle: 图
+tableTitle: 表
+titleDelim: " "
+figPrefix:
+  - ""
+  - ""
+tblPrefix:
+  - ""
+  - ""
+eqnPrefix:
+  - ""
+  - ""
+secPrefix:
+  - ""
+  - ""
+reference-section-title: 参考文献

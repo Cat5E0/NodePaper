@@ -88,15 +88,17 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 
 `tests/fixture-manifest.json` 的 `schemaVersion` 为 2。Config、Validate、路径和锁场景必须在临时副本上执行，并与 Manifest 中的退出码、success 和 Diagnostic Code 完全一致。
 
-## 需要在 M3 验证的语法
+## M3 已固定的构建语法
 
-以下写法依赖最终锁定的 Pandoc/pandoc-crossref 版本：
+以下写法已在 Pandoc 3.9、pandoc-crossref 0.3.24、Citeproc 和固定 GB/T 7714-2015 CSL 下通过单文件与多文件真实 E2E：
 
 - `$$ ... $$ {#eq:id}` 公式标签；
 - `: 表题 {#tbl:id}` 表格标签；
-- `::: {#refs}` 文献列表位置。
+- `::: {#refs}` 文献列表位置；
+- `[@key]` 与 `[@key1; @key2]` 文献引用；
+- 跨 Source 的 `@sec:`、`@fig:`、`@tbl:` 和 `@eq:` 引用。
 
-锁定版本后应先做最小实验，再将确认语法固化为 E2E 和 Golden。
+不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file` 和 `complete-multi-file`。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
 
 ## Active Lock 测试
 

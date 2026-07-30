@@ -3,6 +3,7 @@ package build
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"nodepaper/internal/config"
 	"nodepaper/internal/diagnostic"
 	"nodepaper/internal/process"
+	"nodepaper/internal/profile"
 	"nodepaper/internal/project"
 	"nodepaper/internal/validate"
 )
@@ -79,14 +81,18 @@ func (l *buildLogger) Close() error {
 // validates it, acquires the build lock, delegates conversion and compilation
 // to the v0.1 PowerShell transition script, and atomically publishes the PDF.
 func Run(ctx context.Context, projectDir string) Result {
-	return runWithExecutorAndScript(ctx, projectDir, processExecutor{}, defaultBuildScriptPath())
+	return runWithExecutorAndResources(ctx, projectDir, processExecutor{}, defaultBuildScriptPath(), defaultProfileDir())
 }
 
 func runWithExecutor(ctx context.Context, projectDir string, executor commandExecutor) Result {
-	return runWithExecutorAndScript(ctx, projectDir, executor, defaultBuildScriptPath())
+	return runWithExecutorAndResources(ctx, projectDir, executor, defaultBuildScriptPath(), defaultProfileDir())
 }
 
 func runWithExecutorAndScript(ctx context.Context, projectDir string, executor commandExecutor, scriptPath string) Result {
+	return runWithExecutorAndResources(ctx, projectDir, executor, scriptPath, defaultProfileDir())
+}
+
+func runWithExecutorAndResources(ctx context.Context, projectDir string, executor commandExecutor, scriptPath, profileDir string) Result {
 	var result Result
 
 	// 1. Discover project.
@@ -113,28 +119,28 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 		return result
 	}
 
-	// 3. Run validation.
+	// 3. Load and validate the immutable built-in Profile before acquiring a
+	// project lock or invoking any external tool.
+	loadedProfile, err := profile.Load(profileDir)
+	if err != nil {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP1601",
+			Message:    fmt.Sprintf("cannot load CUMCM Profile: %v", err),
+			Suggestion: "Reinstall NodePaper or restore the profiles/cumcm resources.",
+			Source:     "build",
+		})
+		return result
+	}
+
+	// 4. Run validation.
 	vr := validate.Run(ctx, projectDir)
 	if !vr.Success {
 		result.Diagnostics = vr.Diagnostics
 		return result
 	}
 
-	// The existing v0.1 PowerShell transition script accepts one Markdown
-	// source. Reject multiple sources instead of silently dropping content;
-	// M3 will extend the transition layer for ordered multi-file projects.
-	if len(cfg.SourceFiles()) != 1 {
-		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
-			Severity:   diagnostic.SeverityError,
-			Code:       "NP5002",
-			Message:    "the v0.1 PowerShell transition build supports exactly one Markdown source",
-			Suggestion: "Use a single source for the M2 baseline; multi-file build support is scheduled for M3.",
-			Source:     "build",
-		})
-		return result
-	}
-
-	// 4. Create the build context first so the project lock records the real,
+	// 5. Create the build context first so the project lock records the real,
 	// externally visible Build ID rather than a placeholder. Directory creation
 	// is limited to idempotent project-local MkdirAll calls.
 	bctx, err := buildctx.New(p.Root, cfg.SourceFiles(), cfg.Profile)
@@ -149,7 +155,7 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 	}
 	result.BuildID = bctx.BuildID
 
-	// 5. Acquire the project build lock with the real Build ID.
+	// 6. Acquire the project build lock with the real Build ID.
 	held, err := buildlock.Acquire(p.Root, bctx.BuildID)
 	if err != nil {
 		if he, ok := err.(*buildlock.ErrHeld); ok {
@@ -202,7 +208,7 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 		_ = logger.Close()
 	}()
 
-	// 6. Prepare dist/ directory.
+	// 7. Prepare dist/ directory.
 	if err := os.MkdirAll(bctx.OutputDir, 0755); err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityError,
@@ -213,11 +219,12 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 		return result
 	}
 
-	// 7. Remove previous intermediates so a skipped or incomplete transition
+	// 8. Remove previous intermediates so a skipped or incomplete transition
 	// build cannot be mistaken for a newly generated artifact.
 	texPath := bctx.ResolveInWork("paper.tex")
 	tmpPDF := bctx.ResolveInWork("paper.pdf")
-	for _, path := range []string{texPath, tmpPDF} {
+	sourceManifestPath := bctx.ResolveInWork("sources.json")
+	for _, path := range []string{texPath, tmpPDF, sourceManifestPath} {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 				Severity: diagnostic.SeverityError,
@@ -229,14 +236,44 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 		}
 	}
 
-	// 8. Delegate Markdown conversion and LaTeX compilation to the existing
-	// PowerShell transition layer. Go retains orchestration and publication.
-	if diags := runPowerShellBuild(ctx, executor, logger, bctx, cfg, scriptPath, texPath); len(diags) > 0 {
+	// The source manifest preserves configured order without relying on shell
+	// string joining. It is project-local, written only while the lock is held,
+	// and consumed by the PowerShell transition layer as UTF-8 JSON.
+	absoluteSources := make([]string, 0, len(cfg.SourceFiles()))
+	for _, source := range cfg.SourceFiles() {
+		absoluteSources = append(absoluteSources, filepath.Join(bctx.ProjectRoot, source))
+	}
+	manifestData, err := json.MarshalIndent(struct {
+		Sources []string `json:"sources"`
+	}{Sources: absoluteSources}, "", "  ")
+	if err != nil {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1306",
+			Message:  fmt.Sprintf("cannot encode source manifest: %v", err),
+			Source:   "build",
+		})
+		return result
+	}
+	if err := os.WriteFile(sourceManifestPath, append(manifestData, '\n'), 0o644); err != nil {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1306",
+			Message:  fmt.Sprintf("cannot write source manifest: %v", err),
+			Source:   "build",
+		})
+		return result
+	}
+
+	// 9. Delegate ordered Markdown conversion, Citeproc/CSL processing and
+	// LaTeX compilation to the PowerShell transition layer. Go retains
+	// orchestration, locking, validation and publication.
+	if diags := runPowerShellBuild(ctx, executor, logger, bctx, scriptPath, loadedProfile.Dir, sourceManifestPath, texPath); len(diags) > 0 {
 		result.Diagnostics = append(result.Diagnostics, diags...)
 		return result
 	}
 
-	// 9. The legacy script may exit successfully when LaTeX is unavailable,
+	// 10. The transition script must generate a PDF; existence is an explicit
 	// so PDF existence is an explicit Go-side postcondition.
 	if _, err := os.Stat(tmpPDF); err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
@@ -249,7 +286,7 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 		return result
 	}
 
-	// 10. Validate the temporary PDF before publishing it.
+	// 11. Validate the temporary PDF before publishing it.
 	if err := validateGeneratedPDF(tmpPDF); err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 			Severity:   diagnostic.SeverityError,
@@ -261,7 +298,7 @@ func runWithExecutorAndScript(ctx context.Context, projectDir string, executor c
 		return result
 	}
 
-	// 11. Atomic publish to the configured project-relative output path.
+	// 12. Atomic publish to the configured project-relative output path.
 	outputFile := cfg.Output.File
 	if outputFile == "" {
 		outputFile = filepath.Join("dist", "paper.pdf")
@@ -308,16 +345,27 @@ func defaultBuildScriptPath() string {
 	return filepath.Join(filepath.Dir(executable), "Build-Paper.ps1")
 }
 
-func runPowerShellBuild(ctx context.Context, executor commandExecutor, logger *buildLogger, bctx *buildctx.Context, cfg config.ProjectConfig, scriptPath, texPath string) []diagnostic.Diagnostic {
-	sourcePath := filepath.Join(bctx.ProjectRoot, cfg.SourceFiles()[0])
+func defaultProfileDir() string {
+	if override := os.Getenv("NODEPAPER_PROFILE_DIR"); override != "" {
+		return override
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return filepath.Join("profiles", "cumcm")
+	}
+	return filepath.Join(filepath.Dir(executable), "profiles", "cumcm")
+}
+
+func runPowerShellBuild(ctx context.Context, executor commandExecutor, logger *buildLogger, bctx *buildctx.Context, scriptPath, profileDir, sourceManifestPath, texPath string) []diagnostic.Diagnostic {
 	powerShellLogDir := filepath.Join(filepath.Dir(bctx.LogPath), bctx.BuildID+"-powershell")
 	args := []string{
 		"-NoProfile",
 		"-ExecutionPolicy", "Bypass",
 		"-File", scriptPath,
-		"-MarkdownPath", sourcePath,
+		"-SourceManifest", sourceManifestPath,
+		"-ProjectRoot", bctx.ProjectRoot,
+		"-ProfileDirectory", profileDir,
 		"-Output", texPath,
-		"-TemplateName", "assignment",
 		"-BuildDirectory", bctx.WorkDir,
 		"-LogDirectory", powerShellLogDir,
 	}
@@ -364,12 +412,36 @@ func validateGeneratedPDF(path string) error {
 	}
 	defer file.Close()
 
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("stat PDF: %w", err)
+	}
+	const maxElectronicPaperSize = 20 * 1024 * 1024
+	if info.Size() == 0 {
+		return fmt.Errorf("PDF is empty")
+	}
+	if info.Size() > maxElectronicPaperSize {
+		return fmt.Errorf("PDF size %d exceeds the 20 MB CUMCM electronic-paper limit", info.Size())
+	}
+
 	header := make([]byte, 5)
 	if _, err := file.Read(header); err != nil {
 		return fmt.Errorf("read PDF header: %w", err)
 	}
 	if string(header) != "%PDF-" {
 		return fmt.Errorf("missing %%PDF- header")
+	}
+
+	tailSize := int64(1024)
+	if info.Size() < tailSize {
+		tailSize = info.Size()
+	}
+	tail := make([]byte, tailSize)
+	if _, err := file.ReadAt(tail, info.Size()-tailSize); err != nil {
+		return fmt.Errorf("read PDF trailer: %w", err)
+	}
+	if !strings.Contains(string(tail), "%%EOF") {
+		return fmt.Errorf("missing PDF EOF marker")
 	}
 	return nil
 }

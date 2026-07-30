@@ -1,0 +1,110 @@
+% NodePaper CUMCM electronic-paper candidate profile.
+% Original implementation based on the official 2026 formatting facts listed
+% in SOURCES.md. It is not an official or competition-certified template.
+\documentclass[UTF8,zihao=-4,a4paper]{ctexart}
+
+\usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{longtable,booktabs,array,multirow}
+\usepackage{calc}
+\usepackage{float}
+\usepackage{fancyvrb}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{xurl}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\hypersetup{hidelinks,pdfcreator={NodePaper 0.1 CUMCM candidate profile}}
+\urlstyle{same}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\linespread{1.25}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{0}
+\newcounter{none}
+\pagestyle{plain}
+
+\crefname{figure}{图}{图}
+\crefname{table}{表}{表}
+\crefname{equation}{式}{式}
+\crefname{section}{节}{节}
+
+\makeatletter
+\def\fps@figure{htbp}
+\newcommand{\maxwidth}{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\newcommand{\maxheight}{\ifdim\Gin@nat@height>0.8\textheight 0.8\textheight\else\Gin@nat@height\fi}
+\makeatother
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\pandocbounded}[1]{%
+  \begingroup
+  \setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}%
+  #1%
+  \endgroup}
+
+% Interface required by Pandoc 3.9 Citeproc LaTeX output.
+\NewDocumentCommand\citeproctext{}{}
+\NewDocumentCommand\citeproc{mm}{%
+  \begingroup\def\citeproctext{#2}\cite{#1}\endgroup}
+\makeatletter
+\let\@cite@ofmt\@firstofone
+\def\@biblabel#1{}
+\def\@cite#1#2{{#1\if@tempswa, #2\fi}}
+\makeatother
+\newlength{\cslhangindent}
+\setlength{\cslhangindent}{1.5em}
+\newlength{\csllabelwidth}
+\setlength{\csllabelwidth}{3em}
+\newenvironment{CSLReferences}[2]
+ {\begin{list}{}{%
+   \setlength{\itemindent}{0pt}%
+   \setlength{\leftmargin}{0pt}%
+   \setlength{\parsep}{0pt}%
+   \ifodd #1
+     \setlength{\leftmargin}{\cslhangindent}%
+     \setlength{\itemindent}{-1\cslhangindent}%
+   \fi
+   \setlength{\itemsep}{#2\baselineskip}}}
+ {\end{list}}
+\newcommand{\CSLBlock}[1]{\hfill\break\parbox[t]{\linewidth}{\strut\ignorespaces#1\strut}}
+\newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{\strut#1\strut}}
+\newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth-\csllabelwidth}{\strut#1\strut}}
+\newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
+
+$if(header-includes)$
+$for(header-includes)$
+$header-includes$
+$endfor$
+$endif$
+
+\begin{document}
+\setcounter{page}{1}
+\thispagestyle{plain}
+
+$if(title)$
+\begin{center}
+  {\heiti\zihao{3} $title$\par}
+\end{center}
+\vspace{0.8em}
+$endif$
+
+$if(abstract)$
+\begin{center}
+  {\heiti\zihao{3} 摘要\par}
+\end{center}
+\vspace{0.5em}
+$abstract$
+$endif$
+
+$if(keywords)$
+\vspace{0.8em}
+\noindent{\heiti 关键词：}$for(keywords)$$keywords$$sep$；$endfor$
+$endif$
+
+\newpage
+$body$
+
+\end{document}

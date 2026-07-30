@@ -1,7 +1,12 @@
 param(
-    [Parameter(Mandatory = $true)]
     [Alias("Input")]
-    [string]$MarkdownPath,
+    [string]$MarkdownPath = "",
+
+    [string]$SourceManifest = "",
+
+    [string]$ProjectRoot = "",
+
+    [string]$ProfileDirectory = "",
 
     [string]$Output = ".\build\Paper.tex",
 
@@ -62,6 +67,54 @@ function Copy-LatexLog {
         $copyPath = Join-Path $LogDir ("latex-$Stamp.log")
         Copy-Item -LiteralPath $latexLog -Destination $copyPath -Force
         Write-Log "Copied LaTeX log: $copyPath"
+    }
+}
+
+function Assert-LatexWarningsAllowed {
+    param(
+        [string]$BuildDir,
+        [string]$OutputPath,
+        [string]$ProfileDir
+    )
+
+    $latexLog = Join-Path $BuildDir ([System.IO.Path]::GetFileNameWithoutExtension($OutputPath) + ".log")
+    if (-not (Test-Path -LiteralPath $latexLog -PathType Leaf)) {
+        throw "LaTeX log not found for warning validation: $latexLog"
+    }
+
+    $profileConfigPath = Join-Path $ProfileDir "profile.json"
+    $profileConfig = Get-Content -LiteralPath $profileConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $allowlistPath = Join-Path $ProfileDir ([string]$profileConfig.warningAllowlist)
+    $allowlist = Get-Content -LiteralPath $allowlistPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($allowlist.schemaVersion -ne 1) {
+        throw "Unsupported Warning allowlist: $allowlistPath"
+    }
+
+    $warningPatterns = @(
+        "LaTeX Warning:",
+        "Package .+ Warning:",
+        "LaTeX Font Warning:",
+        "Overfull \\hbox",
+        "Overfull \\vbox",
+        "Citation .+ undefined",
+        "There were undefined references"
+    )
+    $candidateLines = Get-Content -LiteralPath $latexLog -Encoding UTF8 | Where-Object {
+        $line = $_
+        ($warningPatterns | Where-Object { $line -match $_ }).Count -gt 0
+    }
+
+    foreach ($line in $candidateLines) {
+        $allowed = $false
+        foreach ($entry in @($allowlist.entries)) {
+            if ($entry.pattern -and $line -match [string]$entry.pattern) {
+                $allowed = $true
+                break
+            }
+        }
+        if (-not $allowed) {
+            throw "Unknown critical LaTeX warning: $line"
+        }
     }
 }
 
@@ -148,38 +201,67 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $script:RunLogPath = Join-Path $logDir ("build-$stamp.log")
+$inputDescription = $MarkdownPath
+if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
+    $inputDescription = "SourceManifest=$(Resolve-ProjectPath $SourceManifest); ProjectRoot=$(Resolve-ProjectPath $ProjectRoot)"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($MarkdownPath)) {
+    $inputDescription = Resolve-ProjectPath $MarkdownPath
+}
 Set-Content -LiteralPath $script:RunLogPath -Value @(
     "NodePaper build log",
     "Started: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
-    "Input: $(Resolve-ProjectPath $MarkdownPath)",
+    "Input: $inputDescription",
     "Output: $outputPath",
     "TemplateName: $TemplateName",
     "Template: $Template",
+    "ProfileDirectory: $ProfileDirectory",
     "BuildDirectory: $buildDir"
 ) -Encoding UTF8
 Write-Log "Build log: $script:RunLogPath"
 
-$convertScript = Join-Path $PSScriptRoot "Convert-MarkdownToScauLatex.ps1"
-$convertParams = @{
-    MarkdownPath = (Resolve-ProjectPath $MarkdownPath)
-    Output = $outputPath
-    TemplateName = $TemplateName
-    BuildDirectory = $buildDir
+if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
+    if ([string]::IsNullOrWhiteSpace($ProjectRoot) -or [string]::IsNullOrWhiteSpace($ProfileDirectory)) {
+        throw "ProjectRoot and ProfileDirectory are required with SourceManifest."
+    }
+    $convertScript = Join-Path $PSScriptRoot "Convert-CumcmProjectToLatex.ps1"
+    $convertParams = @{
+        SourceManifest = (Resolve-ProjectPath $SourceManifest)
+        ProjectRoot = (Resolve-ProjectPath $ProjectRoot)
+        ProfileDirectory = (Resolve-ProjectPath $ProfileDirectory)
+        Output = $outputPath
+        BuildDirectory = $buildDir
+    }
+    if ($AllowSystemPandoc) {
+        $convertParams.AllowSystemPandoc = $true
+    }
 }
-if (-not [string]::IsNullOrWhiteSpace($Template)) {
-    $convertParams.Template = (Resolve-ProjectPath $Template)
-}
-if ($AllowSystemPandoc) {
-    $convertParams.AllowSystemPandoc = $true
-}
-if ($CoverPdf) {
-    $convertParams.CoverPdf = (Resolve-ProjectPath $CoverPdf)
-}
-if ($LastPagePdf) {
-    $convertParams.LastPagePdf = (Resolve-ProjectPath $LastPagePdf)
-}
-if ($CoverLastPdf) {
-    $convertParams.CoverLastPdf = (Resolve-ProjectPath $CoverLastPdf)
+else {
+    if ([string]::IsNullOrWhiteSpace($MarkdownPath)) {
+        throw "MarkdownPath is required for the legacy conversion mode."
+    }
+    $convertScript = Join-Path $PSScriptRoot "Convert-MarkdownToScauLatex.ps1"
+    $convertParams = @{
+        MarkdownPath = (Resolve-ProjectPath $MarkdownPath)
+        Output = $outputPath
+        TemplateName = $TemplateName
+        BuildDirectory = $buildDir
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Template)) {
+        $convertParams.Template = (Resolve-ProjectPath $Template)
+    }
+    if ($AllowSystemPandoc) {
+        $convertParams.AllowSystemPandoc = $true
+    }
+    if ($CoverPdf) {
+        $convertParams.CoverPdf = (Resolve-ProjectPath $CoverPdf)
+    }
+    if ($LastPagePdf) {
+        $convertParams.LastPagePdf = (Resolve-ProjectPath $LastPagePdf)
+    }
+    if ($CoverLastPdf) {
+        $convertParams.CoverLastPdf = (Resolve-ProjectPath $CoverLastPdf)
+    }
 }
 
 $convertCode = Invoke-LoggedScript -FilePath $convertScript -Parameters $convertParams -StepName "Convert"
@@ -227,6 +309,17 @@ if ($code -ne 0) {
     }
     Copy-LatexLog $buildDir $outputPath $logDir $stamp
     throw "LaTeX build failed with exit code $code. See $logPath"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ProfileDirectory)) {
+    try {
+        Assert-LatexWarningsAllowed -BuildDir $buildDir -OutputPath $outputPath -ProfileDir (Resolve-ProjectPath $ProfileDirectory)
+        Write-Log "LaTeX warning validation passed."
+    }
+    catch {
+        Copy-LatexLog $buildDir $outputPath $logDir $stamp
+        throw
+    }
 }
 
 $pdfPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtension($outputPath) + ".pdf")

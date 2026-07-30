@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "cumcm",
+  "version": "0.1.0-candidate.1",
+  "rulesVersion": "2026",
+  "outputMode": "electronic-paper",
+  "template": "template.tex",
+  "crossrefMetadata": "crossref.yaml",
+  "abstractFilter": "filters/extract-abstract.lua",
+  "csl": "csl/china-national-standard-gb-t-7714-2015-numeric.csl",
+  "warningAllowlist": "warning-allowlist.json",
+  "pandocVersion": "3.9",
+  "pandocCrossrefVersion": "0.3.24"
+}

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/process"
+	"nodepaper/internal/profile"
 )
 
 // Status summarises a single tool or resource check.
@@ -62,6 +64,7 @@ func Run(ctx context.Context, projectRoot string, builtinProfileDir string) Resu
 		checkLatexmk(tc.Latexmk),
 		checkXeLaTeX(tc.XeLaTeX),
 	)
+	checks = append(checks, checkChineseProbe(ctx, tc))
 
 	if projectRoot != "" {
 		checks = append(checks, checkProjectResources(projectRoot, builtinProfileDir)...)
@@ -178,6 +181,71 @@ func checkXeLaTeX(path string) Check {
 	}
 }
 
+func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
+	if tc.Latexmk == "" || tc.XeLaTeX == "" {
+		return Check{
+			Name:       "Chinese TeX probe",
+			Status:     StatusSkipped,
+			Message:    "latexmk or XeLaTeX prerequisite is missing",
+			Suggestion: "Install the missing TeX tools, then run doctor again.",
+		}
+	}
+
+	dir, err := os.MkdirTemp("", "nodepaper-doctor-probe-*")
+	if err != nil {
+		return Check{Name: "Chinese TeX probe", Status: StatusFail, Message: fmt.Sprintf("cannot create probe directory: %v", err)}
+	}
+	defer os.RemoveAll(dir)
+
+	const document = `\documentclass[UTF8]{ctexart}
+\begin{document}
+NodePaper 中文环境探针
+\end{document}
+`
+	texPath := filepath.Join(dir, "probe.tex")
+	if err := os.WriteFile(texPath, []byte(document), 0o644); err != nil {
+		return Check{Name: "Chinese TeX probe", Status: StatusFail, Message: fmt.Sprintf("cannot write probe: %v", err)}
+	}
+
+	runner := &process.Runner{Dir: dir, CaptureSize: 256 * 1024}
+	processResult, runErr := runner.Run(ctx, tc.Latexmk,
+		"-xelatex",
+		"-interaction=nonstopmode",
+		"-halt-on-error",
+		"-file-line-error",
+		"-outdir="+dir,
+		texPath,
+	)
+	if runErr != nil || processResult.ExitCode != 0 {
+		message := fmt.Sprintf("minimal Chinese document failed with exit code %d", processResult.ExitCode)
+		if runErr != nil {
+			message = fmt.Sprintf("minimal Chinese document failed: %v", runErr)
+		}
+		return Check{
+			Name:       "Chinese TeX probe",
+			Status:     StatusFail,
+			Message:    message,
+			Suggestion: "Inspect the TeX installation, ctex package and configured Chinese fonts.",
+		}
+	}
+
+	pdfPath := filepath.Join(dir, "probe.pdf")
+	data, err := os.ReadFile(pdfPath)
+	if err != nil || len(data) < 5 || string(data[:5]) != "%PDF-" {
+		return Check{
+			Name:       "Chinese TeX probe",
+			Status:     StatusFail,
+			Message:    "minimal Chinese compile did not produce a readable PDF",
+			Suggestion: "Inspect the TeX log and reinstall the ctex/XeLaTeX components.",
+		}
+	}
+	return Check{
+		Name:    "Chinese TeX probe",
+		Status:  StatusPass,
+		Message: "minimal ctex document compiled successfully",
+	}
+}
+
 func checkProjectResources(projectRoot, builtinProfileDir string) []Check {
 	var checks []Check
 
@@ -198,20 +266,21 @@ func checkProjectResources(projectRoot, builtinProfileDir string) []Check {
 		})
 	}
 
-	// Check built-in profile directory exists.
+	// Strictly load every declared resource in the immutable built-in Profile.
 	if builtinProfileDir != "" {
-		if info, err := os.Stat(builtinProfileDir); err != nil || !info.IsDir() {
+		loaded, err := profile.Load(builtinProfileDir)
+		if err != nil {
 			checks = append(checks, Check{
 				Name:       "profile",
-				Status:     StatusWarning,
-				Message:    fmt.Sprintf("Built-in profile directory not found: %s", builtinProfileDir),
-				Suggestion: "Profile resources are missing; builds may fail.",
+				Status:     StatusFail,
+				Message:    fmt.Sprintf("CUMCM Profile is invalid: %v", err),
+				Suggestion: "Reinstall NodePaper or restore profiles/cumcm.",
 			})
 		} else {
 			checks = append(checks, Check{
 				Name:    "profile",
 				Status:  StatusPass,
-				Message: builtinProfileDir,
+				Message: fmt.Sprintf("%s (rules %s, version %s)", loaded.Dir, loaded.Definition.RulesVersion, loaded.Definition.Version),
 			})
 		}
 	}

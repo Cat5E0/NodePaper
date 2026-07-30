@@ -1,7 +1,16 @@
 param(
-    [string]$Fixture = "powershell-baseline-valid",
+    [string]$Fixture = "",
     [switch]$KeepWorkDirectory
 )
+
+$ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($Fixture)) {
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file")) {
+        & $PSCommandPath -Fixture $case -KeepWorkDirectory:$KeepWorkDirectory
+    }
+    Write-Host "M3 E2E suite passed."
+    return
+}
 
 . (Join-Path $PSScriptRoot "test-common.ps1")
 $root = Get-NodePaperRepoRoot
@@ -32,6 +41,8 @@ try {
     New-Item -ItemType Directory -Force -Path $projectDir | Out-Null
     Copy-Item -Path (Join-Path $fixtureRoot "*") -Destination $projectDir -Recurse -Force
     $before = Get-FixtureSnapshot $fixtureRoot
+    $profileDir = Join-Path $root "profiles\cumcm"
+    $profileBefore = Get-FixtureSnapshot $profileDir
 
     $go = Get-NodePaperGo
     Push-Location $root
@@ -54,6 +65,7 @@ try {
     # M2 runs the source-tree transition script. M4 ZIP tests will instead
     # verify the default adjacent-to-executable packaged resource layout.
     $env:NODEPAPER_BUILD_SCRIPT = Join-Path $root "Build-Paper.ps1"
+    $env:NODEPAPER_PROFILE_DIR = $profileDir
 
     & $exePath doctor $projectDir --format json
     if ($LASTEXITCODE -ne 0) {
@@ -89,6 +101,12 @@ try {
     if ($transitionLogs.Count -lt 1 -or $transitionLogs[0].Length -eq 0) {
         throw "PowerShell transition log was not created"
     }
+    $transitionLogText = Get-Content -LiteralPath $transitionLogs[0].FullName -Raw -Encoding UTF8
+    if (-not $transitionLogText.Contains("Convert-CumcmProjectToLatex.ps1") -or
+        -not $transitionLogText.Contains("CUMCM rules version: 2026") -or
+        -not $transitionLogText.Contains("--citeproc")) {
+        throw "PowerShell log does not prove CUMCM Profile and Citeproc execution"
+    }
 
     # A second immediate build verifies repeatability and Build ID/log uniqueness.
     & $exePath build $projectDir --format json
@@ -107,6 +125,9 @@ try {
     $bytes = [System.IO.File]::ReadAllBytes($pdf)
     if ($bytes.Length -lt 5 -or [System.Text.Encoding]::ASCII.GetString($bytes, 0, 5) -ne "%PDF-") {
         throw "Generated artifact is not a valid PDF header: $pdf"
+    }
+    if ($bytes.Length -gt 20MB) {
+        throw "Generated electronic paper exceeds the 20 MB CUMCM limit: $($bytes.Length)"
     }
 
     $pdfInfo = Get-Command "pdfinfo.exe" -ErrorAction SilentlyContinue
@@ -129,6 +150,28 @@ try {
     if ([string]::IsNullOrWhiteSpace($pdfText) -or -not $pdfText.Contains($abstractHeading)) {
         throw "PDF text is empty or missing the abstract heading"
     }
+    $firstPagePath = Join-Path $workRoot "paper-first-page.txt"
+    & $pdfToText.Source -f 1 -l 1 -enc UTF-8 $pdf $firstPagePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "pdftotext failed to extract the first page"
+    }
+    $firstPageText = Get-Content -LiteralPath $firstPagePath -Raw -Encoding UTF8
+    $keywordsHeading = ([string][char]0x5173) + ([char]0x952E) + ([char]0x8BCD)
+    if (-not $firstPageText.Contains($abstractHeading) -or -not $firstPageText.Contains($keywordsHeading)) {
+        throw "The electronic paper first page is not the title/abstract/keywords page"
+    }
+    $contentsHeading = ([string][char]0x76EE) + ([char]0x5F55)
+    $commitmentHeading = ([string][char]0x627F) + ([char]0x8BFA) + ([char]0x4E66)
+    $numberingHeading = ([string][char]0x7F16) + ([char]0x53F7) + ([char]0x4E13) + ([char]0x7528) + ([char]0x9875)
+    foreach ($forbidden in @($contentsHeading, $commitmentHeading, $numberingHeading)) {
+        if ($pdfText.Contains($forbidden)) {
+            throw "Electronic paper contains a forbidden contents/commitment/numbering page marker"
+        }
+    }
+    $referencesHeading = ([string][char]0x53C2) + ([char]0x8003) + ([char]0x6587) + ([char]0x732E)
+    if (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains("Demand Forecasting for Shared Mobility Systems")) {
+        throw "PDF is missing the Citeproc-generated bibliography"
+    }
     if ($pdfText -match '@(fig|tbl|eq|sec):' -or $pdfText -match '@[A-Za-z][A-Za-z0-9_.:+/-]*') {
         throw "PDF contains an unresolved citation or cross-reference"
     }
@@ -142,6 +185,10 @@ try {
     $after = Get-FixtureSnapshot $fixtureRoot
     if ($after -ne $before) {
         throw "Source Fixture was modified by E2E"
+    }
+    $profileAfter = Get-FixtureSnapshot $profileDir
+    if ($profileAfter -ne $profileBefore) {
+        throw "Read-only CUMCM Profile was modified by E2E"
     }
 
     $passed = $true

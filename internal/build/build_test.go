@@ -52,7 +52,7 @@ func successfulFakeTool(_ context.Context, dir, command string, args []string) (
 	if err := os.WriteFile(output, []byte("\\documentclass{article}\\begin{document}ok\\end{document}"), 0o644); err != nil {
 		return result, err
 	}
-	if err := os.WriteFile(filepath.Join(buildDir, "paper.pdf"), []byte("%PDF-1.4\nfake\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(buildDir, "paper.pdf"), []byte("%PDF-1.4\nfake\n%%EOF\n"), 0o644); err != nil {
 		return result, err
 	}
 	return result, nil
@@ -63,6 +63,32 @@ func TestDefaultBuildScriptPathHonorsTestOverride(t *testing.T) {
 	t.Setenv("NODEPAPER_BUILD_SCRIPT", want)
 	if got := defaultBuildScriptPath(); got != want {
 		t.Fatalf("defaultBuildScriptPath() = %q, want %q", got, want)
+	}
+}
+
+func TestDefaultProfileDirHonorsTestOverride(t *testing.T) {
+	want := filepath.Join(t.TempDir(), "profiles", "cumcm")
+	t.Setenv("NODEPAPER_PROFILE_DIR", want)
+	if got := defaultProfileDir(); got != want {
+		t.Fatalf("defaultProfileDir() = %q, want %q", got, want)
+	}
+}
+
+func TestBuildRejectsMissingProfileBeforePowerShell(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	executor := &fakeExecutor{}
+	result := runWithExecutorAndResources(
+		context.Background(),
+		projectDir,
+		executor,
+		filepath.Join(t.TempDir(), "Build-Paper.ps1"),
+		filepath.Join(t.TempDir(), "missing-profile"),
+	)
+	if result.Success || !hasDiagnosticCode(result, "NP1601") {
+		t.Fatalf("result = %#v, want NP1601", result)
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("PowerShell was called with a missing Profile: %#v", executor.calls)
 	}
 }
 
@@ -109,11 +135,28 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 	if script := argumentValue(call.args, "-File"); filepath.Base(script) != "Build-Paper.ps1" {
 		t.Fatalf("PowerShell script = %q, want Build-Paper.ps1", script)
 	}
-	if source := argumentValue(call.args, "-MarkdownPath"); !samePath(source, filepath.Join(projectDir, "paper.md")) {
-		t.Fatalf("MarkdownPath = %q", source)
+	manifestPath := argumentValue(call.args, "-SourceManifest")
+	if !samePath(manifestPath, filepath.Join(projectDir, ".nodepaper", "build", "sources.json")) {
+		t.Fatalf("SourceManifest = %q", manifestPath)
 	}
-	if template := argumentValue(call.args, "-TemplateName"); template != "assignment" {
-		t.Fatalf("TemplateName = %q, want assignment baseline", template)
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read source manifest: %v", err)
+	}
+	var manifest struct {
+		Sources []string `json:"sources"`
+	}
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatalf("decode source manifest: %v", err)
+	}
+	if len(manifest.Sources) != 1 || !samePath(manifest.Sources[0], filepath.Join(projectDir, "paper.md")) {
+		t.Fatalf("manifest sources = %#v", manifest.Sources)
+	}
+	if root := argumentValue(call.args, "-ProjectRoot"); !samePath(root, projectDir) {
+		t.Fatalf("ProjectRoot = %q", root)
+	}
+	if profile := argumentValue(call.args, "-ProfileDirectory"); filepath.Base(profile) != "cumcm" {
+		t.Fatalf("ProfileDirectory = %q", profile)
 	}
 	if output := argumentValue(call.args, "-Output"); !samePath(output, filepath.Join(projectDir, ".nodepaper", "build", "paper.tex")) {
 		t.Fatalf("Output = %q", output)
@@ -231,6 +274,21 @@ func TestBuildRejectsDamagedPDFAndPreservesOldPDF(t *testing.T) {
 	}
 	if string(got) != string(oldPDF) {
 		t.Fatalf("old PDF was overwritten: %q", got)
+	}
+}
+
+func TestBuildRejectsPDFWithoutEOFMarker(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	executor := &fakeExecutor{behavior: func(_ context.Context, dir, command string, args []string) (process.Result, error) {
+		outputDir := argumentValue(args, "-BuildDirectory")
+		if err := os.WriteFile(filepath.Join(outputDir, "paper.pdf"), []byte("%PDF-1.4\nincomplete\n"), 0o644); err != nil {
+			return process.Result{}, err
+		}
+		return process.Result{Command: command, Args: args, Dir: dir, ExitCode: 0}, nil
+	}}
+	result := runWithExecutor(context.Background(), projectDir, executor)
+	if result.Success || !hasDiagnosticCode(result, "NP7001") {
+		t.Fatalf("result = %#v, want NP7001", result)
 	}
 }
 
@@ -354,15 +412,43 @@ func TestBuildUsesConfigurationDiagnosticCodes(t *testing.T) {
 	}
 }
 
-func TestBuildRejectsMultipleSourcesBeforePowerShell(t *testing.T) {
+func TestBuildPreservesConfiguredMultiSourceOrderForPowerShell(t *testing.T) {
 	projectDir := copyBuildFixture(t, "complete-multi-file")
 	executor := &fakeExecutor{}
 	result := runWithExecutor(context.Background(), projectDir, executor)
-	if result.Success || !hasDiagnosticCode(result, "NP5002") {
-		t.Fatalf("result = %#v, want NP5002", result)
+	if !result.Success {
+		t.Fatalf("multi-file build failed: %#v", result.Diagnostics)
 	}
-	if len(executor.calls) != 0 {
-		t.Fatalf("PowerShell was called for unsupported multi-file build: %#v", executor.calls)
+	if len(executor.calls) != 1 {
+		t.Fatalf("PowerShell calls = %#v, want one", executor.calls)
+	}
+	manifestPath := argumentValue(executor.calls[0].args, "-SourceManifest")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Sources []string `json:"sources"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"sections/01-frontmatter-abstract.md",
+		"sections/02-problem.md",
+		"sections/03-assumptions-symbols.md",
+		"sections/04-data.md",
+		"sections/05-model.md",
+		"sections/06-solution-results.md",
+		"sections/07-evaluation-appendix.md",
+	}
+	if len(manifest.Sources) != len(want) {
+		t.Fatalf("manifest sources = %#v, want %d", manifest.Sources, len(want))
+	}
+	for index := range want {
+		if !samePath(manifest.Sources[index], filepath.Join(projectDir, want[index])) {
+			t.Fatalf("source[%d] = %q, want %q", index, manifest.Sources[index], want[index])
+		}
 	}
 }
 
@@ -489,6 +575,7 @@ func copyBuildFixture(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("NODEPAPER_PROFILE_DIR", filepath.Join(repoRoot, "profiles", "cumcm"))
 	source := filepath.Join(repoRoot, "nodepaper-test-fixtures", "tests", "fixtures", name)
 	destination := filepath.Join(t.TempDir(), "project")
 	if err := copyBuildTree(source, destination); err != nil {

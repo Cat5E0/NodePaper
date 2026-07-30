@@ -3,7 +3,7 @@
   "notes": [
     "Each fixture is copied to an isolated temporary directory before execution.",
     "expectedDiagnosticCodes is an exact contract for deterministic validate and lock cases.",
-    "Table-caption and equation-label syntax still requires final Pandoc/pandoc-crossref E2E confirmation."
+    "Table captions, equation labels, Citeproc and cross-file references are fixed by the M3 Pandoc 3.9/pandoc-crossref 0.3.24 E2E suite."
   ],
   "fixtures": [
     {
