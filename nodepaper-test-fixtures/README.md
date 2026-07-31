@@ -98,7 +98,19 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 - `[@key]` 与 `[@key1; @key2]` 文献引用；
 - 跨 Source 的 `@sec:`、`@fig:`、`@tbl:` 和 `@eq:` 引用。
 
-不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file` 和 `complete-multi-file`。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
+不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file` 和 `layout-stress`。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
+
+`layout-stress` 覆盖受控 LaTeX Fragment、跨页长表格、多页代码、Pandoc 内置高亮、长 URL/路径、公式、图片、脚注和附录。E2E 检查生成 LaTeX 契约、A4、PDF 文字顺序与边界、字体嵌入、稳定标记、零关键 Warning，并支持：
+
+```powershell
+.\scripts\test-e2e.ps1 -Fixture layout-stress -AppendixNumbering continuous
+.\scripts\test-e2e.ps1 -Fixture layout-stress -AppendixNumbering none
+.\scripts\test-e2e.ps1 -Fixture layout-stress -HighlightStyle pygments
+.\scripts\test-e2e.ps1 -Fixture layout-stress -HighlightStyle kate
+.\scripts\test-e2e.ps1 -Fixture layout-stress -ReviewOutput D:\nodepaper-review
+```
+
+`fragment-*` 负向 Fixture 固定 `NP2503`～`NP2509` 的路径、缺失文件、完整文档命令、嵌套依赖、命令执行和未声明输入契约。
 
 ## Active Lock 测试
 

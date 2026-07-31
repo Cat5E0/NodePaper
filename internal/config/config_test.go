@@ -44,6 +44,53 @@ sources:
 	}
 }
 
+func TestParseWithFragmentsAndAppendix(t *testing.T) {
+	cfg, err := Parse([]byte(`
+version: 1
+profile: cumcm
+source: paper.md
+latexFragments:
+  - tables/result.tex
+  - equations/objective.tex
+appendix:
+  numbering: continuous
+`))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got := cfg.LatexFragments; len(got) != 2 || got[0] != "tables/result.tex" || got[1] != "equations/objective.tex" {
+		t.Fatalf("LatexFragments = %#v", got)
+	}
+	if cfg.Appendix.Numbering != "continuous" {
+		t.Fatalf("Appendix.Numbering = %q", cfg.Appendix.Numbering)
+	}
+}
+
+func TestAppendixNumberingDefaultsToAlpha(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Appendix.Numbering != "alpha" {
+		t.Fatalf("Appendix.Numbering = %q, want alpha", cfg.Appendix.Numbering)
+	}
+	if cfg.Highlight.Style != "tango" {
+		t.Fatalf("Highlight.Style = %q, want tango", cfg.Highlight.Style)
+	}
+}
+
+func TestHighlightStyleSelection(t *testing.T) {
+	for _, style := range []string{"tango", "pygments", "kate"} {
+		cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nhighlight:\n  style: " + style + "\n"))
+		if err != nil {
+			t.Fatalf("Parse(%s): %v", style, err)
+		}
+		if cfg.Highlight.Style != style {
+			t.Fatalf("Highlight.Style = %q, want %q", cfg.Highlight.Style, style)
+		}
+	}
+}
+
 func TestParseWithOutput(t *testing.T) {
 	cfg, err := Parse([]byte(`
 version: 1
@@ -106,7 +153,12 @@ func TestParseRejects(t *testing.T) {
 		{"neither source nor sources", "version: 1\nprofile: cumcm", "source or sources is required"},
 		{"empty source string", "version: 1\nprofile: cumcm\nsource:", "source or sources is required"},
 		{"empty sources item", "version: 1\nprofile: cumcm\nsources:\n  - a.md\n  - \"\"", "empty"},
+		{"empty fragment", "version: 1\nprofile: cumcm\nsource: a.md\nlatexFragments:\n  - \"\"", "latexFragments[0] is empty"},
+		{"invalid appendix numbering", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  numbering: roman", "appendix.numbering must be"},
+		{"invalid highlight style", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  style: minted", "highlight.style must be"},
+		{"unknown highlight field", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  unexpected: true", "field unexpected not found"},
 		{"unknown top-level field", "version: 1\nprofile: cumcm\nsource: a.md\nunexpected: true", "field unexpected not found"},
+		{"unknown appendix field", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  unexpected: true", "field unexpected not found"},
 		{"unknown output field", "version: 1\nprofile: cumcm\nsource: a.md\noutput:\n  file: dist/a.pdf\n  unexpected: true", "field unexpected not found"},
 	}
 

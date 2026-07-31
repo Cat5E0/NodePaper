@@ -82,6 +82,13 @@ sources:
   - sections/01-abstract.md
   - sections/02-problem.md
   - sections/03-model.md
+latexFragments:
+  - tables/complex-result.tex
+  - equations/objective.tex
+appendix:
+  numbering: alpha
+highlight:
+  style: tango
 output:
   file: dist/paper.pdf
 ```
@@ -132,27 +139,45 @@ $$ {#eq:model}
 references.bib + Pandoc Citeproc + 固定 CSL
 ```
 
+受控 Fragment 必须在 `latexFragments` 中声明，再从 Markdown 插入：
+
+```markdown
+\input{tables/complex-result.tex}
+
+见\cref{tab:complex-result}。
+```
+
+Fragment 只允许 Project Root 内的相对 UTF-8 `.tex` 普通文件；禁止完整文档、加载宏包、嵌套 `input`、TeX I/O 和命令执行。附录统一写为：
+
+```markdown
+# 附录
+## 测试数据
+## 程序代码
+```
+
+`appendix.numbering` 接受 `alpha`（默认）、`continuous` 和 `none`。`highlight.style` 接受已审查的 Pandoc 内置样式 `tango`（默认）、`pygments`、`kate`；不需要 Python 运行时或 `shell-escape`。
+
 ## 当前 CUMCM 电子版行为
 
 - 第一页为标题、摘要和关键词；
 - 不生成目录；
 - 不生成纸质版承诺书和编号页；
 - 使用固定 CUMCM 2026 候选 Profile；
-- 支持有序单文件/多文件、中文 Crossref 和 Citeproc；
-- PDF 发布前检查非空、Header、EOF 和 20 MB 上限；
-- 同一 Project 同时只允许一个写入型 Build；
-- Profile 构建时只读。
+- 支持有序单文件/多文件、中文 Crossref、Citeproc 和受控 LaTeX Fragment；
+- 使用 Pandoc 内置代码高亮，默认 Tango，可选 Pygments/Kate 配色，代码长行可断行且代码块可跨页；
+- 保留“附录”总标题，并支持 `alpha`、`continuous`、`none`；
+- 构建日志记录 Profile 版本、完整资源 SHA-256 和 Fragment SHA-256，构建前后变化会失败；
+- 未知 Warning、Overfull、缺字/字体和未解析引用会阻止发布；
+- PDF 发布前检查非空、Header、EOF 和 20 MB 上限；真实 E2E 额外检查 A4、文字边界、字体嵌入和内容顺序；
+- 同一 Project 同时只允许一个写入型 Build。
 
-## 已确认但尚未实现的 v0.1 工作
+## 剩余 v0.1 工作
 
-以下内容是已确认规划，不是当前可用能力：
+以下门槛尚未完成：
 
-- Pandoc 内置代码语法高亮、长行换行和多页代码；
-- 保留“附录”总标题，默认附录 A/B，并支持连续编号和不编号；
-- 配置中显式声明、限制在 Project Root 内的 LaTeX Fragment，用于复杂表格和公式；
-- Profile 版本与资源 SHA-256 日志；
-- LaTeX 静态契约、严格缺字/Overflow 检查、PDF 非视觉几何检查；
-- `layout-stress` 和本地参考论文 E2E。
+- MiKTeX、Windows 10、Race Detector、发布 ZIP 和最终人工 PDF 检查。
+
+MinerU 全文导入和语义忠实度审查已延后至 v0.1 后研究项，不阻塞运行时与发布包。
 
 NodePaper 不计划开发 Markdown 包含 Markdown 的自定义 Include。多章节使用有序 `sources`；复杂排版使用受控 LaTeX Fragment。
 

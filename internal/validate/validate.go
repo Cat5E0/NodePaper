@@ -17,6 +17,7 @@ import (
 
 	"nodepaper/internal/config"
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/fragment"
 	"nodepaper/internal/project"
 )
 
@@ -59,6 +60,7 @@ func Run(ctx context.Context, projectDir string) Result {
 
 	result.Diagnostics = append(result.Diagnostics, validateConfigPaths(p, cfg)...)
 	result.Diagnostics = append(result.Diagnostics, validateSources(p, cfg)...)
+	result.Diagnostics = append(result.Diagnostics, validateFragments(p, cfg)...)
 
 	files := readableSources(p, cfg)
 	if len(files) > 0 {
@@ -70,6 +72,7 @@ func Run(ctx context.Context, projectDir string) Result {
 	if !appendCancellation(ctx, &result) {
 		result.Diagnostics = append(result.Diagnostics, validateResources(p, files)...)
 		result.Diagnostics = append(result.Diagnostics, validateCitationsAndCrossrefs(p, files)...)
+		result.Diagnostics = append(result.Diagnostics, validateDeclaredFragmentInputs(files, cfg)...)
 		result.Diagnostics = append(result.Diagnostics, validateRawLatex(files)...)
 	}
 
@@ -116,6 +119,31 @@ func validateConfigPaths(p project.Project, cfg config.ProjectConfig) []diagnost
 		}}
 	}
 	return nil
+}
+
+func validateFragments(p project.Project, cfg config.ProjectConfig) []diagnostic.Diagnostic {
+	_, issues := fragment.Inspect(p.Root, cfg.LatexFragments)
+	diags := make([]diagnostic.Diagnostic, 0, len(issues))
+	for _, issue := range issues {
+		diags = append(diags, fragmentDiagnostic(issue, "validate"))
+	}
+	return diags
+}
+
+func fragmentDiagnostic(issue fragment.Issue, source string) diagnostic.Diagnostic {
+	suggestion := "Declare a readable UTF-8 .tex file inside the Project Root and remove unsafe TeX commands."
+	if issue.Code == fragment.CodeChanged {
+		suggestion = "Do not edit fragments while a build is running; rebuild after the file is stable."
+	}
+	return diagnostic.Diagnostic{
+		Severity:   diagnostic.SeverityError,
+		Code:       issue.Code,
+		Message:    issue.Message,
+		File:       issue.Path,
+		Line:       issue.Line,
+		Suggestion: suggestion,
+		Source:     source,
+	}
 }
 
 func validateSources(p project.Project, cfg config.ProjectConfig) []diagnostic.Diagnostic {
@@ -517,6 +545,79 @@ func sortedKeys(values map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// ---------- controlled LaTeX fragment use -------------------------------
+
+var fragmentInputRE = regexp.MustCompile(`\\input\s*\{([^}\r\n]+)\}`)
+var unsafeRawTeXCommandRE = regexp.MustCompile(`(?i)\\(?:include|includeonly|inputiffileexists|subfile|import|subimport|includegraphics|verbatiminput|lstinputlisting|bibliography|addbibresource|write18|shellescape|pdfshellescape|immediate|openin|openout|read|write|catcode|csname|scantokens|special|directlua|endlinechar|escapechar)\b`)
+
+func validateDeclaredFragmentInputs(files []sourceFile, cfg config.ProjectConfig) []diagnostic.Diagnostic {
+	declared := make(map[string]bool, len(cfg.LatexFragments))
+	for _, path := range cfg.LatexFragments {
+		declared[strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(path))))] = true
+	}
+	var diags []diagnostic.Diagnostic
+	for _, file := range files {
+		content := removeCodeBlocks(string(file.data))
+		for _, match := range fragmentInputRE.FindAllStringSubmatchIndex(content, -1) {
+			path := strings.TrimSpace(content[match[2]:match[3]])
+			key := strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(path))))
+			if declared[key] {
+				continue
+			}
+			line := strings.Count(content[:match[0]], "\n") + 1
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity:   diagnostic.SeverityError,
+				Code:       fragment.CodeUndeclaredInput,
+				Message:    fmt.Sprintf("LaTeX fragment input is not declared: %s", path),
+				File:       file.rel,
+				Line:       line,
+				Suggestion: "Add the project-relative .tex path to latexFragments or remove the input.",
+				Source:     "validate",
+			})
+		}
+		collapsed := collapseTeXComments(content)
+		if location := unsafeRawTeXCommandRE.FindStringIndex(collapsed); location != nil {
+			diags = append(diags, diagnostic.Diagnostic{
+				Severity:   diagnostic.SeverityError,
+				Code:       fragment.CodeCommandExecution,
+				Message:    fmt.Sprintf("unsafe raw TeX command is not allowed: %s", unsafeRawTeXCommandRE.FindString(collapsed)),
+				File:       file.rel,
+				Suggestion: "Use only explicitly declared \\input{...} Fragments for advanced table or equation layout.",
+				Source:     "validate",
+			})
+		}
+	}
+	return diags
+}
+
+func collapseTeXComments(content string) string {
+	var result strings.Builder
+	for _, line := range strings.Split(content, "\n") {
+		stripped := stripRawTeXComment(line)
+		result.WriteString(stripped)
+		if len(stripped) == len(line) {
+			result.WriteByte('\n')
+		}
+	}
+	return result.String()
+}
+
+func stripRawTeXComment(line string) string {
+	for index := 0; index < len(line); index++ {
+		if line[index] != '%' {
+			continue
+		}
+		backslashes := 0
+		for previous := index - 1; previous >= 0 && line[previous] == '\\'; previous-- {
+			backslashes++
+		}
+		if backslashes%2 == 0 {
+			return line[:index]
+		}
+	}
+	return line
 }
 
 // ---------- raw LaTeX detection -----------------------------------------

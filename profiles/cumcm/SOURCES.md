@@ -38,8 +38,8 @@ attribution and comply with the ShareAlike terms.
 ## NodePaper-authored resources
 
 `template.tex`, `crossref.yaml`, `warning-allowlist.json`,
-`filters/extract-abstract.lua`, and `profile.json` are original NodePaper
-resources distributed under `LICENSES/PROFILE-MIT.txt`.
+`filters/extract-abstract.lua`, `filters/layout.lua`, and `profile.json` are
+original NodePaper resources distributed under `LICENSES/PROFILE-MIT.txt`.
 
 ## Deliberate limitations
 
@@ -48,3 +48,9 @@ resources distributed under `LICENSES/PROFILE-MIT.txt`.
 - The 30-page body limit and 20 MB upload limit require post-build checks and,
   for the body/appendix boundary, maintainer review.
 - MiKTeX compatibility remains a release gate.
+- Pandoc built-in highlighting is used without minted, Python Pygments runtime,
+  or `shell-escape`. The reviewed default is `tango`; projects may select the
+  built-in `pygments` or `kate` color scheme.
+- Controlled LaTeX Fragments are limited to explicitly declared Project-local
+  table/equation files. Nested dependencies, file reads, TeX I/O, command
+  obfuscation, and shell execution are rejected before Pandoc.

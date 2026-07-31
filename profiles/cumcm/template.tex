@@ -2,14 +2,15 @@
 % Original implementation based on the official 2026 formatting facts listed
 % in SOURCES.md. It is not an official or competition-certified template.
 \documentclass[UTF8,zihao=-4,a4paper]{ctexart}
+\xeCJKsetup{AutoFakeSlant=true,AutoFakeBold=true}
 
 \usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
-\usepackage{longtable,booktabs,array,multirow}
+\usepackage{longtable,booktabs,array,multirow,tabularx}
 \usepackage{calc}
 \usepackage{float}
-\usepackage{fancyvrb}
+\usepackage{fvextra}
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{xurl}
@@ -24,6 +25,7 @@
 \setcounter{secnumdepth}{3}
 \setcounter{tocdepth}{0}
 \newcounter{none}
+\setlength{\emergencystretch}{3em}
 \pagestyle{plain}
 
 \crefname{figure}{图}{图}
@@ -44,6 +46,33 @@
   \setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}%
   #1%
   \endgroup}
+\providecommand{\real}[1]{#1}
+
+$if(highlighting-macros)$
+$highlighting-macros$
+\RecustomVerbatimEnvironment{Highlighting}{Verbatim}{%
+  commandchars=\\\{\},breaklines=true,breakanywhere=true,%
+  breaknonspaceingroup=true,fontsize=\small}
+\renewenvironment{Shaded}{}{}
+% CJK fonts in the baseline TeX environments may not provide italic faces.
+% Keep comments readable without triggering font substitution warnings.
+\renewcommand{\CommentTok}[1]{\textcolor[rgb]{0.35,0.35,0.35}{#1}}
+\renewcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.35,0.35,0.35}{#1}}
+\renewcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{#1}}
+$endif$
+
+% Appendix contract used by filters/layout.lua. The retained “附录” heading is
+% separate from automatically generated appendix child numbering.
+\newcommand{\nodepaperAppendixAlpha}{%
+  \appendix
+  \renewcommand{\thesection}{附录~\Alph{section}}%
+  \counterwithin{figure}{section}%
+  \counterwithin{table}{section}%
+  \counterwithin{equation}{section}%
+  \renewcommand{\thefigure}{\Alph{section}.\arabic{figure}}%
+  \renewcommand{\thetable}{\Alph{section}.\arabic{table}}%
+  \renewcommand{\theequation}{\Alph{section}.\arabic{equation}}}
+\newcommand{\nodepaperAppendixNone}{}
 
 % Interface required by Pandoc 3.9 Citeproc LaTeX output.
 \NewDocumentCommand\citeproctext{}{}

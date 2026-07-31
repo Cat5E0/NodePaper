@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"nodepaper/internal/buildlock"
 	"nodepaper/internal/config"
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/fragment"
+	"nodepaper/internal/latexlog"
 	"nodepaper/internal/process"
 	"nodepaper/internal/profile"
 	"nodepaper/internal/project"
@@ -200,9 +203,38 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	}
 	result.Artifacts = []Artifact{{Kind: "log", Path: bctx.LogPath}}
 	logger.Printf("Build ID: %s", bctx.BuildID)
+	logger.Printf("NodePaper Version: %s", nodepaperVersion())
 	logger.Printf("Project Root: %s", bctx.ProjectRoot)
 	logger.Printf("Profile: %s", bctx.Profile)
+	logger.Printf("Profile Version: %s", loadedProfile.Definition.Version)
+	logger.Printf("Profile Rules Version: %s", loadedProfile.Definition.RulesVersion)
+	logger.Printf("Profile SHA-256: %s", loadedProfile.SHA256)
+	for _, resource := range loadedProfile.Resources {
+		logger.Printf("Profile Resource: %s sha256=%s", resource.Relative, resource.SHA256)
+	}
 	logger.Printf("Sources: %s", strings.Join(bctx.Sources, ", "))
+
+	fragmentFiles, fragmentIssues := fragment.Inspect(bctx.ProjectRoot, cfg.LatexFragments)
+	if len(fragmentIssues) > 0 {
+		result.Diagnostics = append(result.Diagnostics, fragmentDiagnostics(fragmentIssues)...)
+		return result
+	}
+	for _, file := range fragmentFiles {
+		logger.Printf("LaTeX Fragment: %s sha256=%s", file.Relative, file.SHA256)
+	}
+	logger.Printf("Appendix Numbering: %s", cfg.Appendix.Numbering)
+	logger.Printf("Highlight Style: %s", cfg.Highlight.Style)
+	allowlist, err := latexlog.LoadAllowlist(loadedProfile.WarningAllowlist)
+	if err != nil {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP1601",
+			Message:    fmt.Sprintf("cannot load Profile Warning allowlist: %v", err),
+			Suggestion: "Restore the reviewed Profile warning-allowlist.json.",
+			Source:     "build",
+		})
+		return result
+	}
 	defer func() {
 		logger.Printf("Success: %t", result.Success)
 		_ = logger.Close()
@@ -219,22 +251,30 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		return result
 	}
 
-	// 8. Remove previous intermediates so a skipped or incomplete transition
-	// build cannot be mistaken for a newly generated artifact.
+	// 8. Recreate the managed WorkDir so stale latexmk dependency databases,
+	// logs, or outputs cannot be mistaken for artifacts from this build.
+	if err := os.RemoveAll(bctx.WorkDir); err != nil {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1305",
+			Message:  fmt.Sprintf("cannot remove previous build intermediates: %v", err),
+			Source:   "build",
+		})
+		return result
+	}
+	if err := os.MkdirAll(bctx.WorkDir, 0o755); err != nil {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1305",
+			Message:  fmt.Sprintf("cannot recreate build directory: %v", err),
+			Source:   "build",
+		})
+		return result
+	}
 	texPath := bctx.ResolveInWork("paper.tex")
 	tmpPDF := bctx.ResolveInWork("paper.pdf")
+	latexLogPath := bctx.ResolveInWork("paper.log")
 	sourceManifestPath := bctx.ResolveInWork("sources.json")
-	for _, path := range []string{texPath, tmpPDF, sourceManifestPath} {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
-				Severity: diagnostic.SeverityError,
-				Code:     "NP1305",
-				Message:  fmt.Sprintf("cannot remove previous build intermediate %s: %v", path, err),
-				Source:   "build",
-			})
-			return result
-		}
-	}
 
 	// The source manifest preserves configured order without relying on shell
 	// string joining. It is project-local, written only while the lock is held,
@@ -243,9 +283,21 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	for _, source := range cfg.SourceFiles() {
 		absoluteSources = append(absoluteSources, filepath.Join(bctx.ProjectRoot, source))
 	}
+	absoluteFragments := make([]string, 0, len(fragmentFiles))
+	for _, file := range fragmentFiles {
+		absoluteFragments = append(absoluteFragments, file.Path)
+	}
 	manifestData, err := json.MarshalIndent(struct {
-		Sources []string `json:"sources"`
-	}{Sources: absoluteSources}, "", "  ")
+		Sources           []string `json:"sources"`
+		LatexFragments    []string `json:"latexFragments"`
+		AppendixNumbering string   `json:"appendixNumbering"`
+		HighlightStyle    string   `json:"highlightStyle"`
+	}{
+		Sources:           absoluteSources,
+		LatexFragments:    absoluteFragments,
+		AppendixNumbering: cfg.Appendix.Numbering,
+		HighlightStyle:    cfg.Highlight.Style,
+	}, "", "  ")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityError,
@@ -268,8 +320,35 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	// 9. Delegate ordered Markdown conversion, Citeproc/CSL processing and
 	// LaTeX compilation to the PowerShell transition layer. Go retains
 	// orchestration, locking, validation and publication.
-	if diags := runPowerShellBuild(ctx, executor, logger, bctx, scriptPath, loadedProfile.Dir, sourceManifestPath, texPath); len(diags) > 0 {
-		result.Diagnostics = append(result.Diagnostics, diags...)
+	processDiags := runPowerShellBuild(ctx, executor, logger, bctx, scriptPath, loadedProfile.Dir, sourceManifestPath, texPath)
+	if len(processDiags) > 0 {
+		result.Diagnostics = append(result.Diagnostics, processDiags...)
+		// latexmk may return non-zero after producing a useful final log. Preserve
+		// the transition failure while also returning classified Fatal/Warning
+		// diagnostics instead of forcing the user to parse an opaque NP5001.
+		if _, statErr := os.Stat(latexLogPath); statErr == nil {
+			result.Diagnostics = append(result.Diagnostics, inspectLatexLog(logger, latexLogPath, allowlist)...)
+		}
+	}
+
+	currentProfileHash, err := profile.Snapshot(loadedProfile.Dir)
+	if err != nil || currentProfileHash != loadedProfile.SHA256 {
+		message := "Profile resources changed during build"
+		if err != nil {
+			message = fmt.Sprintf("cannot verify Profile resources after build: %v", err)
+		}
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP1602",
+			Message:    message,
+			Suggestion: "Restore the installed Profile and rebuild; do not modify Profile files during a build.",
+			Source:     "build",
+		})
+	}
+	if issues := fragment.Verify(fragmentFiles); len(issues) > 0 {
+		result.Diagnostics = append(result.Diagnostics, fragmentDiagnostics(issues)...)
+	}
+	if len(result.Diagnostics) > 0 {
 		return result
 	}
 
@@ -295,6 +374,10 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 			Suggestion: "Inspect the LaTeX log and rebuild after fixing the error.",
 			Source:     "build",
 		})
+		return result
+	}
+	if diags := inspectLatexLog(logger, latexLogPath, allowlist); len(diags) > 0 {
+		result.Diagnostics = append(result.Diagnostics, diags...)
 		return result
 	}
 
@@ -333,6 +416,13 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 }
 
 // ---------- PowerShell transition build ---------------------------------
+
+func nodepaperVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		return info.Main.Version
+	}
+	return "devel"
+}
 
 func defaultBuildScriptPath() string {
 	if override := os.Getenv("NODEPAPER_BUILD_SCRIPT"); override != "" {
@@ -531,6 +621,62 @@ func hasErrors(diags []diagnostic.Diagnostic) bool {
 		}
 	}
 	return false
+}
+
+func inspectLatexLog(logger *buildLogger, path string, allowlist latexlog.Allowlist) []diagnostic.Diagnostic {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []diagnostic.Diagnostic{{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP6199",
+			Message:    fmt.Sprintf("cannot read final LaTeX log: %v", err),
+			File:       path,
+			Suggestion: "Inspect the PowerShell transition log and ensure latexmk produced paper.log.",
+			Source:     "latex",
+		}}
+	}
+	codes := map[latexlog.Category]string{
+		latexlog.CategoryFatal:          "NP6106",
+		latexlog.CategoryOverflow:       "NP6101",
+		latexlog.CategoryMissingFont:    "NP6102",
+		latexlog.CategoryUnresolved:     "NP6103",
+		latexlog.CategoryRerun:          "NP6104",
+		latexlog.CategoryUnknownWarning: "NP6105",
+	}
+	var diags []diagnostic.Diagnostic
+	for _, finding := range latexlog.Classify(data, allowlist) {
+		logger.Printf("LaTeX Log: category=%s line=%d text=%s", finding.Category, finding.Line, finding.Text)
+		if finding.Category == latexlog.CategoryAllowedWarning {
+			logger.Printf("Allowed LaTeX Warning: reason=%s", finding.Reason)
+			continue
+		}
+		diags = append(diags, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       codes[finding.Category],
+			Message:    fmt.Sprintf("%s: %s", finding.Category, finding.Text),
+			File:       path,
+			Line:       finding.Line,
+			Suggestion: "Fix the LaTeX source or Profile; do not allowlist a warning without maintainer review.",
+			Source:     "latex",
+		})
+	}
+	return diags
+}
+
+func fragmentDiagnostics(issues []fragment.Issue) []diagnostic.Diagnostic {
+	diags := make([]diagnostic.Diagnostic, 0, len(issues))
+	for _, issue := range issues {
+		diags = append(diags, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       issue.Code,
+			Message:    issue.Message,
+			File:       issue.Path,
+			Line:       issue.Line,
+			Suggestion: "Keep declared LaTeX Fragments unchanged, UTF-8, and inside the Project Root during a build.",
+			Source:     "build",
+		})
+	}
+	return diags
 }
 
 func configDiag(err error) diagnostic.Diagnostic {

@@ -43,7 +43,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP1501"],
+      "expectedDiagnosticCodes": [
+        "NP1501"
+      ],
       "phase": "config"
     },
     {
@@ -51,7 +53,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP2101"],
+      "expectedDiagnosticCodes": [
+        "NP2101"
+      ],
       "phase": "validate"
     },
     {
@@ -59,7 +63,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP2201"],
+      "expectedDiagnosticCodes": [
+        "NP2201"
+      ],
       "phase": "validate"
     },
     {
@@ -67,7 +73,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP2302"],
+      "expectedDiagnosticCodes": [
+        "NP2302"
+      ],
       "phase": "validate"
     },
     {
@@ -75,7 +83,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP2301"],
+      "expectedDiagnosticCodes": [
+        "NP2301"
+      ],
       "phase": "validate"
     },
     {
@@ -83,7 +93,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP3101"],
+      "expectedDiagnosticCodes": [
+        "NP3101"
+      ],
       "phase": "validate"
     },
     {
@@ -91,7 +103,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP3201"],
+      "expectedDiagnosticCodes": [
+        "NP3201"
+      ],
       "phase": "validate"
     },
     {
@@ -99,7 +113,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP3202"],
+      "expectedDiagnosticCodes": [
+        "NP3202"
+      ],
       "phase": "validate"
     },
     {
@@ -107,7 +123,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP1502"],
+      "expectedDiagnosticCodes": [
+        "NP1502"
+      ],
       "phase": "config"
     },
     {
@@ -115,7 +133,9 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP2001"],
+      "expectedDiagnosticCodes": [
+        "NP2001"
+      ],
       "phase": "validate"
     },
     {
@@ -123,7 +143,9 @@
       "command": "validate",
       "expectedSuccess": true,
       "expectedExitCode": 0,
-      "expectedDiagnosticCodes": ["NP2401"],
+      "expectedDiagnosticCodes": [
+        "NP2401"
+      ],
       "phase": "validate"
     },
     {
@@ -147,15 +169,87 @@
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP1503"],
+      "expectedDiagnosticCodes": [
+        "NP1503"
+      ],
       "phase": "security"
+    },
+    {
+      "path": "layout-stress",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "layout, Fragment, highlighting and appendix stress E2E"
+    },
+    {
+      "path": "fragment-missing",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2504"
+      ],
+      "phase": "fragment-security"
+    },
+    {
+      "path": "fragment-path-traversal",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2503"
+      ],
+      "phase": "fragment-security"
+    },
+    {
+      "path": "fragment-forbidden-command",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2506"
+      ],
+      "phase": "fragment-security"
+    },
+    {
+      "path": "fragment-nested",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2507"
+      ],
+      "phase": "fragment-security"
+    },
+    {
+      "path": "fragment-command-execution",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2508"
+      ],
+      "phase": "fragment-security"
+    },
+    {
+      "path": "fragment-undeclared-input",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2509"
+      ],
+      "phase": "fragment-security"
     },
     {
       "path": "damaged-lock",
       "command": "build",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP1299"],
+      "expectedDiagnosticCodes": [
+        "NP1299"
+      ],
       "phase": "lock"
     },
     {
@@ -163,7 +257,9 @@
       "command": "build",
       "expectedSuccess": false,
       "expectedExitCode": 1,
-      "expectedDiagnosticCodes": ["NP1202"],
+      "expectedDiagnosticCodes": [
+        "NP1202"
+      ],
       "phase": "lock"
     }
   ]

@@ -70,54 +70,6 @@ function Copy-LatexLog {
     }
 }
 
-function Assert-LatexWarningsAllowed {
-    param(
-        [string]$BuildDir,
-        [string]$OutputPath,
-        [string]$ProfileDir
-    )
-
-    $latexLog = Join-Path $BuildDir ([System.IO.Path]::GetFileNameWithoutExtension($OutputPath) + ".log")
-    if (-not (Test-Path -LiteralPath $latexLog -PathType Leaf)) {
-        throw "LaTeX log not found for warning validation: $latexLog"
-    }
-
-    $profileConfigPath = Join-Path $ProfileDir "profile.json"
-    $profileConfig = Get-Content -LiteralPath $profileConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $allowlistPath = Join-Path $ProfileDir ([string]$profileConfig.warningAllowlist)
-    $allowlist = Get-Content -LiteralPath $allowlistPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($allowlist.schemaVersion -ne 1) {
-        throw "Unsupported Warning allowlist: $allowlistPath"
-    }
-
-    $warningPatterns = @(
-        "LaTeX Warning:",
-        "Package .+ Warning:",
-        "LaTeX Font Warning:",
-        "Overfull \\hbox",
-        "Overfull \\vbox",
-        "Citation .+ undefined",
-        "There were undefined references"
-    )
-    $candidateLines = Get-Content -LiteralPath $latexLog -Encoding UTF8 | Where-Object {
-        $line = $_
-        ($warningPatterns | Where-Object { $line -match $_ }).Count -gt 0
-    }
-
-    foreach ($line in $candidateLines) {
-        $allowed = $false
-        foreach ($entry in @($allowlist.entries)) {
-            if ($entry.pattern -and $line -match [string]$entry.pattern) {
-                $allowed = $true
-                break
-            }
-        }
-        if (-not $allowed) {
-            throw "Unknown critical LaTeX warning: $line"
-        }
-    }
-}
-
 function Write-Log {
     param(
         [string]$Message,
@@ -211,6 +163,7 @@ elseif (-not [string]::IsNullOrWhiteSpace($MarkdownPath)) {
 Set-Content -LiteralPath $script:RunLogPath -Value @(
     "NodePaper build log",
     "Started: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+    "PowerShell: $($PSVersionTable.PSVersion)",
     "Input: $inputDescription",
     "Output: $outputPath",
     "TemplateName: $TemplateName",
@@ -309,17 +262,6 @@ if ($code -ne 0) {
     }
     Copy-LatexLog $buildDir $outputPath $logDir $stamp
     throw "LaTeX build failed with exit code $code. See $logPath"
-}
-
-if (-not [string]::IsNullOrWhiteSpace($ProfileDirectory)) {
-    try {
-        Assert-LatexWarningsAllowed -BuildDir $buildDir -OutputPath $outputPath -ProfileDir (Resolve-ProjectPath $ProfileDirectory)
-        Write-Log "LaTeX warning validation passed."
-    }
-    catch {
-        Copy-LatexLog $buildDir $outputPath $logDir $stamp
-        throw
-    }
 }
 
 $pdfPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtension($outputPath) + ".pdf")

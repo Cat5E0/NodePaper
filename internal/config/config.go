@@ -13,11 +13,26 @@ import (
 
 // ProjectConfig is the deserialised nodepaper.yaml.
 type ProjectConfig struct {
-	Version int          `yaml:"version"`
-	Profile string       `yaml:"profile"`
-	Source  string       `yaml:"source,omitempty"`
-	Sources []string     `yaml:"sources,omitempty"`
-	Output  OutputConfig `yaml:"output,omitempty"`
+	Version        int             `yaml:"version"`
+	Profile        string          `yaml:"profile"`
+	Source         string          `yaml:"source,omitempty"`
+	Sources        []string        `yaml:"sources,omitempty"`
+	LatexFragments []string        `yaml:"latexFragments,omitempty"`
+	Appendix       AppendixConfig  `yaml:"appendix,omitempty"`
+	Highlight      HighlightConfig `yaml:"highlight,omitempty"`
+	Output         OutputConfig    `yaml:"output,omitempty"`
+}
+
+// AppendixConfig controls numbering after the retained level-one appendix
+// heading. The default is alpha.
+type AppendixConfig struct {
+	Numbering string `yaml:"numbering,omitempty"`
+}
+
+// HighlightConfig selects one of the finite, reviewed built-in Pandoc styles.
+// Tango is the default.
+type HighlightConfig struct {
+	Style string `yaml:"style,omitempty"`
 }
 
 // OutputConfig controls the destination of built artifacts.
@@ -43,6 +58,12 @@ func Parse(data []byte) (ProjectConfig, error) {
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
 		return ProjectConfig{}, fmt.Errorf("cannot parse YAML: %w", err)
+	}
+	if cfg.Appendix.Numbering == "" {
+		cfg.Appendix.Numbering = "alpha"
+	}
+	if cfg.Highlight.Style == "" {
+		cfg.Highlight.Style = "tango"
 	}
 
 	if err := validate(cfg); err != nil {
@@ -80,6 +101,21 @@ func validate(cfg ProjectConfig) error {
 		if s == "" {
 			return fmt.Errorf("sources[%d] is empty", i)
 		}
+	}
+	for i, fragment := range cfg.LatexFragments {
+		if fragment == "" {
+			return fmt.Errorf("latexFragments[%d] is empty", i)
+		}
+	}
+	switch cfg.Appendix.Numbering {
+	case "alpha", "continuous", "none":
+	default:
+		return fmt.Errorf("appendix.numbering must be alpha, continuous, or none")
+	}
+	switch cfg.Highlight.Style {
+	case "tango", "pygments", "kate":
+	default:
+		return fmt.Errorf("highlight.style must be tango, pygments, or kate")
 	}
 
 	return nil

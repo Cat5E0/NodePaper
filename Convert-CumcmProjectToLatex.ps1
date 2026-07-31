@@ -84,9 +84,10 @@ if ($profileConfig.schemaVersion -ne 1 -or $profileConfig.name -ne "cumcm") {
 $template = Join-Path $profile ([string]$profileConfig.template)
 $crossrefMetadata = Join-Path $profile ([string]$profileConfig.crossrefMetadata)
 $abstractFilter = Join-Path $profile ([string]$profileConfig.abstractFilter)
+$layoutFilter = Join-Path $profile ([string]$profileConfig.layoutFilter)
 $csl = Join-Path $profile ([string]$profileConfig.csl)
 $warningAllowlist = Join-Path $profile ([string]$profileConfig.warningAllowlist)
-foreach ($resource in @($template, $crossrefMetadata, $abstractFilter, $csl, $warningAllowlist)) {
+foreach ($resource in @($template, $crossrefMetadata, $abstractFilter, $layoutFilter, $csl, $warningAllowlist)) {
     if (-not (Test-Path -LiteralPath $resource -PathType Leaf)) {
         throw "CUMCM Profile resource not found: $resource"
     }
@@ -105,12 +106,42 @@ foreach ($source in $sources) {
     $resolvedSources += Assert-FileUnderRoot ([string]$source) $project "Markdown Source"
 }
 
+$resolvedFragments = @()
+foreach ($fragment in @($manifestValue.latexFragments)) {
+    if ([string]::IsNullOrWhiteSpace([string]$fragment)) {
+        throw "Source manifest contains an empty LaTeX Fragment path"
+    }
+    $resolvedFragments += Assert-FileUnderRoot ([string]$fragment) $project "LaTeX Fragment"
+}
+$appendixNumbering = [string]$manifestValue.appendixNumbering
+if ([string]::IsNullOrWhiteSpace($appendixNumbering)) {
+    $appendixNumbering = "alpha"
+}
+if ($appendixNumbering -notin @("alpha", "continuous", "none")) {
+    throw "Unsupported appendix numbering mode: $appendixNumbering"
+}
+$highlightStyle = [string]$manifestValue.highlightStyle
+if ([string]::IsNullOrWhiteSpace($highlightStyle)) {
+    $highlightStyle = [string]$profileConfig.highlightStyle
+}
+if ($highlightStyle -notin @("tango", "pygments", "kate")) {
+    throw "Unsupported highlight style: $highlightStyle"
+}
+
 $references = Assert-FileUnderRoot (Join-Path $project "references.bib") $project "Bibliography"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($outputPath)) | Out-Null
 
 $pandoc = Find-Executable "tools\windows-x64\pandoc\pandoc.exe" "pandoc.exe" -AllowSystem:$AllowSystemPandoc
 $crossref = Find-Executable "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe" "pandoc-crossref.exe" -AllowSystem:$AllowSystemPandoc
+$pandocVersionLine = [string]((& $pandoc --version 2>&1 | Select-Object -First 1))
+$crossrefVersionLine = [string]((& $crossref --version 2>&1 | Select-Object -First 1))
+if ($pandocVersionLine -notmatch ("^pandoc " + [regex]::Escape([string]$profileConfig.pandocVersion) + "(?:$|\s)")) {
+    throw "Pandoc version does not match Profile: expected $($profileConfig.pandocVersion), got '$pandocVersionLine'"
+}
+if ($crossrefVersionLine -notmatch ("^pandoc-crossref v?" + [regex]::Escape([string]$profileConfig.pandocCrossrefVersion) + "(?:$|\s)")) {
+    throw "pandoc-crossref version does not match Profile: expected $($profileConfig.pandocCrossrefVersion), got '$crossrefVersionLine'"
+}
 
 $resourceDirectories = New-Object System.Collections.Generic.List[string]
 $resourceDirectories.Add($project)
@@ -133,11 +164,13 @@ $arguments += @(
     "--template", $template,
     "--metadata-file", $crossrefMetadata,
     "--lua-filter", $abstractFilter,
+    "--lua-filter", $layoutFilter,
     "--filter", $crossref,
     "--citeproc",
     "--bibliography", $references,
     "--csl", $csl,
-    "--syntax-highlighting=none",
+    "--syntax-highlighting=$highlightStyle",
+    "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
     "--fail-if-warnings",
     "--resource-path", $resourcePath,
     "--output", $outputPath
@@ -145,7 +178,12 @@ $arguments += @(
 
 Write-Output "CUMCM Profile: $profile"
 Write-Output "CUMCM rules version: $($profileConfig.rulesVersion)"
+Write-Output "Pandoc version: $pandocVersionLine"
+Write-Output "pandoc-crossref version: $crossrefVersionLine"
 Write-Output "Ordered Sources: $($resolvedSources -join ' | ')"
+Write-Output "LaTeX Fragments: $($resolvedFragments -join ' | ')"
+Write-Output "Appendix numbering: $appendixNumbering"
+Write-Output "Highlight style: $highlightStyle"
 Write-Output "Pandoc command: $pandoc $($arguments -join ' ')"
 & $pandoc @arguments
 if ($LASTEXITCODE -ne 0) {

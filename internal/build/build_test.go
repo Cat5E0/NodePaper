@@ -55,6 +55,9 @@ func successfulFakeTool(_ context.Context, dir, command string, args []string) (
 	if err := os.WriteFile(filepath.Join(buildDir, "paper.pdf"), []byte("%PDF-1.4\nfake\n%%EOF\n"), 0o644); err != nil {
 		return result, err
 	}
+	if err := os.WriteFile(filepath.Join(buildDir, "paper.log"), nil, 0o644); err != nil {
+		return result, err
+	}
 	return result, nil
 }
 
@@ -144,13 +147,19 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 		t.Fatalf("read source manifest: %v", err)
 	}
 	var manifest struct {
-		Sources []string `json:"sources"`
+		Sources           []string `json:"sources"`
+		LatexFragments    []string `json:"latexFragments"`
+		AppendixNumbering string   `json:"appendixNumbering"`
+		HighlightStyle    string   `json:"highlightStyle"`
 	}
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		t.Fatalf("decode source manifest: %v", err)
 	}
 	if len(manifest.Sources) != 1 || !samePath(manifest.Sources[0], filepath.Join(projectDir, "paper.md")) {
 		t.Fatalf("manifest sources = %#v", manifest.Sources)
+	}
+	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HighlightStyle != "tango" {
+		t.Fatalf("manifest fragments=%#v appendix=%q highlight=%q", manifest.LatexFragments, manifest.AppendixNumbering, manifest.HighlightStyle)
 	}
 	if root := argumentValue(call.args, "-ProjectRoot"); !samePath(root, projectDir) {
 		t.Fatalf("ProjectRoot = %q", root)
@@ -160,6 +169,56 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 	}
 	if output := argumentValue(call.args, "-Output"); !samePath(output, filepath.Join(projectDir, ".nodepaper", "build", "paper.tex")) {
 		t.Fatalf("Output = %q", output)
+	}
+}
+
+func TestBuildRejectsProfileMutation(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileDir := filepath.Join(t.TempDir(), "cumcm")
+	if err := copyBuildTree(filepath.Join(repoRoot, "profiles", "cumcm"), profileDir); err != nil {
+		t.Fatal(err)
+	}
+	executor := &fakeExecutor{behavior: func(ctx context.Context, dir, command string, args []string) (process.Result, error) {
+		result, runErr := successfulFakeTool(ctx, dir, command, args)
+		if runErr == nil {
+			runErr = os.WriteFile(filepath.Join(profileDir, "template.tex"), []byte("changed during build"), 0o644)
+		}
+		return result, runErr
+	}}
+	result := runWithExecutorAndResources(context.Background(), projectDir, executor, defaultBuildScriptPath(), profileDir)
+	if result.Success || !hasDiagnosticCode(result, "NP1602") {
+		t.Fatalf("result = %#v, want NP1602", result)
+	}
+}
+
+func TestBuildRejectsFragmentMutation(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	fragmentPath := filepath.Join(projectDir, "tables", "result.tex")
+	if err := os.MkdirAll(filepath.Dir(fragmentPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fragmentPath, []byte("safe"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(projectDir, "nodepaper.yaml")
+	configData := "version: 1\nprofile: cumcm\nsource: paper.md\nlatexFragments:\n  - tables/result.tex\n"
+	if err := os.WriteFile(configPath, []byte(configData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	executor := &fakeExecutor{behavior: func(ctx context.Context, dir, command string, args []string) (process.Result, error) {
+		result, runErr := successfulFakeTool(ctx, dir, command, args)
+		if runErr == nil {
+			runErr = os.WriteFile(fragmentPath, []byte("changed"), 0o644)
+		}
+		return result, runErr
+	}}
+	result := runWithExecutor(context.Background(), projectDir, executor)
+	if result.Success || !hasDiagnosticCode(result, "NP2510") {
+		t.Fatalf("result = %#v, want NP2510", result)
 	}
 }
 
@@ -196,12 +255,25 @@ func TestBuildFailurePreservesOldPDFAndReleasesLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	staleLog := filepath.Join(projectDir, ".nodepaper", "build", "paper.log")
+	if err := os.MkdirAll(filepath.Dir(staleLog), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(staleLog, []byte("Missing character: stale diagnostic\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	executor := &fakeExecutor{behavior: func(_ context.Context, dir, command string, args []string) (process.Result, error) {
 		return process.Result{Command: command, Args: args, Dir: dir, ExitCode: 7, Stderr: "controlled pandoc failure"}, nil
 	}}
 	result := runWithExecutor(context.Background(), projectDir, executor)
 	if result.Success || !hasDiagnosticCode(result, "NP5001") {
 		t.Fatalf("result = %#v, want NP5001 failure", result)
+	}
+	if hasDiagnosticCode(result, "NP6102") {
+		t.Fatalf("stale LaTeX log was classified: %#v", result.Diagnostics)
+	}
+	if _, err := os.Stat(staleLog); !os.IsNotExist(err) {
+		t.Fatalf("stale LaTeX log was retained: %v", err)
 	}
 	got, err := os.ReadFile(pdfPath)
 	if err != nil {
@@ -220,6 +292,21 @@ func TestBuildFailurePreservesOldPDFAndReleasesLock(t *testing.T) {
 	}
 	if !strings.Contains(string(logData), "controlled pandoc failure") || !strings.Contains(string(logData), "Success: false") {
 		t.Fatalf("failure log lacks process diagnostics:\n%s", logData)
+	}
+}
+
+func TestBuildClassifiesFatalLatexLogAfterPowerShellFailure(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	executor := &fakeExecutor{behavior: func(_ context.Context, dir, command string, args []string) (process.Result, error) {
+		buildDir := argumentValue(args, "-BuildDirectory")
+		if err := os.WriteFile(filepath.Join(buildDir, "paper.log"), []byte("Undefined control sequence.\n"), 0o644); err != nil {
+			return process.Result{}, err
+		}
+		return process.Result{Command: command, Args: args, Dir: dir, ExitCode: 12}, nil
+	}}
+	result := runWithExecutor(context.Background(), projectDir, executor)
+	if result.Success || !hasDiagnosticCode(result, "NP5001") || !hasDiagnosticCode(result, "NP6106") {
+		t.Fatalf("result = %#v, want NP5001 and classified fatal NP6106", result)
 	}
 }
 
@@ -289,6 +376,34 @@ func TestBuildRejectsPDFWithoutEOFMarker(t *testing.T) {
 	result := runWithExecutor(context.Background(), projectDir, executor)
 	if result.Success || !hasDiagnosticCode(result, "NP7001") {
 		t.Fatalf("result = %#v, want NP7001", result)
+	}
+}
+
+func TestBuildRejectsCriticalLatexLogAndPreservesOldPDF(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	distDir := filepath.Join(projectDir, "dist")
+	if err := os.MkdirAll(distDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldPDF := []byte("%PDF-1.4\nold\n%%EOF\n")
+	finalPDF := filepath.Join(distDir, "paper.pdf")
+	if err := os.WriteFile(finalPDF, oldPDF, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	executor := &fakeExecutor{behavior: func(ctx context.Context, dir, command string, args []string) (process.Result, error) {
+		result, err := successfulFakeTool(ctx, dir, command, args)
+		if err == nil {
+			err = os.WriteFile(filepath.Join(argumentValue(args, "-BuildDirectory"), "paper.log"), []byte("Overfull \\hbox (8.0pt too wide)\n"), 0o644)
+		}
+		return result, err
+	}}
+	result := runWithExecutor(context.Background(), projectDir, executor)
+	if result.Success || !hasDiagnosticCode(result, "NP6101") {
+		t.Fatalf("result = %#v, want NP6101", result)
+	}
+	got, err := os.ReadFile(finalPDF)
+	if err != nil || string(got) != string(oldPDF) {
+		t.Fatalf("old PDF changed: %q, %v", got, err)
 	}
 }
 

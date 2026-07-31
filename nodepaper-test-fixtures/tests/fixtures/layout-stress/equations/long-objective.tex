@@ -1,0 +1,8 @@
+\begin{equation}
+\label{eq:fragment-objective}
+\begin{aligned}
+\min\quad J={}&\sum_{t=1}^{T}\sum_{i=1}^{n}\sum_{j=1}^{m} c_{tij}x_{tij}
++\alpha\sum_{t=1}^{T}\lVert\boldsymbol{x}_{t}-\boldsymbol{x}_{t-1}\rVert_1\\
+&+\beta\sum_{k=1}^{K}\left(\max\{0,d_k-s_k\}\right)^2.
+\end{aligned}
+\end{equation}

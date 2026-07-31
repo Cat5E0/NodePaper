@@ -1,0 +1,16 @@
+version: 1
+profile: cumcm
+sources:
+  - sections/01-frontmatter-abstract.md
+  - sections/02-text-inline.md
+  - sections/03-formulas-images.md
+  - sections/04-tables.md
+  - sections/05-references-footnotes.md
+  - sections/06-appendix-code.md
+latexFragments:
+  - tables/complex-result.tex
+  - equations/long-objective.tex
+appendix:
+  numbering: alpha
+output:
+  file: dist/paper.pdf

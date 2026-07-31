@@ -77,6 +77,13 @@ sources:
   - sections/01-abstract.md
   - sections/02-problem.md
   - sections/03-model.md
+latexFragments:
+  - tables/complex-result.tex
+  - equations/objective.tex
+appendix:
+  numbering: alpha
+highlight:
+  style: tango
 output:
   file: dist/paper.pdf
 ```
@@ -127,25 +134,43 @@ The formal CUMCM bibliography route is:
 references.bib + Pandoc Citeproc + pinned CSL
 ```
 
+A controlled Fragment must be declared in `latexFragments` before Markdown can insert it:
+
+```markdown
+\input{tables/complex-result.tex}
+
+See \cref{tab:complex-result}.
+```
+
+Fragments must be relative UTF-8 regular `.tex` files inside the Project Root. Full documents, package loading, nested `input`, TeX I/O, and command execution are rejected. Appendices use:
+
+```markdown
+# 附录
+## Test data
+## Program code
+```
+
+`appendix.numbering` accepts `alpha` (default), `continuous`, or `none`. `highlight.style` accepts the reviewed Pandoc built-in styles `tango` (default), `pygments`, or `kate`; no Python runtime or `shell-escape` is used.
+
 ## Current CUMCM behavior
 
 - The first page contains title, abstract, and keywords.
 - The electronic-paper Profile does not generate a contents, commitment, or numbering page.
-- Ordered single- and multi-source projects, Chinese cross-references, and Citeproc are supported in the current development workspace.
-- PDF publication checks non-empty content, header, EOF, and the 20 MB limit.
+- Ordered single- and multi-source projects, Chinese cross-references, Citeproc, and controlled LaTeX Fragments are supported.
+- Pandoc-native highlighting defaults to Tango, allows Pygments/Kate color schemes, and supports breakable long lines and multi-page code blocks.
+- The retained appendix heading supports `alpha`, `continuous`, and `none` numbering.
+- Build logs record Profile version, complete resource SHA-256, and Fragment SHA-256; build-time mutation fails.
+- Unknown warnings, overflow, missing characters/fonts, and unresolved references prevent publication.
+- PDF publication checks non-empty content, header, EOF, and the 20 MB limit; real E2E additionally checks A4, text bounds, embedded fonts, and content order.
 - Only one write build may run for a Project at a time.
-- Profile resources are read-only during a build.
 
-## Confirmed but not yet implemented v0.1 work
+## Remaining v0.1 work
 
-The following are approved plans, not current capabilities:
+The following gates remain incomplete:
 
-- Pandoc-native syntax highlighting, long-line wrapping, and multi-page code blocks;
-- a retained appendix heading with A/B by default and continuous/none alternatives;
-- explicitly declared, Project-root-confined LaTeX Fragments for complex tables and equations;
-- Profile version and complete resource SHA-256 logging;
-- generated-LaTeX contracts, strict missing-character/overflow checks, and non-visual PDF geometry checks;
-- a public `layout-stress` E2E and local reference-paper E2E.
+- MiKTeX, Windows 10, race detector, release ZIP, and final manual PDF review.
+
+MinerU full-paper import and semantic fidelity review are deferred to a post-v0.1 research task and do not block the runtime or release package.
 
 NodePaper will not add custom Markdown-in-Markdown Include syntax. Use ordered `sources` for chapters and controlled LaTeX Fragments for advanced typesetting.
 

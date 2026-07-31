@@ -111,12 +111,23 @@ func (a *appImpl) Init(ctx context.Context, req InitRequest) (InitResult, error)
 }
 
 func (a *appImpl) Doctor(ctx context.Context, req DoctorRequest) (DoctorResult, error) {
-	projectRoot := req.ProjectDir
-	if projectRoot != "" {
-		p, err := project.DiscoverFrom(projectRoot, "")
-		if err == nil {
-			projectRoot = p.Root
+	projectRoot := ""
+	if req.ProjectDir != "" {
+		p, err := project.Discover(req.ProjectDir)
+		if err != nil {
+			if discovery, ok := err.(*project.DiscoveryError); ok {
+				return DoctorResult{Diagnostics: []diagnostic.Diagnostic{discovery.Diagnostic}}, nil
+			}
+			return DoctorResult{}, err
 		}
+		projectRoot = p.Root
+	} else if p, err := project.Discover(""); err == nil {
+		projectRoot = p.Root
+	} else if discovery, ok := err.(*project.DiscoveryError); !ok || discovery.Diagnostic.Code != project.CodeProjectNotFound {
+		if ok {
+			return DoctorResult{Diagnostics: []diagnostic.Diagnostic{discovery.Diagnostic}}, nil
+		}
+		return DoctorResult{}, err
 	}
 
 	dr := doctor.Run(ctx, projectRoot, a.profileDir)

@@ -159,7 +159,7 @@ def total_demand(values):
 
 # 附录
 
-## 附录 A：测试数据片段
+## 测试数据片段
 
 | 时段 | 需求指数 |
 |---:|---:|
@@ -168,6 +168,6 @@ def total_demand(values):
 | 17 | 72 |
 | 18 | 81 |
 
-## 附录 B：测试说明
+## 测试说明
 
 本文档专门用于验证 NodePaper 的 Markdown、Pandoc、交叉引用、文献处理和 LaTeX/PDF 构建流程。

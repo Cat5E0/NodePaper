@@ -1,12 +1,18 @@
 param(
     [string]$Fixture = "",
+    [ValidateSet("", "alpha", "continuous", "none")]
+    [string]$AppendixNumbering = "",
+    [ValidateSet("", "tango", "pygments", "kate")]
+    [string]$HighlightStyle = "",
+    [string]$ReviewOutput = "",
+    [string]$ProfileOverride = "",
     [switch]$KeepWorkDirectory
 )
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
-    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file")) {
-        & $PSCommandPath -Fixture $case -KeepWorkDirectory:$KeepWorkDirectory
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "layout-stress")) {
+        & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
     Write-Host "M3 E2E suite passed."
     return
@@ -37,11 +43,44 @@ function Get-FixtureSnapshot([string]$Path) {
     return ($result | ConvertTo-Json -Compress)
 }
 
+function Get-StringSHA256([string]$Value) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)))).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 try {
     New-Item -ItemType Directory -Force -Path $projectDir | Out-Null
     Copy-Item -Path (Join-Path $fixtureRoot "*") -Destination $projectDir -Recurse -Force
+    if (-not [string]::IsNullOrWhiteSpace($AppendixNumbering)) {
+        $configPath = Join-Path $projectDir "nodepaper.yaml"
+        $configText = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
+        if ($configText -notmatch '(?m)^\s*numbering:\s*(alpha|continuous|none)\s*$') {
+            throw "Fixture does not declare appendix.numbering: $Fixture"
+        }
+        $configText = $configText -replace '(?m)^(\s*numbering:\s*)(alpha|continuous|none)(\s*)$', "`$1$AppendixNumbering`$3"
+        Set-Content -LiteralPath $configPath -Value $configText -Encoding UTF8
+    }
+    $effectiveAppendixNumbering = if ([string]::IsNullOrWhiteSpace($AppendixNumbering)) { "alpha" } else { $AppendixNumbering }
+    $effectiveHighlightStyle = if ([string]::IsNullOrWhiteSpace($HighlightStyle)) { "tango" } else { $HighlightStyle }
+    if (-not [string]::IsNullOrWhiteSpace($HighlightStyle)) {
+        $configPath = Join-Path $projectDir "nodepaper.yaml"
+        $configText = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
+        if ($configText -match '(?m)^\s*style:\s*(tango|pygments|kate)\s*$') {
+            $configText = $configText -replace '(?m)^(\s*style:\s*)(tango|pygments|kate)(\s*)$', "`$1$HighlightStyle`$3"
+        }
+        else {
+            $configText = $configText.TrimEnd() + "`r`n" + "highlight:`r`n  style: $HighlightStyle`r`n"
+        }
+        Set-Content -LiteralPath $configPath -Value $configText -Encoding UTF8
+    }
     $before = Get-FixtureSnapshot $fixtureRoot
-    $profileDir = Join-Path $root "profiles\cumcm"
+    $profileDir = if ([string]::IsNullOrWhiteSpace($ProfileOverride)) { Join-Path $root "profiles\cumcm" } else { $ProfileOverride }
+    $profileMetadata = Get-Content -LiteralPath (Join-Path $profileDir "profile.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     $profileBefore = Get-FixtureSnapshot $profileDir
 
     $go = Get-NodePaperGo
@@ -86,6 +125,46 @@ try {
     }
     if (-not (Select-String -LiteralPath $tex -SimpleMatch "\documentclass" -Quiet)) {
         throw "generated LaTeX is not standalone: $tex"
+    }
+    $texText = Get-Content -LiteralPath $tex -Raw -Encoding UTF8
+    foreach ($required in @("\documentclass[UTF8,zihao=-4,a4paper]{ctexart}", "top=2.5cm", "bottom=2.5cm", "left=2.5cm", "right=2.5cm")) {
+        if (-not $texText.Contains($required)) {
+            throw "generated LaTeX contract is missing: $required"
+        }
+    }
+    foreach ($forbidden in @("\tableofcontents", "`$body`$", "`$title`$", "shell-escape")) {
+        if ($texText.Contains($forbidden)) {
+            throw "generated LaTeX contains a forbidden contract marker: $forbidden"
+        }
+    }
+    if ($texText.Contains($root)) {
+        throw "generated LaTeX contains an absolute source-tree path"
+    }
+    if ($Fixture -eq "layout-stress") {
+        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}")) {
+            if (-not $texText.Contains($required)) {
+                throw "layout-stress LaTeX contract is missing: $required"
+            }
+        }
+        $appendixText = ([string][char]0x9644) + ([char]0x5F55)
+        $multilingualCodeText = ([string][char]0x591A) + ([char]0x8BED) + ([char]0x8A00) + ([char]0x4EE3) + ([char]0x7801)
+        switch ($effectiveAppendixNumbering) {
+            "alpha" {
+                if (-not $texText.Contains("\nodepaperAppendixAlpha") -or -not $texText.Contains("\section{$multilingualCodeText}")) {
+                    throw "alpha appendix LaTeX contract failed"
+                }
+            }
+            "continuous" {
+                if (-not $texText.Contains("\section{$appendixText}") -or -not $texText.Contains("\subsection{$multilingualCodeText}")) {
+                    throw "continuous appendix LaTeX contract failed"
+                }
+            }
+            "none" {
+                if (-not $texText.Contains("\nodepaperAppendixNone") -or -not $texText.Contains("\subsection*{$multilingualCodeText}")) {
+                    throw "unnumbered appendix LaTeX contract failed"
+                }
+            }
+        }
     }
 
     $logs = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Filter "build-*.log" -File)
@@ -132,12 +211,26 @@ try {
 
     $pdfInfo = Get-Command "pdfinfo.exe" -ErrorAction SilentlyContinue
     $pdfToText = Get-Command "pdftotext.exe" -ErrorAction SilentlyContinue
-    if (-not $pdfInfo -or -not $pdfToText) {
-        throw "pdfinfo.exe and pdftotext.exe are required for PDF structure checks"
+    $pdfFonts = Get-Command "pdffonts.exe" -ErrorAction SilentlyContinue
+    if (-not $pdfInfo -or -not $pdfToText -or -not $pdfFonts) {
+        throw "pdfinfo.exe, pdftotext.exe and pdffonts.exe are required for PDF structure checks"
     }
-    $infoOutput = & $pdfInfo.Source $pdf 2>&1
+    $infoOutput = & $pdfInfo.Source -box $pdf 2>&1
     if ($LASTEXITCODE -ne 0 -or -not ($infoOutput -match '^Pages:\s+[1-9][0-9]*')) {
         throw "PDF parser did not report a positive page count:`n$($infoOutput -join [Environment]::NewLine)"
+    }
+    if (-not ($infoOutput -match '^Page size:\s+595(?:\.[0-9]+)?\s+x\s+842(?:\.[0-9]+)?\s+pts\s+\(A4\)') -and
+        -not ($infoOutput -match '^Page size:\s+595\.2[0-9]*\s+x\s+841\.8[0-9]*\s+pts\s+\(A4\)')) {
+        throw "PDF is not A4:`n$($infoOutput -join [Environment]::NewLine)"
+    }
+    $fontOutput = & $pdfFonts.Source $pdf 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "pdffonts failed"
+    }
+    foreach ($line in $fontOutput) {
+        if ($line -match '\s+(yes|no)\s+(yes|no)\s+(yes|no)\s+\d+\s+\d+\s*$' -and $Matches[1] -ne "yes") {
+            throw "PDF contains a non-embedded font: $line"
+        }
     }
 
     $textPath = Join-Path $workRoot "paper.txt"
@@ -176,10 +269,80 @@ try {
         throw "PDF contains an unresolved citation or cross-reference"
     }
 
+    if ($Fixture -eq "layout-stress") {
+        $orderedMarkers = @(
+            "NP-LAYOUT-TEXT-01",
+            "NP-LAYOUT-EQUATION-01",
+            "NP-LAYOUT-TABLE-01",
+            "NP-LAYOUT-REFERENCE-01",
+            "NP-LAYOUT-CODE-START",
+            "NP-LAYOUT-CODE-END",
+            "NP-LAYOUT-AFTER-CODE-01",
+            "NP-LAYOUT-APPENDIX-END"
+        )
+        $previousIndex = -1
+        foreach ($marker in $orderedMarkers) {
+            $index = $pdfText.IndexOf($marker, [System.StringComparison]::Ordinal)
+            if ($index -lt 0 -or $index -le $previousIndex) {
+                throw "PDF layout marker is missing or out of order: $marker"
+            }
+            $previousIndex = $index
+        }
+        $normalizedPdfText = $pdfText -replace '[\s-]', ''
+        foreach ($marker in @("NP-LAYOUT-LONGTABLE-FIRST", "NP-LAYOUT-LONGTABLE-LAST", "NP-LAYOUT-PLAIN-CODE-01")) {
+            $normalizedMarker = $marker -replace '-', ''
+            if (-not $normalizedPdfText.Contains($normalizedMarker)) {
+                throw "PDF is missing layout content: $marker"
+            }
+        }
+
+        # Poppler on Windows cannot reliably create a bbox output file when
+        # the output path itself contains non-ASCII characters.
+        $bboxPath = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-bbox-" + [Guid]::NewGuid().ToString("N") + ".html")
+        & $pdfToText.Source -bbox-layout -enc UTF-8 $pdf $bboxPath
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $bboxPath -PathType Leaf)) {
+            throw "pdftotext -bbox-layout failed"
+        }
+        [xml]$bbox = Get-Content -LiteralPath $bboxPath -Raw -Encoding UTF8
+        Remove-Item -LiteralPath $bboxPath -Force -ErrorAction SilentlyContinue
+        $pages = @($bbox.SelectNodes("//*[local-name()='page']"))
+        if ($pages.Count -eq 0) {
+            throw "Bounding Box output contains no pages"
+        }
+        $culture = [System.Globalization.CultureInfo]::InvariantCulture
+        foreach ($page in $pages) {
+            $pageWidth = [double]::Parse($page.width, $culture)
+            $pageHeight = [double]::Parse($page.height, $culture)
+            $words = @($page.SelectNodes(".//*[local-name()='word']"))
+            if ($words.Count -eq 0) {
+                throw "PDF contains an unexpected blank page"
+            }
+            foreach ($word in $words) {
+                $xMin = [double]::Parse($word.xMin, $culture)
+                $xMax = [double]::Parse($word.xMax, $culture)
+                $yMin = [double]::Parse($word.yMin, $culture)
+                if ($yMin -gt ($pageHeight - 55)) {
+                    continue # page number/footer exception
+                }
+                # Geometry sets 70.87 pt margins. Allow 10 pt glyph-ink and
+                # extraction tolerance while still catching material overflow.
+                if ($xMin -lt 60 -or $xMax -gt ($pageWidth - 60)) {
+                    throw "PDF text exceeds the reviewed body boundary: '$($word.InnerText)' x=$xMin..$xMax pageWidth=$pageWidth"
+                }
+            }
+        }
+    }
+
     $latexLog = Join-Path $projectDir ".nodepaper\build\paper.log"
     $latexLogText = Get-Content -LiteralPath $latexLog -Raw -ErrorAction Stop
-    if ($latexLogText -match 'There were undefined references' -or $latexLogText -match 'Citation.+undefined') {
-        throw "LaTeX log contains unresolved references"
+    if ($latexLogText -match 'There were undefined references' -or
+        $latexLogText -match 'Citation.+undefined' -or
+        $latexLogText -match 'Overfull \\[hv]box' -or
+        $latexLogText -match 'Missing character:' -or
+        $latexLogText -match 'LaTeX Font Warning:' -or
+        $latexLogText -match 'Package .+ Warning:' -or
+        $latexLogText -match 'LaTeX Warning:') {
+        throw "Final LaTeX log contains a build-critical warning"
     }
 
     $after = Get-FixtureSnapshot $fixtureRoot
@@ -189,6 +352,31 @@ try {
     $profileAfter = Get-FixtureSnapshot $profileDir
     if ($profileAfter -ne $profileBefore) {
         throw "Read-only CUMCM Profile was modified by E2E"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ReviewOutput)) {
+        $reviewDir = Join-Path $ReviewOutput $Fixture
+        if (-not [string]::IsNullOrWhiteSpace($AppendixNumbering)) {
+            $reviewDir = Join-Path $reviewDir $AppendixNumbering
+        }
+        New-Item -ItemType Directory -Force -Path $reviewDir | Out-Null
+        Copy-Item -LiteralPath $pdf -Destination (Join-Path $reviewDir "generated.pdf") -Force
+        Copy-Item -LiteralPath $tex -Destination (Join-Path $reviewDir "generated.tex") -Force
+        Copy-Item -LiteralPath $latexLog -Destination (Join-Path $reviewDir "latex.log") -Force
+        $manifest = [ordered]@{
+            schemaVersion = 1
+            fixture = $Fixture
+            appendixNumbering = $effectiveAppendixNumbering
+            highlightStyle = $effectiveHighlightStyle
+            generatedAt = (Get-Date).ToString("o")
+            profileVersion = [string]$profileMetadata.version
+            profileSnapshotSHA256 = (Get-StringSHA256 $profileAfter)
+            pdfSHA256 = (Get-FileHash -LiteralPath $pdf -Algorithm SHA256).Hash.ToLowerInvariant()
+            texSHA256 = (Get-FileHash -LiteralPath $tex -Algorithm SHA256).Hash.ToLowerInvariant()
+            latexLogSHA256 = (Get-FileHash -LiteralPath $latexLog -Algorithm SHA256).Hash.ToLowerInvariant()
+            checks = @("latex-contract", "pdf-a4", "pdf-content-order", "font-embedding", "warning-zero")
+        }
+        $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reviewDir "review-manifest.json") -Encoding UTF8
     }
 
     $passed = $true

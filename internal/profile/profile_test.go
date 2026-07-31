@@ -16,7 +16,10 @@ func TestLoadBuiltinCUMCMProfile(t *testing.T) {
 	if loaded.Definition.RulesVersion != "2026" || loaded.Definition.OutputMode != "electronic-paper" {
 		t.Fatalf("definition = %#v", loaded.Definition)
 	}
-	for _, path := range []string{loaded.Template, loaded.CrossrefMetadata, loaded.AbstractFilter, loaded.CSL, loaded.WarningAllowlist} {
+	if len(loaded.Resources) == 0 || len(loaded.SHA256) != 64 {
+		t.Fatalf("snapshot resources=%d SHA256=%q", len(loaded.Resources), loaded.SHA256)
+	}
+	for _, path := range []string{loaded.Template, loaded.CrossrefMetadata, loaded.AbstractFilter, loaded.LayoutFilter, loaded.CSL, loaded.WarningAllowlist} {
 		if !filepath.IsAbs(path) {
 			t.Fatalf("resource is not absolute: %s", path)
 		}
@@ -34,6 +37,28 @@ func TestLoadRejectsUnknownMetadataField(t *testing.T) {
 	}
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "unknown field") {
 		t.Fatalf("Load() error = %v, want unknown field", err)
+	}
+}
+
+func TestSnapshotChangesWhenResourceChanges(t *testing.T) {
+	source := filepath.Join("..", "..", "profiles", "cumcm")
+	dir := filepath.Join(t.TempDir(), "cumcm")
+	if err := copyProfileTree(source, dir); err != nil {
+		t.Fatal(err)
+	}
+	before, err := Snapshot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "template.tex"), []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after, err := Snapshot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before == after {
+		t.Fatal("Profile snapshot did not change")
 	}
 }
 
@@ -56,6 +81,8 @@ func TestLoadRejectsResourceEscape(t *testing.T) {
   "template": "../outside.tex",
   "crossrefMetadata": "x",
   "abstractFilter": "x",
+  "layoutFilter": "x",
+  "highlightStyle": "tango",
   "csl": "x",
   "warningAllowlist": "x",
   "pandocVersion": "3.9",
@@ -67,4 +94,25 @@ func TestLoadRejectsResourceEscape(t *testing.T) {
 	if _, err := Load(dir); err == nil || !strings.Contains(err.Error(), "escapes profile") {
 		t.Fatalf("Load() error = %v, want path escape", err)
 	}
+}
+
+func copyProfileTree(source, destination string) error {
+	return filepath.Walk(source, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destination, relative)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode().Perm())
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, info.Mode().Perm())
+	})
 }

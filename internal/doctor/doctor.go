@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"nodepaper/internal/diagnostic"
@@ -56,18 +57,20 @@ type Toolchain struct {
 func Run(ctx context.Context, projectRoot string, builtinProfileDir string) Result {
 	var checks []Check
 
-	checks = append(checks, checkPowershell())
+	loadedProfile, profileCheck := checkBuiltinProfile(builtinProfileDir)
+	checks = append(checks, profileCheck)
+	checks = append(checks, checkPowershell(ctx))
 	tc := findToolchain()
 	checks = append(checks,
-		checkPandoc(tc.Pandoc),
-		checkPandocCrossref(tc.PandocCrossref),
-		checkLatexmk(tc.Latexmk),
-		checkXeLaTeX(tc.XeLaTeX),
+		checkPandoc(ctx, tc.Pandoc, loadedProfile.Definition.PandocVersion),
+		checkPandocCrossref(ctx, tc.PandocCrossref, loadedProfile.Definition.PandocCrossrefVersion),
+		checkLatexmk(ctx, tc.Latexmk),
+		checkXeLaTeX(ctx, tc.XeLaTeX),
 	)
 	checks = append(checks, checkChineseProbe(ctx, tc))
 
 	if projectRoot != "" {
-		checks = append(checks, checkProjectResources(projectRoot, builtinProfileDir)...)
+		checks = append(checks, checkProjectResources(projectRoot)...)
 	}
 
 	result := Result{Success: true, Checks: checks}
@@ -88,7 +91,32 @@ func Run(ctx context.Context, projectRoot string, builtinProfileDir string) Resu
 
 // ---------- individual checks -------------------------------------------
 
-func checkPowershell() Check {
+func checkBuiltinProfile(dir string) (profile.Loaded, Check) {
+	if dir == "" {
+		return profile.Loaded{}, Check{
+			Name:       "profile",
+			Status:     StatusFail,
+			Message:    "built-in CUMCM Profile directory was not found",
+			Suggestion: "Reinstall NodePaper with profiles/cumcm next to nodepaper.exe.",
+		}
+	}
+	loaded, err := profile.Load(dir)
+	if err != nil {
+		return profile.Loaded{}, Check{
+			Name:       "profile",
+			Status:     StatusFail,
+			Message:    fmt.Sprintf("CUMCM Profile is invalid: %v", err),
+			Suggestion: "Reinstall NodePaper or restore profiles/cumcm.",
+		}
+	}
+	return loaded, Check{
+		Name:    "profile",
+		Status:  StatusPass,
+		Message: fmt.Sprintf("%s (rules %s, version %s, sha256 %s)", loaded.Dir, loaded.Definition.RulesVersion, loaded.Definition.Version, loaded.SHA256),
+	}
+}
+
+func checkPowershell(ctx context.Context) Check {
 	path, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		path, err = exec.LookPath("pwsh")
@@ -98,14 +126,14 @@ func checkPowershell() Check {
 			Name:       "PowerShell",
 			Status:     StatusFail,
 			Message:    "PowerShell not found",
-			Suggestion: "Install PowerShell 7+ or ensure powershell.exe is in PATH.",
+			Suggestion: "Install PowerShell or ensure powershell.exe/pwsh is in PATH.",
 		}
 	}
-	return Check{
-		Name:    "PowerShell",
-		Status:  StatusPass,
-		Message: path,
+	version, err := commandVersion(ctx, path, []string{"-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"}, regexp.MustCompile(`^\d+(?:\.\d+)+$`))
+	if err != nil {
+		return Check{Name: "PowerShell", Status: StatusFail, Message: err.Error(), Suggestion: "Repair PowerShell and run doctor again."}
 	}
+	return Check{Name: "PowerShell", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
 func findToolchain() Toolchain {
@@ -117,68 +145,78 @@ func findToolchain() Toolchain {
 	return tc
 }
 
-func checkPandoc(path string) Check {
+func checkPandoc(ctx context.Context, path, expected string) Check {
 	if path == "" {
-		return Check{
-			Name:       "Pandoc",
-			Status:     StatusFail,
-			Message:    "Pandoc not found",
-			Suggestion: "Install Pandoc 3.x and ensure pandoc is in PATH.",
-		}
+		return missingTool("Pandoc", "Install the pinned Pandoc version and ensure pandoc is in PATH.")
 	}
-	return Check{
-		Name:    "Pandoc",
-		Status:  StatusPass,
-		Message: path,
+	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^pandoc\s+\S+`))
+	if err != nil {
+		return failedVersionCheck("Pandoc", err)
 	}
+	if expected != "" && version != "pandoc "+expected {
+		return Check{Name: "Pandoc", Status: StatusFail, Message: fmt.Sprintf("expected pandoc %s, got %s", expected, version), Suggestion: "Install the Profile-pinned Pandoc version."}
+	}
+	return Check{Name: "Pandoc", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
-func checkPandocCrossref(path string) Check {
+func checkPandocCrossref(ctx context.Context, path, expected string) Check {
 	if path == "" {
-		return Check{
-			Name:       "pandoc-crossref",
-			Status:     StatusFail,
-			Message:    "pandoc-crossref not found",
-			Suggestion: "Install pandoc-crossref and ensure it is in PATH.",
-		}
+		return missingTool("pandoc-crossref", "Install the pinned pandoc-crossref version and ensure it is in PATH.")
 	}
-	return Check{
-		Name:    "pandoc-crossref",
-		Status:  StatusPass,
-		Message: path,
+	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^pandoc-crossref\s+v?\S+`))
+	if err != nil {
+		return failedVersionCheck("pandoc-crossref", err)
 	}
+	actual := strings.TrimPrefix(strings.Fields(version)[1], "v")
+	if expected != "" && actual != expected {
+		return Check{Name: "pandoc-crossref", Status: StatusFail, Message: fmt.Sprintf("expected %s, got %s", expected, actual), Suggestion: "Install the Profile-pinned pandoc-crossref version."}
+	}
+	return Check{Name: "pandoc-crossref", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
-func checkLatexmk(path string) Check {
+func checkLatexmk(ctx context.Context, path string) Check {
 	if path == "" {
-		return Check{
-			Name:       "latexmk",
-			Status:     StatusFail,
-			Message:    "latexmk not found",
-			Suggestion: "Install TeX Live or MiKTeX and ensure latexmk is in PATH.",
-		}
+		return missingTool("latexmk", "Install TeX Live or MiKTeX and ensure latexmk is in PATH.")
 	}
-	return Check{
-		Name:    "latexmk",
-		Status:  StatusPass,
-		Message: path,
+	version, err := commandVersion(ctx, path, []string{"-v"}, regexp.MustCompile(`^Latexmk,.*Version\s+\S+`))
+	if err != nil {
+		return failedVersionCheck("latexmk", err)
 	}
+	return Check{Name: "latexmk", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
-func checkXeLaTeX(path string) Check {
+func checkXeLaTeX(ctx context.Context, path string) Check {
 	if path == "" {
-		return Check{
-			Name:       "XeLaTeX",
-			Status:     StatusFail,
-			Message:    "XeLaTeX not found",
-			Suggestion: "Install TeX Live or MiKTeX and ensure xelatex is in PATH.",
+		return missingTool("XeLaTeX", "Install TeX Live or MiKTeX and ensure xelatex is in PATH.")
+	}
+	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^XeTeX\s+\S+`))
+	if err != nil {
+		return failedVersionCheck("XeLaTeX", err)
+	}
+	return Check{Name: "XeLaTeX", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
+}
+
+func missingTool(name, suggestion string) Check {
+	return Check{Name: name, Status: StatusFail, Message: name + " not found", Suggestion: suggestion}
+}
+
+func failedVersionCheck(name string, err error) Check {
+	return Check{Name: name, Status: StatusFail, Message: err.Error(), Suggestion: "Verify that the executable can run and report its version."}
+}
+
+func commandVersion(ctx context.Context, path string, args []string, linePattern *regexp.Regexp) (string, error) {
+	command := exec.CommandContext(ctx, path, args...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("cannot read %s version: %w", filepath.Base(path), err)
+	}
+	for _, line := range strings.Split(strings.ReplaceAll(string(output), "\r\n", "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if linePattern.MatchString(line) {
+			return line, nil
 		}
 	}
-	return Check{
-		Name:    "XeLaTeX",
-		Status:  StatusPass,
-		Message: path,
-	}
+	return "", fmt.Errorf("cannot identify %s version output", filepath.Base(path))
 }
 
 func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
@@ -246,7 +284,7 @@ NodePaper 中文环境探针
 	}
 }
 
-func checkProjectResources(projectRoot, builtinProfileDir string) []Check {
+func checkProjectResources(projectRoot string) []Check {
 	var checks []Check
 
 	// Check nodepaper.yaml exists.
@@ -264,25 +302,6 @@ func checkProjectResources(projectRoot, builtinProfileDir string) []Check {
 			Status:  StatusPass,
 			Message: configPath,
 		})
-	}
-
-	// Strictly load every declared resource in the immutable built-in Profile.
-	if builtinProfileDir != "" {
-		loaded, err := profile.Load(builtinProfileDir)
-		if err != nil {
-			checks = append(checks, Check{
-				Name:       "profile",
-				Status:     StatusFail,
-				Message:    fmt.Sprintf("CUMCM Profile is invalid: %v", err),
-				Suggestion: "Reinstall NodePaper or restore profiles/cumcm.",
-			})
-		} else {
-			checks = append(checks, Check{
-				Name:    "profile",
-				Status:  StatusPass,
-				Message: fmt.Sprintf("%s (rules %s, version %s)", loaded.Dir, loaded.Definition.RulesVersion, loaded.Definition.Version),
-			})
-		}
 	}
 
 	return checks
