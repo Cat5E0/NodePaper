@@ -11,6 +11,7 @@
 \usepackage{calc}
 \usepackage{float}
 \usepackage{fvextra}
+\usepackage{mdframed}
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{xurl}
@@ -53,7 +54,22 @@ $highlighting-macros$
 \RecustomVerbatimEnvironment{Highlighting}{Verbatim}{%
   commandchars=\\\{\},breaklines=true,breakanywhere=true,%
   breaknonspaceingroup=true,fontsize=\small}
-\renewenvironment{Shaded}{}{}
+\definecolor{nodepapercodebackground}{RGB}{248,248,248}
+\definecolor{nodepapercodeframe}{RGB}{205,205,205}
+\renewenvironment{Shaded}{%
+  \begin{mdframed}[
+    linecolor=nodepapercodeframe,
+    backgroundcolor=nodepapercodebackground,
+    linewidth=0.4pt,
+    innerleftmargin=5pt,
+    innerrightmargin=5pt,
+    innertopmargin=3pt,
+    innerbottommargin=3pt,
+    skipabove=0.6\baselineskip,
+    skipbelow=0.6\baselineskip,
+    splittopskip=\topskip,
+    splitbottomskip=0pt]
+}{\end{mdframed}}
 % CJK fonts in the baseline TeX environments may not provide italic faces.
 % Keep comments readable without triggering font substitution warnings.
 \renewcommand{\CommentTok}[1]{\textcolor[rgb]{0.35,0.35,0.35}{#1}}

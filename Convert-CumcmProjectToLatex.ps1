@@ -171,6 +171,7 @@ $arguments += @(
     "--csl", $csl,
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
+    "--metadata", "link-citations=true",
     "--fail-if-warnings",
     "--resource-path", $resourcePath,
     "--output", $outputPath

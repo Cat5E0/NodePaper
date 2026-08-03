@@ -113,6 +113,8 @@ keywords:
 在此撰写摘要。
 ```
 
+不要在摘要正文中再次手写“关键词”段落；Profile 会根据 Front Matter 的 `keywords` 仅生成一次。
+
 文献引用：
 
 ```markdown
@@ -164,7 +166,8 @@ Fragment 只允许 Project Root 内的相对 UTF-8 `.tex` 普通文件；禁止�
 - 不生成纸质版承诺书和编号页；
 - 使用固定 CUMCM 2026 候选 Profile；
 - 支持有序单文件/多文件、中文 Crossref、Citeproc 和受控 LaTeX Fragment；
-- 使用 Pandoc 内置代码高亮，默认 Tango，可选 Pygments/Kate 配色，代码长行可断行且代码块可跨页；
+- 使用 Pandoc 内置代码高亮，默认 Tango，可选 Pygments/Kate 配色，并使用可跨页的浅色细框；代码长行可安全断行；
+- 数字上标引用可跳转到对应参考文献条目；
 - 保留“附录”总标题，并支持 `alpha`、`continuous`、`none`；
 - 构建日志记录 Profile 版本、完整资源 SHA-256 和 Fragment SHA-256，构建前后变化会失败；
 - 未知 Warning、Overfull、缺字/字体和未解析引用会阻止发布；

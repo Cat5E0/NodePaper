@@ -140,8 +140,18 @@ try {
     if ($texText.Contains($root)) {
         throw "generated LaTeX contains an absolute source-tree path"
     }
+    if (-not $texText.Contains("\citeproc{ref-")) {
+        throw "generated LaTeX does not contain linked Citeproc citations"
+    }
+    if ($Fixture -eq "highlight-showcase") {
+        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}")) {
+            if (-not $texText.Contains($required)) {
+                throw "highlight-showcase LaTeX contract is missing: $required"
+            }
+        }
+    }
     if ($Fixture -eq "layout-stress") {
-        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}")) {
+        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}")) {
             if (-not $texText.Contains($required)) {
                 throw "layout-stress LaTeX contract is missing: $required"
             }
@@ -211,9 +221,10 @@ try {
 
     $pdfInfo = Get-Command "pdfinfo.exe" -ErrorAction SilentlyContinue
     $pdfToText = Get-Command "pdftotext.exe" -ErrorAction SilentlyContinue
+    $pdfToHtml = Get-Command "pdftohtml.exe" -ErrorAction SilentlyContinue
     $pdfFonts = Get-Command "pdffonts.exe" -ErrorAction SilentlyContinue
-    if (-not $pdfInfo -or -not $pdfToText -or -not $pdfFonts) {
-        throw "pdfinfo.exe, pdftotext.exe and pdffonts.exe are required for PDF structure checks"
+    if (-not $pdfInfo -or -not $pdfToText -or -not $pdfToHtml -or -not $pdfFonts) {
+        throw "pdfinfo.exe, pdftotext.exe, pdftohtml.exe and pdffonts.exe are required for PDF structure checks"
     }
     $infoOutput = & $pdfInfo.Source -box $pdf 2>&1
     if ($LASTEXITCODE -ne 0 -or -not ($infoOutput -match '^Pages:\s+[1-9][0-9]*')) {
@@ -253,6 +264,9 @@ try {
     if (-not $firstPageText.Contains($abstractHeading) -or -not $firstPageText.Contains($keywordsHeading)) {
         throw "The electronic paper first page is not the title/abstract/keywords page"
     }
+    if ([regex]::Matches($firstPageText, $keywordsHeading).Count -ne 1) {
+        throw "The electronic paper first page must contain exactly one keywords label"
+    }
     $contentsHeading = ([string][char]0x76EE) + ([char]0x5F55)
     $commitmentHeading = ([string][char]0x627F) + ([char]0x8BFA) + ([char]0x4E66)
     $numberingHeading = ([string][char]0x7F16) + ([char]0x53F7) + ([char]0x4E13) + ([char]0x7528) + ([char]0x9875)
@@ -264,6 +278,18 @@ try {
     $referencesHeading = ([string][char]0x53C2) + ([char]0x8003) + ([char]0x6587) + ([char]0x732E)
     if (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains("Demand Forecasting for Shared Mobility Systems")) {
         throw "PDF is missing the Citeproc-generated bibliography"
+    }
+    $linkBase = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-links-" + [Guid]::NewGuid().ToString("N"))
+    & $pdfToHtml.Source -xml -hidden -nodrm $pdf $linkBase | Out-Null
+    $linkXmlPath = $linkBase + ".xml"
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $linkXmlPath -PathType Leaf)) {
+        throw "pdftohtml failed to extract PDF links"
+    }
+    $linkXmlText = Get-Content -LiteralPath $linkXmlPath -Raw -Encoding UTF8
+    Remove-Item -LiteralPath $linkXmlPath -Force -ErrorAction SilentlyContinue
+    $linkedCitationPattern = '(?:<a href="[^"]+#[0-9]+">\[1\]</a>|\[<a href="[^"]+#[0-9]+">1</a>\])'
+    if ($linkXmlText -notmatch $linkedCitationPattern) {
+        throw "PDF citation [1] does not contain an internal bibliography link"
     }
     if ($pdfText -match '@(fig|tbl|eq|sec):' -or $pdfText -match '@[A-Za-z][A-Za-z0-9_.:+/-]*') {
         throw "PDF contains an unresolved citation or cross-reference"
@@ -374,7 +400,7 @@ try {
             pdfSHA256 = (Get-FileHash -LiteralPath $pdf -Algorithm SHA256).Hash.ToLowerInvariant()
             texSHA256 = (Get-FileHash -LiteralPath $tex -Algorithm SHA256).Hash.ToLowerInvariant()
             latexLogSHA256 = (Get-FileHash -LiteralPath $latexLog -Algorithm SHA256).Hash.ToLowerInvariant()
-            checks = @("latex-contract", "pdf-a4", "pdf-content-order", "font-embedding", "warning-zero")
+            checks = @("latex-contract", "keywords-once", "citation-links", "breakable-code-frame", "pdf-a4", "pdf-content-order", "font-embedding", "warning-zero")
         }
         $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reviewDir "review-manifest.json") -Encoding UTF8
     }

@@ -183,6 +183,14 @@
       "purpose": "layout, Fragment, highlighting and appendix stress E2E"
     },
     {
+      "path": "highlight-showcase",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "focused Tango, Pygments and Kate visual comparison"
+    },
+    {
       "path": "fragment-missing",
       "command": "validate",
       "expectedSuccess": false,
