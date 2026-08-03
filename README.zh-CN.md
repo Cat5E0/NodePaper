@@ -6,6 +6,31 @@ NodePaper 是一个面向 Windows 的 Go CLI，用于把包含 `nodepaper.yaml` 
 
 > 当前状态：开发中。CUMCM Profile 尚未完成 MiKTeX、Windows 10、Race Detector、发布 ZIP 和人工 PDF 排版门槛，不代表比赛官方认证。
 
+## 从源码运行
+
+在仓库根目录准备固定版本的 Pandoc 和 pandoc-crossref，然后把 CLI 构建到仓库根目录。这样可执行文件可以找到同目录下的 `Build-Paper.ps1` 和 `profiles/cumcm`：
+
+```powershell
+.\Bootstrap-Tools.ps1
+go build -o nodepaper.exe .\cmd\nodepaper
+
+.\nodepaper.exe doctor D:\papers\cumcm-a
+.\nodepaper.exe validate D:\papers\cumcm-a
+.\nodepaper.exe build D:\papers\cumcm-a
+```
+
+不建议从任意项目目录直接使用 `go run`，因为 Go 的临时可执行文件旁没有完整构建资源。`nodepaper.exe` 是正常使用入口；`scripts/test-all.ps1` 用于开发者快速回归，`scripts/test-e2e.ps1` 用于真实 Pandoc/LaTeX 构建回归。
+
+仓库内的 Fixture 是只读测试输入。手工测试时先复制到仓库外的临时目录，再运行 CLI，例如：
+
+```powershell
+Copy-Item -Recurse `
+  .\nodepaper-test-fixtures\tests\fixtures\complete-single-file `
+  D:\NodePaperTests\complete-single-file
+
+.\nodepaper.exe build D:\NodePaperTests\complete-single-file
+```
+
 ## 正式工作流
 
 NodePaper 的操作对象是 Project 目录，不是孤立 Markdown 文件：

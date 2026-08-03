@@ -28,6 +28,9 @@ logs/
 /Paper.pdf
 /Paper.tex
 
+# Local experiment screenshots are not repository assets.
+/image/Exp*.png
+
 # Bundled third-party binaries (distributed separately)
 tools/windows-x64/
 !tools/versions.json

@@ -6,6 +6,31 @@ The current v0.1 development focus is a candidate CUMCM 2026 electronic-paper Pr
 
 > Status: under development. The candidate CUMCM Profile has not completed the MiKTeX, Windows 10, race-detector, release-ZIP, or manual PDF review gates and is not endorsed by the competition organizers.
 
+## Run from source
+
+From the repository root, bootstrap the pinned Pandoc and pandoc-crossref tools and build the CLI into the repository root. This layout lets the executable find `Build-Paper.ps1` and `profiles/cumcm` beside it:
+
+```powershell
+.\Bootstrap-Tools.ps1
+go build -o nodepaper.exe .\cmd\nodepaper
+
+.\nodepaper.exe doctor D:\papers\cumcm-a
+.\nodepaper.exe validate D:\papers\cumcm-a
+.\nodepaper.exe build D:\papers\cumcm-a
+```
+
+Avoid invoking `go run` from an arbitrary Project directory because Go's temporary executable does not have the complete build resources beside it. `nodepaper.exe` is the normal product entrypoint; `scripts/test-all.ps1` is the fast developer regression suite, while `scripts/test-e2e.ps1` runs real Pandoc/LaTeX build regression.
+
+Repository Fixtures are read-only test inputs. Copy one outside the repository before manual CLI testing:
+
+```powershell
+Copy-Item -Recurse `
+  .\nodepaper-test-fixtures\tests\fixtures\complete-single-file `
+  D:\NodePaperTests\complete-single-file
+
+.\nodepaper.exe build D:\NodePaperTests\complete-single-file
+```
+
 ## Project workflow
 
 NodePaper operates on Project directories, not isolated Markdown files:
