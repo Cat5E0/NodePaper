@@ -127,7 +127,7 @@ try {
         throw "generated LaTeX is not standalone: $tex"
     }
     $texText = Get-Content -LiteralPath $tex -Raw -Encoding UTF8
-    foreach ($required in @("\documentclass[UTF8,zihao=-4,a4paper]{ctexart}", "top=2.5cm", "bottom=2.5cm", "left=2.5cm", "right=2.5cm")) {
+    foreach ($required in @("\documentclass[UTF8,zihao=-4,a4paper]{ctexart}", "top=2.5cm", "bottom=2.5cm", "left=2.5cm", "right=2.5cm", "bookmarksopenlevel=2", "bookmarksdepth=3", "pdfpagemode=UseOutlines", "{nodepaper.abstract}")) {
         if (-not $texText.Contains($required)) {
             throw "generated LaTeX contract is missing: $required"
         }
@@ -205,6 +205,33 @@ try {
     $logs = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Filter "build-*.log" -File)
     if ($logs.Count -lt 2) {
         throw "two builds did not create distinct log files"
+    }
+    $outlinePath = Join-Path $projectDir ".nodepaper\build\paper.out"
+    if (-not (Test-Path -LiteralPath $outlinePath -PathType Leaf)) {
+        throw "PDF bookmark outline file was not generated"
+    }
+    $outlineText = Get-Content -LiteralPath $outlinePath -Raw -Encoding UTF8
+    if (-not $outlineText.Contains("{nodepaper.abstract") -or [regex]::Matches($outlineText, '\\BOOKMARK').Count -lt 2) {
+        throw "PDF bookmark outline is missing the abstract or section entries"
+    }
+    if ($Fixture -eq "layout-stress") {
+        switch ($effectiveAppendixNumbering) {
+            "alpha" {
+                if ($outlineText -notmatch '\\BOOKMARK \[2\].*\{appendix\.A\}' -or $outlineText -notmatch '\\BOOKMARK \[2\].*\{appendix\.B\}') {
+                    throw "alpha appendix bookmark hierarchy is missing A/B children"
+                }
+            }
+            "continuous" {
+                if ([regex]::Matches($outlineText, '\\BOOKMARK \[2\].*\{subsection\.').Count -lt 2) {
+                    throw "continuous appendix bookmark hierarchy is missing child entries"
+                }
+            }
+            "none" {
+                if ([regex]::Matches($outlineText, '\\BOOKMARK \[2\].*\{section\*\.').Count -lt 2) {
+                    throw "unnumbered appendix bookmark hierarchy is missing child entries"
+                }
+            }
+        }
     }
 
     $pdf = Join-Path $projectDir "dist\paper.pdf"
@@ -400,7 +427,7 @@ try {
             pdfSHA256 = (Get-FileHash -LiteralPath $pdf -Algorithm SHA256).Hash.ToLowerInvariant()
             texSHA256 = (Get-FileHash -LiteralPath $tex -Algorithm SHA256).Hash.ToLowerInvariant()
             latexLogSHA256 = (Get-FileHash -LiteralPath $latexLog -Algorithm SHA256).Hash.ToLowerInvariant()
-            checks = @("latex-contract", "keywords-once", "citation-links", "breakable-code-frame", "pdf-a4", "pdf-content-order", "font-embedding", "warning-zero")
+            checks = @("latex-contract", "keywords-once", "citation-links", "pdf-outline", "breakable-code-frame", "pdf-a4", "pdf-content-order", "font-embedding", "warning-zero")
         }
         $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reviewDir "review-manifest.json") -Encoding UTF8
     }

@@ -15,6 +15,7 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{xurl}
+\PassOptionsToPackage{unicode=true,bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,bookmarksdepth=3,pdfpagemode=UseOutlines}{hyperref}
 \usepackage{hyperref}
 \usepackage{cleveref}
 
@@ -79,8 +80,12 @@ $endif$
 
 % Appendix contract used by filters/layout.lua. The retained “附录” heading is
 % separate from automatically generated appendix child numbering.
+\makeatletter
 \newcommand{\nodepaperAppendixAlpha}{%
   \appendix
+  \def\toclevel@section{2}%
+  \def\toclevel@subsection{3}%
+  \def\toclevel@subsubsection{4}%
   \renewcommand{\thesection}{附录~\Alph{section}}%
   \counterwithin{figure}{section}%
   \counterwithin{table}{section}%
@@ -88,6 +93,7 @@ $endif$
   \renewcommand{\thefigure}{\Alph{section}.\arabic{figure}}%
   \renewcommand{\thetable}{\Alph{section}.\arabic{table}}%
   \renewcommand{\theequation}{\Alph{section}.\arabic{equation}}}
+\makeatother
 \newcommand{\nodepaperAppendixNone}{}
 
 % Interface required by Pandoc 3.9 Citeproc LaTeX output.
@@ -137,6 +143,7 @@ $if(title)$
 $endif$
 
 $if(abstract)$
+\pdfbookmark[1]{摘要}{nodepaper.abstract}
 \begin{center}
   {\heiti\zihao{3} 摘要\par}
 \end{center}

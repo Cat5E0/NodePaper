@@ -161,6 +161,7 @@ Fragments must be relative UTF-8 regular `.tex` files inside the Project Root. F
 - Ordered single- and multi-source projects, Chinese cross-references, Citeproc, and controlled LaTeX Fragments are supported.
 - Pandoc-native highlighting defaults to Tango, allows Pygments/Kate color schemes, and uses a breakable light code frame with safe long-line wrapping.
 - Numeric superscript citations link to their corresponding bibliography entries.
+- The PDF contains a numbered bookmark outline for the abstract, sections, references, and appendices without adding a contents page; it requests the viewer to open the outline panel to level two.
 - The retained appendix heading supports `alpha`, `continuous`, and `none` numbering.
 - Build logs record Profile version, complete resource SHA-256, and Fragment SHA-256; build-time mutation fails.
 - Unknown warnings, overflow, missing characters/fonts, and unresolved references prevent publication.

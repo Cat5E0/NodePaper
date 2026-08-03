@@ -51,6 +51,8 @@ original NodePaper resources distributed under `LICENSES/PROFILE-MIT.txt`.
 - Pandoc built-in highlighting is used without minted, Python Pygments runtime,
   or `shell-escape`. The reviewed default is `tango`; projects may select the
   built-in `pygments` or `kate` color scheme.
+- Hyperref emits a numbered PDF bookmark outline without a printed contents page;
+  viewers are requested, but cannot be forced, to open it through level two.
 - Controlled LaTeX Fragments are limited to explicitly declared Project-local
   table/equation files. Nested dependencies, file reads, TeX I/O, command
   obfuscation, and shell execution are rejected before Pandoc.

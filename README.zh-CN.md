@@ -168,6 +168,7 @@ Fragment 只允许 Project Root 内的相对 UTF-8 `.tex` 普通文件；禁止�
 - 支持有序单文件/多文件、中文 Crossref、Citeproc 和受控 LaTeX Fragment；
 - 使用 Pandoc 内置代码高亮，默认 Tango，可选 Pygments/Kate 配色，并使用可跨页的浅色细框；代码长行可安全断行；
 - 数字上标引用可跳转到对应参考文献条目；
+- PDF 提供摘要、正文、参考文献和附录的带编号书签大纲，不增加实际目录页，并请求阅读器默认展开到二级；
 - 保留“附录”总标题，并支持 `alpha`、`continuous`、`none`；
 - 构建日志记录 Profile 版本、完整资源 SHA-256 和 Fragment SHA-256，构建前后变化会失败；
 - 未知 Warning、Overfull、缺字/字体和未解析引用会阻止发布；
