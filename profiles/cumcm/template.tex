@@ -152,7 +152,13 @@ $if(abstract)$
   {\heiti\zihao{3} 摘要\par}
 \end{center}
 \vspace{0.5em}
+$if(nodepaper-abstract-linespread)$
+{\linespread{$nodepaper-abstract-linespread$}\selectfont
 $abstract$
+}
+$else$
+$abstract$
+$endif$
 $endif$
 
 $if(keywords)$

@@ -147,11 +147,12 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 		t.Fatalf("read source manifest: %v", err)
 	}
 	var manifest struct {
-		Sources           []string `json:"sources"`
-		LatexFragments    []string `json:"latexFragments"`
-		AppendixNumbering string   `json:"appendixNumbering"`
-		HighlightStyle    string   `json:"highlightStyle"`
-		LineSpread        float64  `json:"linespread"`
+		Sources            []string `json:"sources"`
+		LatexFragments     []string `json:"latexFragments"`
+		AppendixNumbering  string   `json:"appendixNumbering"`
+		HighlightStyle     string   `json:"highlightStyle"`
+		LineSpread         float64  `json:"linespread"`
+		AbstractLineSpread float64  `json:"abstractLinespread"`
 	}
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		t.Fatalf("decode source manifest: %v", err)
@@ -159,8 +160,8 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 	if len(manifest.Sources) != 1 || !samePath(manifest.Sources[0], filepath.Join(projectDir, "paper.md")) {
 		t.Fatalf("manifest sources = %#v", manifest.Sources)
 	}
-	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HighlightStyle != "tango" || manifest.LineSpread != 1.25 {
-		t.Fatalf("manifest fragments=%#v appendix=%q highlight=%q linespread=%v", manifest.LatexFragments, manifest.AppendixNumbering, manifest.HighlightStyle, manifest.LineSpread)
+	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HighlightStyle != "tango" || manifest.LineSpread != 1.25 || manifest.AbstractLineSpread != 0.95 {
+		t.Fatalf("manifest fragments=%#v appendix=%q highlight=%q linespread=%v abstractLinespread=%v", manifest.LatexFragments, manifest.AppendixNumbering, manifest.HighlightStyle, manifest.LineSpread, manifest.AbstractLineSpread)
 	}
 	if root := argumentValue(call.args, "-ProjectRoot"); !samePath(root, projectDir) {
 		t.Fatalf("ProjectRoot = %q", root)

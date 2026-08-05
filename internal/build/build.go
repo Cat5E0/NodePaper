@@ -288,17 +288,19 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		absoluteFragments = append(absoluteFragments, file.Path)
 	}
 	manifestData, err := json.MarshalIndent(struct {
-		Sources           []string `json:"sources"`
-		LatexFragments    []string `json:"latexFragments"`
-		AppendixNumbering string   `json:"appendixNumbering"`
-		HighlightStyle    string   `json:"highlightStyle"`
-		LineSpread        float64  `json:"linespread"`
+		Sources            []string `json:"sources"`
+		LatexFragments     []string `json:"latexFragments"`
+		AppendixNumbering  string   `json:"appendixNumbering"`
+		HighlightStyle     string   `json:"highlightStyle"`
+		LineSpread         float64  `json:"linespread"`
+		AbstractLineSpread float64  `json:"abstractLinespread"`
 	}{
-		Sources:           absoluteSources,
-		LatexFragments:    absoluteFragments,
-		AppendixNumbering: cfg.Appendix.Numbering,
-		HighlightStyle:    cfg.Highlight.Style,
-		LineSpread:        cfg.LineSpread,
+		Sources:            absoluteSources,
+		LatexFragments:     absoluteFragments,
+		AppendixNumbering:  cfg.Appendix.Numbering,
+		HighlightStyle:     cfg.Highlight.Style,
+		LineSpread:         cfg.LineSpread,
+		AbstractLineSpread: cfg.AbstractLineSpread,
 	}, "", "  ")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{

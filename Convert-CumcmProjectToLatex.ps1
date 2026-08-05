@@ -135,6 +135,14 @@ if ($linespread -lt 1.0 -or $linespread -gt 1.3) {
     throw "Unsupported linespread value: $linespread (allowed [1.0, 1.3])"
 }
 $linespreadMetadata = $linespread.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$abstractLinespread = 0.95
+if ($null -ne $manifestValue.abstractLinespread) {
+    $abstractLinespread = [double]$manifestValue.abstractLinespread
+}
+if ($abstractLinespread -lt 0.85 -or $abstractLinespread -gt $linespread) {
+    throw "Unsupported abstractLinespread value: $abstractLinespread (allowed [0.85, linespread=$linespread])"
+}
+$abstractLinespreadMetadata = $abstractLinespread.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 
 $references = Assert-FileUnderRoot (Join-Path $project "references.bib") $project "Bibliography"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
@@ -180,6 +188,7 @@ $arguments += @(
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
     "--metadata", "nodepaper-linespread=$linespreadMetadata",
+    "--metadata", "nodepaper-abstract-linespread=$abstractLinespreadMetadata",
     "--metadata", "link-citations=true",
     "--fail-if-warnings",
     "--resource-path", $resourcePath,
@@ -195,6 +204,7 @@ Write-Output "LaTeX Fragments: $($resolvedFragments -join ' | ')"
 Write-Output "Appendix numbering: $appendixNumbering"
 Write-Output "Highlight style: $highlightStyle"
 Write-Output "Linespread: $linespreadMetadata"
+Write-Output "Abstract linespread: $abstractLinespreadMetadata"
 Write-Output "Pandoc command: $pandoc $($arguments -join ' ')"
 & $pandoc @arguments
 if ($LASTEXITCODE -ne 0) {

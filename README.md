@@ -110,11 +110,12 @@ appendix:
 highlight:
   style: tango
 linespread: 1.25
+abstractLinespread: 0.95
 output:
   file: dist/paper.pdf
 ```
 
-`linespread` controls the whole-document line spacing. It is a float with default `1.25` and an allowed range of `[1.0, 1.3]`; larger values make the document airier and longer.
+`linespread` controls the whole-document line spacing. It is a float with default `1.25` and an allowed range of `[1.0, 1.3]`; larger values make the document airier and longer. `abstractLinespread` overrides the line spacing of the abstract region only (default `0.95`, allowed `[0.85, linespread]`), so a long abstract still fits closer to one page.
 
 Sources are processed in declared order. NodePaper does not scan source directories automatically and does not keep a global current-project state.
 

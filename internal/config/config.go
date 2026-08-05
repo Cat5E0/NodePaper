@@ -13,15 +13,16 @@ import (
 
 // ProjectConfig is the deserialised nodepaper.yaml.
 type ProjectConfig struct {
-	Version        int             `yaml:"version"`
-	Profile        string          `yaml:"profile"`
-	Source         string          `yaml:"source,omitempty"`
-	Sources        []string        `yaml:"sources,omitempty"`
-	LatexFragments []string        `yaml:"latexFragments,omitempty"`
-	Appendix       AppendixConfig  `yaml:"appendix,omitempty"`
-	Highlight      HighlightConfig `yaml:"highlight,omitempty"`
-	LineSpread     float64         `yaml:"linespread,omitempty"`
-	Output         OutputConfig    `yaml:"output,omitempty"`
+	Version            int             `yaml:"version"`
+	Profile            string          `yaml:"profile"`
+	Source             string          `yaml:"source,omitempty"`
+	Sources            []string        `yaml:"sources,omitempty"`
+	LatexFragments     []string        `yaml:"latexFragments,omitempty"`
+	Appendix           AppendixConfig  `yaml:"appendix,omitempty"`
+	Highlight          HighlightConfig `yaml:"highlight,omitempty"`
+	LineSpread         float64         `yaml:"linespread,omitempty"`
+	AbstractLineSpread float64         `yaml:"abstractLinespread,omitempty"`
+	Output             OutputConfig    `yaml:"output,omitempty"`
 }
 
 // AppendixConfig controls numbering after the retained level-one appendix
@@ -68,6 +69,9 @@ func Parse(data []byte) (ProjectConfig, error) {
 	}
 	if cfg.LineSpread == 0 {
 		cfg.LineSpread = 1.25
+	}
+	if cfg.AbstractLineSpread == 0 {
+		cfg.AbstractLineSpread = 0.95
 	}
 
 	if err := validate(cfg); err != nil {
@@ -123,6 +127,9 @@ func validate(cfg ProjectConfig) error {
 	}
 	if cfg.LineSpread < 1.0 || cfg.LineSpread > 1.3 {
 		return fmt.Errorf("linespread must be between 1.0 and 1.3")
+	}
+	if cfg.AbstractLineSpread < 0.85 || cfg.AbstractLineSpread > cfg.LineSpread {
+		return fmt.Errorf("abstractLinespread must be between 0.85 and linespread (%v)", cfg.LineSpread)
 	}
 
 	return nil

@@ -80,15 +80,21 @@ func TestAppendixNumberingDefaultsToAlpha(t *testing.T) {
 	if cfg.LineSpread != 1.25 {
 		t.Fatalf("LineSpread = %v, want default 1.25", cfg.LineSpread)
 	}
+	if cfg.AbstractLineSpread != 0.95 {
+		t.Fatalf("AbstractLineSpread = %v, want default 0.95", cfg.AbstractLineSpread)
+	}
 }
 
 func TestLineSpreadSelection(t *testing.T) {
-	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nlinespread: 1.1\n"))
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nlinespread: 1.1\nabstractLinespread: 0.9\n"))
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
 	if cfg.LineSpread != 1.1 {
 		t.Fatalf("LineSpread = %v, want 1.1", cfg.LineSpread)
+	}
+	if cfg.AbstractLineSpread != 0.9 {
+		t.Fatalf("AbstractLineSpread = %v, want 0.9", cfg.AbstractLineSpread)
 	}
 }
 
@@ -171,6 +177,8 @@ func TestParseRejects(t *testing.T) {
 		{"invalid highlight style", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  style: minted", "highlight.style must be"},
 		{"linespread too small", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 0.9", "linespread must be between 1.0 and 1.3"},
 		{"linespread too large", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 1.4", "linespread must be between 1.0 and 1.3"},
+		{"abstractLinespread too small", "version: 1\nprofile: cumcm\nsource: a.md\nabstractLinespread: 0.8", "abstractLinespread must be between 0.85"},
+		{"abstractLinespread above linespread", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 1.1\nabstractLinespread: 1.2", "abstractLinespread must be between 0.85"},
 		{"unknown highlight field", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  unexpected: true", "field unexpected not found"},
 		{"unknown top-level field", "version: 1\nprofile: cumcm\nsource: a.md\nunexpected: true", "field unexpected not found"},
 		{"unknown appendix field", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  unexpected: true", "field unexpected not found"},
