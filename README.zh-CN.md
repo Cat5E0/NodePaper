@@ -116,11 +116,12 @@ highlight:
   style: tango
 linespread: 1.25
 abstractLinespread: 0.95
+mathFont: cm
 output:
   file: dist/paper.pdf
 ```
 
-`linespread` 控制全文行距，float，默认 `1.25`，允许范围 `[1.0, 1.3]`；值越大全文越疏、页数越多。`abstractLinespread` 单独控制摘要区域行距，float，默认 `0.95`，允许范围 `[0.85, linespread]`，不能超过全文行距；目的是让长摘要尽量留在一页内。
+`linespread` 控制全文行距，float，默认 `1.25`，允许范围 `[1.0, 1.3]`；值越大全文越疏、页数越多。`abstractLinespread` 单独控制摘要区域行距，float，默认 `0.95`，允许范围 `[0.85, linespread]`，不能超过全文行距；目的是让长摘要尽量留在一页内。`mathFont` 选择数学与西文字体路线，默认 `cm`（Latin Modern + Computer Modern），可选 `newtx`（TeX Gyre Termes + newtxmath，Times 风格）。
 
 Source 按配置顺序处理，不自动扫描目录，也没有全局“当前项目”状态。
 

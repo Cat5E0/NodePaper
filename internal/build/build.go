@@ -294,6 +294,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		HighlightStyle     string   `json:"highlightStyle"`
 		LineSpread         float64  `json:"linespread"`
 		AbstractLineSpread float64  `json:"abstractLinespread"`
+		MathFont           string   `json:"mathFont"`
 	}{
 		Sources:            absoluteSources,
 		LatexFragments:     absoluteFragments,
@@ -301,6 +302,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		HighlightStyle:     cfg.Highlight.Style,
 		LineSpread:         cfg.LineSpread,
 		AbstractLineSpread: cfg.AbstractLineSpread,
+		MathFont:           cfg.MathFont,
 	}, "", "  ")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{

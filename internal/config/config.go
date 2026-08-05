@@ -22,6 +22,7 @@ type ProjectConfig struct {
 	Highlight          HighlightConfig `yaml:"highlight,omitempty"`
 	LineSpread         float64         `yaml:"linespread,omitempty"`
 	AbstractLineSpread float64         `yaml:"abstractLinespread,omitempty"`
+	MathFont           string          `yaml:"mathFont,omitempty"`
 	Output             OutputConfig    `yaml:"output,omitempty"`
 }
 
@@ -72,6 +73,9 @@ func Parse(data []byte) (ProjectConfig, error) {
 	}
 	if cfg.AbstractLineSpread == 0 {
 		cfg.AbstractLineSpread = 0.95
+	}
+	if cfg.MathFont == "" {
+		cfg.MathFont = "cm"
 	}
 
 	if err := validate(cfg); err != nil {
@@ -130,6 +134,11 @@ func validate(cfg ProjectConfig) error {
 	}
 	if cfg.AbstractLineSpread < 0.85 || cfg.AbstractLineSpread > cfg.LineSpread {
 		return fmt.Errorf("abstractLinespread must be between 0.85 and linespread (%v)", cfg.LineSpread)
+	}
+	switch cfg.MathFont {
+	case "cm", "newtx":
+	default:
+		return fmt.Errorf("mathFont must be cm or newtx")
 	}
 
 	return nil

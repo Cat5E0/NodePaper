@@ -83,10 +83,13 @@ func TestAppendixNumberingDefaultsToAlpha(t *testing.T) {
 	if cfg.AbstractLineSpread != 0.95 {
 		t.Fatalf("AbstractLineSpread = %v, want default 0.95", cfg.AbstractLineSpread)
 	}
+	if cfg.MathFont != "cm" {
+		t.Fatalf("MathFont = %q, want default cm", cfg.MathFont)
+	}
 }
 
 func TestLineSpreadSelection(t *testing.T) {
-	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nlinespread: 1.1\nabstractLinespread: 0.9\n"))
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nlinespread: 1.1\nabstractLinespread: 0.9\nmathFont: newtx\n"))
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
@@ -95,6 +98,9 @@ func TestLineSpreadSelection(t *testing.T) {
 	}
 	if cfg.AbstractLineSpread != 0.9 {
 		t.Fatalf("AbstractLineSpread = %v, want 0.9", cfg.AbstractLineSpread)
+	}
+	if cfg.MathFont != "newtx" {
+		t.Fatalf("MathFont = %q, want newtx", cfg.MathFont)
 	}
 }
 
@@ -179,6 +185,7 @@ func TestParseRejects(t *testing.T) {
 		{"linespread too large", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 1.4", "linespread must be between 1.0 and 1.3"},
 		{"abstractLinespread too small", "version: 1\nprofile: cumcm\nsource: a.md\nabstractLinespread: 0.8", "abstractLinespread must be between 0.85"},
 		{"abstractLinespread above linespread", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 1.1\nabstractLinespread: 1.2", "abstractLinespread must be between 0.85"},
+		{"invalid mathFont", "version: 1\nprofile: cumcm\nsource: a.md\nmathFont: xits", "mathFont must be cm or newtx"},
 		{"unknown highlight field", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  unexpected: true", "field unexpected not found"},
 		{"unknown top-level field", "version: 1\nprofile: cumcm\nsource: a.md\nunexpected: true", "field unexpected not found"},
 		{"unknown appendix field", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  unexpected: true", "field unexpected not found"},

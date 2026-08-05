@@ -143,6 +143,14 @@ if ($abstractLinespread -lt 0.85 -or $abstractLinespread -gt $linespread) {
     throw "Unsupported abstractLinespread value: $abstractLinespread (allowed [0.85, linespread=$linespread])"
 }
 $abstractLinespreadMetadata = $abstractLinespread.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$mathFont = [string]$manifestValue.mathFont
+if ([string]::IsNullOrWhiteSpace($mathFont)) {
+    $mathFont = "cm"
+}
+if ($mathFont -notin @("cm", "newtx")) {
+    throw "Unsupported math font route: $mathFont (allowed cm or newtx)"
+}
+$mathFontNewtx = if ($mathFont -eq "newtx") { "true" } else { "false" }
 
 $references = Assert-FileUnderRoot (Join-Path $project "references.bib") $project "Bibliography"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
@@ -189,6 +197,8 @@ $arguments += @(
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
     "--metadata", "nodepaper-linespread=$linespreadMetadata",
     "--metadata", "nodepaper-abstract-linespread=$abstractLinespreadMetadata",
+    "--metadata", "nodepaper-mathfont=$mathFont",
+    "--metadata", "nodepaper-mathfont-newtx=$mathFontNewtx",
     "--metadata", "link-citations=true",
     "--fail-if-warnings",
     "--resource-path", $resourcePath,
@@ -205,6 +215,7 @@ Write-Output "Appendix numbering: $appendixNumbering"
 Write-Output "Highlight style: $highlightStyle"
 Write-Output "Linespread: $linespreadMetadata"
 Write-Output "Abstract linespread: $abstractLinespreadMetadata"
+Write-Output "Math font route: $mathFont"
 Write-Output "Pandoc command: $pandoc $($arguments -join ' ')"
 & $pandoc @arguments
 if ($LASTEXITCODE -ne 0) {
