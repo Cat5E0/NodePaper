@@ -165,6 +165,29 @@ $$ {#eq:model}
 见式 @eq:model。
 ```
 
+### 表格
+
+表格默认整表水平居中：Profile 模板对所有表格应用 `\centering`（Pandoc 将每个 Markdown 表格输出为 `longtable`）。列内对齐独立于整表居中，由通常的 Markdown 标记控制：
+
+```markdown
+| :---- | :----: | ----: |
+| 左对齐 | 居中  | 右对齐 |
+```
+
+- 整表居中：自动生效；模板默认 `\centering`，不需要任何 Markdown 标记；
+- 列内对齐：`|:----|`（左）、`|:----:|`（中）、`|----:|`（右），Pandoc 分别映射为 `l`、`c`、`r` 列格式；
+- 复杂表（合并单元格等）使用 `latexFragments` 中声明的受控 LaTeX Fragment，通过 `\input{tables/...}` 插入；不要在 Markdown 中强行表达。
+
+列表项内的图片必须缩进 4 个空格，否则 Pandoc 会先结束列表再处理图片，导致图悬空浮动、脱离列表：
+
+```markdown
+1. 第一步
+
+    ![第一步结果](images/step1.png){#fig:step1 width=80%}
+
+2. 第二步
+```
+
 当前 CUMCM 正式文献路线是：
 
 ```text

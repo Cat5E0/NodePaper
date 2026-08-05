@@ -160,6 +160,29 @@ $$ {#eq:model}
 See @eq:model.
 ```
 
+### Tables
+
+Tables are horizontally centered on the page by default: the Profile template applies `\centering` to every table (Pandoc emits `longtable` for each Markdown table). Column alignment inside a table is independent and is controlled by the usual Markdown markers:
+
+```markdown
+| :---- | :----: | ----: |
+| left  | center | right |
+```
+
+- Whole-table centering: automatic; the template default `\centering` needs no Markdown marker.
+- In-column alignment: `|:----|` left, `|:----:|` center, `|----:|` right (Pandoc maps these to `l`, `c`, `r` column specifiers).
+- Complex tables (merged cells and similar) are written as controlled LaTeX Fragments declared in `latexFragments` and inserted with `\input{tables/...}`; do not try to express them in Markdown.
+
+An image that belongs inside a list item must be indented four spaces under the item, otherwise Pandoc closes the list before the image and the figure floats away from the list:
+
+```markdown
+1. Step one
+
+    ![Step one result](images/step1.png){#fig:step1 width=80%}
+
+2. Step two
+```
+
 The formal CUMCM bibliography route is:
 
 ```text

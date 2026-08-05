@@ -48,6 +48,15 @@ $endif$
 \def\fps@figure{htbp}
 \newcommand{\maxwidth}{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
 \newcommand{\maxheight}{\ifdim\Gin@nat@height>0.8\textheight 0.8\textheight\else\Gin@nat@height\fi}
+% Center every table on the page. Pandoc emits longtable for every Markdown
+% table; the longtable package centers when both \LTleft and \LTright are
+% \fill. The standard table float also gets \centering so controlled LaTeX
+% Fragments keep the same default look. Column alignment inside a table is
+% independent and stays controlled by the Markdown |:----|, |:----:|, |----:|
+% markers or the Fragment's own preamble.
+\setlength{\LTleft}{\fill}
+\setlength{\LTright}{\fill}
+\g@addto@macro\table{\centering}
 \makeatother
 
 \providecommand{\tightlist}{%
