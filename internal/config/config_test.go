@@ -77,6 +77,19 @@ func TestAppendixNumberingDefaultsToAlpha(t *testing.T) {
 	if cfg.Highlight.Style != "tango" {
 		t.Fatalf("Highlight.Style = %q, want tango", cfg.Highlight.Style)
 	}
+	if cfg.LineSpread != 1.25 {
+		t.Fatalf("LineSpread = %v, want default 1.25", cfg.LineSpread)
+	}
+}
+
+func TestLineSpreadSelection(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nlinespread: 1.1\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.LineSpread != 1.1 {
+		t.Fatalf("LineSpread = %v, want 1.1", cfg.LineSpread)
+	}
 }
 
 func TestHighlightStyleSelection(t *testing.T) {
@@ -156,6 +169,8 @@ func TestParseRejects(t *testing.T) {
 		{"empty fragment", "version: 1\nprofile: cumcm\nsource: a.md\nlatexFragments:\n  - \"\"", "latexFragments[0] is empty"},
 		{"invalid appendix numbering", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  numbering: roman", "appendix.numbering must be"},
 		{"invalid highlight style", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  style: minted", "highlight.style must be"},
+		{"linespread too small", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 0.9", "linespread must be between 1.0 and 1.3"},
+		{"linespread too large", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 1.4", "linespread must be between 1.0 and 1.3"},
 		{"unknown highlight field", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  unexpected: true", "field unexpected not found"},
 		{"unknown top-level field", "version: 1\nprofile: cumcm\nsource: a.md\nunexpected: true", "field unexpected not found"},
 		{"unknown appendix field", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  unexpected: true", "field unexpected not found"},

@@ -151,6 +151,7 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 		LatexFragments    []string `json:"latexFragments"`
 		AppendixNumbering string   `json:"appendixNumbering"`
 		HighlightStyle    string   `json:"highlightStyle"`
+		LineSpread        float64  `json:"linespread"`
 	}
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		t.Fatalf("decode source manifest: %v", err)
@@ -158,8 +159,8 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 	if len(manifest.Sources) != 1 || !samePath(manifest.Sources[0], filepath.Join(projectDir, "paper.md")) {
 		t.Fatalf("manifest sources = %#v", manifest.Sources)
 	}
-	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HighlightStyle != "tango" {
-		t.Fatalf("manifest fragments=%#v appendix=%q highlight=%q", manifest.LatexFragments, manifest.AppendixNumbering, manifest.HighlightStyle)
+	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HighlightStyle != "tango" || manifest.LineSpread != 1.25 {
+		t.Fatalf("manifest fragments=%#v appendix=%q highlight=%q linespread=%v", manifest.LatexFragments, manifest.AppendixNumbering, manifest.HighlightStyle, manifest.LineSpread)
 	}
 	if root := argumentValue(call.args, "-ProjectRoot"); !samePath(root, projectDir) {
 		t.Fatalf("ProjectRoot = %q", root)

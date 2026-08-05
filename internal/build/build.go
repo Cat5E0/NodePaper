@@ -292,11 +292,13 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		LatexFragments    []string `json:"latexFragments"`
 		AppendixNumbering string   `json:"appendixNumbering"`
 		HighlightStyle    string   `json:"highlightStyle"`
+		LineSpread        float64  `json:"linespread"`
 	}{
 		Sources:           absoluteSources,
 		LatexFragments:    absoluteFragments,
 		AppendixNumbering: cfg.Appendix.Numbering,
 		HighlightStyle:    cfg.Highlight.Style,
+		LineSpread:        cfg.LineSpread,
 	}, "", "  ")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{

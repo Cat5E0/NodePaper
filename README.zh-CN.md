@@ -114,9 +114,12 @@ appendix:
   numbering: alpha
 highlight:
   style: tango
+linespread: 1.25
 output:
   file: dist/paper.pdf
 ```
+
+`linespread` 控制全文行距，float，默认 `1.25`，允许范围 `[1.0, 1.3]`；值越大全文越疏、页数越多。
 
 Source 按配置顺序处理，不自动扫描目录，也没有全局“当前项目”状态。
 

@@ -23,7 +23,11 @@
 \urlstyle{same}
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0pt}
+$if(nodepaper-linespread)$
+\linespread{$nodepaper-linespread$}
+$else$
 \linespread{1.25}
+$endif$
 \setcounter{secnumdepth}{3}
 \setcounter{tocdepth}{0}
 \newcounter{none}

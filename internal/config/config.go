@@ -20,6 +20,7 @@ type ProjectConfig struct {
 	LatexFragments []string        `yaml:"latexFragments,omitempty"`
 	Appendix       AppendixConfig  `yaml:"appendix,omitempty"`
 	Highlight      HighlightConfig `yaml:"highlight,omitempty"`
+	LineSpread     float64         `yaml:"linespread,omitempty"`
 	Output         OutputConfig    `yaml:"output,omitempty"`
 }
 
@@ -64,6 +65,9 @@ func Parse(data []byte) (ProjectConfig, error) {
 	}
 	if cfg.Highlight.Style == "" {
 		cfg.Highlight.Style = "tango"
+	}
+	if cfg.LineSpread == 0 {
+		cfg.LineSpread = 1.25
 	}
 
 	if err := validate(cfg); err != nil {
@@ -116,6 +120,9 @@ func validate(cfg ProjectConfig) error {
 	case "tango", "pygments", "kate":
 	default:
 		return fmt.Errorf("highlight.style must be tango, pygments, or kate")
+	}
+	if cfg.LineSpread < 1.0 || cfg.LineSpread > 1.3 {
+		return fmt.Errorf("linespread must be between 1.0 and 1.3")
 	}
 
 	return nil

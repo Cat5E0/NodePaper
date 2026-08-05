@@ -109,9 +109,12 @@ appendix:
   numbering: alpha
 highlight:
   style: tango
+linespread: 1.25
 output:
   file: dist/paper.pdf
 ```
+
+`linespread` controls the whole-document line spacing. It is a float with default `1.25` and an allowed range of `[1.0, 1.3]`; larger values make the document airier and longer.
 
 Sources are processed in declared order. NodePaper does not scan source directories automatically and does not keep a global current-project state.
 
