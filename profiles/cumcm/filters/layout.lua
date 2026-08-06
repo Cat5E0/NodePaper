@@ -87,11 +87,11 @@ function Pandoc(doc)
   local output = pandoc.List()
   for index, block in ipairs(doc.blocks) do
     if index == references_index then
-      output:insert(pandoc.RawBlock("latex", "\\newpage"))
+      output:insert(pandoc.RawBlock("latex", "\\clearpage"))
       output:insert(block)
     elseif index == appendix_index then
       if appendix_new_page then
-        output:insert(pandoc.RawBlock("latex", "\\newpage"))
+        output:insert(pandoc.RawBlock("latex", "\\clearpage"))
       end
       if mode ~= "continuous" then
         add_unnumbered(block)
