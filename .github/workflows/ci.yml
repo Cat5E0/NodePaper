@@ -103,6 +103,22 @@ jobs:
           & (Join-Path $miktexBin "initexmf.exe") --set-config-value "[MPM]AutoInstall=1" 2>&1 | Out-String | Write-Host
           if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
           & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
+          # The runner (Windows Server) has no SimSun/SimHei, so ctex's default
+          # fontset=windows cannot load. Force fontset=fandol via ctexopts.cfg;
+          # fandol ships with ctex on every distribution and auto-installs here.
+          $cfgDir = Join-Path $env:APPDATA "MiKTeX\tex\latex\ctex\config"
+          $cfg = Join-Path $cfgDir "ctexopts.cfg"
+          if (Test-Path -LiteralPath $cfg) {
+            $existing = Get-Content -LiteralPath $cfg -Raw -Encoding UTF8
+            if ($existing -notmatch "fontset\s*=\s*fandol") {
+              Add-Content -LiteralPath $cfg -Value "`r`nfontset=fandol" -Encoding UTF8
+            }
+          }
+          else {
+            New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
+            Set-Content -LiteralPath $cfg -Value "fontset=fandol" -Encoding UTF8
+          }
+          Write-Host "ctexopts.cfg now: $((Get-Content -LiteralPath $cfg -Raw -Encoding UTF8))"
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
       - name: MiKTeX Chinese probe (surface real compile errors)
         shell: pwsh
@@ -111,7 +127,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
           $probeText = "\documentclass[UTF8]{ctexart}`n\begin{document}`nNodePaper 中文环境探针`n\end{document}"
           Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeText -Encoding UTF8
-          & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=$probeDir (Join-Path $probeDir "probe.tex")
+          & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir $probeDir (Join-Path $probeDir "probe.tex")
           Write-Host "probe exit: $LASTEXITCODE"
           $log = Join-Path $probeDir "probe.log"
           if (Test-Path -LiteralPath $log) {
