@@ -77,7 +77,7 @@ jobs:
         run: choco install poppler -y --no-progress
       - name: Install MiKTeX (not present on this runner image)
         run: choco install miktex -y --no-progress
-      - name: Locate MiKTeX bin and add to PATH
+      - name: Locate MiKTeX bin, configure auto-install, add to PATH
         shell: pwsh
         run: |
           $candidates = @(
@@ -100,7 +100,24 @@ jobs:
             throw "MiKTeX bin directory was not found after installation."
           }
           Write-Host "Using MiKTeX bin: $miktexBin"
-          Write-Host "latexmk: $((Get-Command (Join-Path $miktexBin 'latexmk.exe') -ErrorAction SilentlyContinue).Source)"
+          & (Join-Path $miktexBin "initexmf.exe") --set-config-value "[MPM]AutoInstall=1" 2>&1 | Out-String | Write-Host
+          if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
+          & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
+      - name: MiKTeX Chinese probe (surface real compile errors)
+        shell: pwsh
+        run: |
+          $probeDir = Join-Path $env:RUNNER_TEMP ("miktex-probe-" + [Guid]::NewGuid().ToString("N"))
+          New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
+          $probeText = "\documentclass[UTF8]{ctexart}`n\begin{document}`nNodePaper 中文环境探针`n\end{document}"
+          Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeText -Encoding UTF8
+          & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=$probeDir (Join-Path $probeDir "probe.tex")
+          Write-Host "probe exit: $LASTEXITCODE"
+          $log = Join-Path $probeDir "probe.log"
+          if (Test-Path -LiteralPath $log) {
+            Write-Host "===== probe.log tail ====="
+            Get-Content -LiteralPath $log -Tail 40
+          }
+          exit $LASTEXITCODE
       - name: M3 E2E suite
         run: .\scripts\test-e2e.ps1
