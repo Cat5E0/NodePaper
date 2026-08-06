@@ -1,15 +1,15 @@
 # Required CI for NodePaper (AGENTS.md section 29, PLAN.md M4-01).
 #
-# - `fast`: gofmt, vet, unit, fake-tool integration, race detector and
-#   govulncheck on the GitHub Windows runner (which ships a C toolchain, so the
-#   race detector runs here even though the local dev machine cannot).
-# - `e2e`: real Pandoc/LaTeX E2E on the runner's MiKTeX installation. The
-#   runner environment differs from the canonical Windows 11 + TeX Live 2025
-#   matrix gate, so the local E2E record remains the authoritative E2E result
-#   for a release candidate commit.
+# Fast checks: gofmt, vet, unit, fake-tool integration, race detector and
+# govulncheck on the GitHub Windows runner (which ships a C toolchain, so the
+# race detector runs here even though the local dev machine cannot).
 #
-# Required checks must not be made green by relaxing Warning rules, auto
-# accepting Golden files or skipping failing tests.
+# This is the sole GitHub required check. Required checks must not be made
+# green by relaxing Warning rules, auto accepting Golden files or skipping
+# failing tests.
+#
+# Real Pandoc/LaTeX E2E on a MiKTeX runner lives in the separate
+# non-blocking `miktex-e2e.yml` (workflow_dispatch).
 
 name: ci
 
@@ -55,85 +55,4 @@ jobs:
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
 
-  e2e:
-    name: Real TeX E2E (runner MiKTeX)
-    runs-on: windows-latest
-    needs: fast
-    env:
-      # The runner MiKTeX lacks some packages; CI may fetch them. The formal
-      # release gate (auto-install off) is exercised separately on MiKTeX.
-      MIKTEX_AUTOINSTALL: "yes"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.26.5"
-          cache: true
-      - name: Bootstrap pinned Pandoc tools
-        run: .\Bootstrap-Tools.ps1
-      - name: Install Poppler utilities
-        run: choco install poppler -y --no-progress
-      - name: Install MiKTeX (not present on this runner image)
-        run: choco install miktex -y --no-progress
-      - name: Locate MiKTeX bin, configure auto-install, add to PATH
-        shell: pwsh
-        run: |
-          $candidates = @(
-            "C:\Program Files\MiKTeX\miktex\bin\x64",
-            "C:\Program Files (x86)\MiKTeX\miktex\bin\x64",
-            "$env:LOCALAPPDATA\Programs\MiKTeX\miktex\bin\x64",
-            "$env:APPDATA\MiKTeX\miktex\bin\x64"
-          )
-          $miktexBin = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-          if (-not $miktexBin) {
-            foreach ($root in @("C:\Program Files", "C:\Program Files (x86)", "$env:LOCALAPPDATA\Programs")) {
-              if (-not (Test-Path -LiteralPath $root)) { continue }
-              $miktexBin = Get-ChildItem -LiteralPath $root -Directory -Recurse -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -eq "x64" -and (Test-Path -LiteralPath (Join-Path $_.FullName "latexmk.exe")) } |
-                Select-Object -First 1 -ExpandProperty FullName
-              if ($miktexBin) { break }
-            }
-          }
-          if (-not $miktexBin) {
-            throw "MiKTeX bin directory was not found after installation."
-          }
-          Write-Host "Using MiKTeX bin: $miktexBin"
-          & (Join-Path $miktexBin "initexmf.exe") --set-config-value "[MPM]AutoInstall=1" 2>&1 | Out-String | Write-Host
-          if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
-          & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
-          # The runner (Windows Server) has no SimSun/SimHei, so ctex's default
-          # fontset=windows cannot load. Force fontset=fandol via ctexopts.cfg;
-          # fandol ships with ctex on every distribution and auto-installs here.
-          $cfgDir = Join-Path $env:APPDATA "MiKTeX\tex\latex\ctex\config"
-          $cfg = Join-Path $cfgDir "ctexopts.cfg"
-          if (Test-Path -LiteralPath $cfg) {
-            $existing = Get-Content -LiteralPath $cfg -Raw -Encoding UTF8
-            if ($existing -notmatch "fontset\s*=\s*fandol") {
-              Add-Content -LiteralPath $cfg -Value "`r`nfontset=fandol" -Encoding UTF8
-            }
-          }
-          else {
-            New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
-            Set-Content -LiteralPath $cfg -Value "fontset=fandol" -Encoding UTF8
-          }
-          Write-Host "ctexopts.cfg now: $((Get-Content -LiteralPath $cfg -Raw -Encoding UTF8))"
-          Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
-      - name: MiKTeX Chinese probe (surface real compile errors)
-        shell: pwsh
-        run: |
-          $probeDir = Join-Path $env:RUNNER_TEMP ("miktex-probe-" + [Guid]::NewGuid().ToString("N"))
-          New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
-          $probeText = "\documentclass[UTF8]{ctexart}`n\begin{document}`nNodePaper 中文环境探针`n\end{document}"
-          Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeText -Encoding UTF8
-          & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error "-outdir=$probeDir" (Join-Path $probeDir "probe.tex")
-          Write-Host "probe exit: $LASTEXITCODE"
-          $log = Join-Path $probeDir "probe.log"
-          if (Test-Path -LiteralPath $log) {
-            Write-Host "===== probe.log tail ====="
-            Get-Content -LiteralPath $log -Tail 40
-          }
-          exit $LASTEXITCODE
-      - name: M3 E2E suite
-        run: .\scripts\test-e2e.ps1
+
