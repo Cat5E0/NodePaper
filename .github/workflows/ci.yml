@@ -75,5 +75,21 @@ jobs:
         run: .\Bootstrap-Tools.ps1
       - name: Install Poppler utilities
         run: choco install poppler -y --no-progress
+      - name: Locate MiKTeX bin and add to PATH
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "C:\Program Files\MiKTeX\miktex\bin\x64",
+            "C:\Program Files\MiKTeX 2.9\miktex\bin\x64"
+          )
+          $miktexBin = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $miktexBin) {
+            $found = @(Get-ChildItem "C:\Program Files" -Directory -Filter "MiKTeX*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+            Write-Host "MiKTeX directories found: $($found -join ', ')"
+            throw "MiKTeX was not found in the expected locations."
+          }
+          Write-Host "Using MiKTeX bin: $miktexBin"
+          Write-Host "latexmk: $((Get-Command (Join-Path $miktexBin 'latexmk.exe') -ErrorAction SilentlyContinue).Source)"
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
       - name: M3 E2E suite
         run: .\scripts\test-e2e.ps1
