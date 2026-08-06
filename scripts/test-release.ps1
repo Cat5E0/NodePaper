@@ -176,8 +176,8 @@ try {
     }
     $licenseFiles = @(Get-ChildItem -LiteralPath (Join-Path $releaseDir "licenses") -File -ErrorAction SilentlyContinue)
     Assert-True ($licenseFiles.Count -ge 1) "licenses/ directory must contain at least one license text"
-    Assert-True ((Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
-    Assert-True ((Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"
+    Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
+    Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"
 
     # ---------- 2/3. environment independence --------------------------------
 

@@ -31,7 +31,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26.x"
+          # Fixed stdlib vulnerabilities (GO-2026-4970, GO-2026-5856);
+          # govulncheck must report zero reachable findings on this version.
+          go-version: "1.26.5"
           cache: true
       - name: gofmt
         shell: pwsh
@@ -67,7 +69,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26.x"
+          go-version: "1.26.5"
           cache: true
       - name: Bootstrap pinned Pandoc tools
         run: .\Bootstrap-Tools.ps1

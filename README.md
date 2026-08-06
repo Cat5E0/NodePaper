@@ -223,9 +223,16 @@ Fragments must be relative UTF-8 regular `.tex` files inside the Project Root. F
 
 ## Remaining v0.1 work
 
-The following gates remain incomplete:
+The following gates remain incomplete before a formal release:
 
-- MiKTeX, Windows 10, race detector, release ZIP, and final manual PDF review.
+- independent MiKTeX E2E (auto-install off);
+- Windows 10 smoke test;
+- race detector on a C-enabled CI runner;
+- final manual PDF review;
+- maintainer sign-off of the release checklist.
+
+The release packaging entry (ZIP build, ZIP validation, GitHub Actions CI,
+`LICENSE` and `THIRD_PARTY_NOTICES.md`) is implemented; see the next section.
 
 MinerU full-paper import and semantic fidelity review are deferred to a post-v0.1 research task and do not block the runtime or release package.
 
@@ -240,7 +247,60 @@ NodePaper will not add custom Markdown-in-Markdown Include syntax. Use ordered `
 .\scripts\test-all.ps1
 ```
 
-`test-release.ps1` intentionally blocks release while ZIP, MiKTeX, Windows 10, and manual review gates remain incomplete. Source-tree E2E uses test-only environment variables to locate scripts and the Profile; those variables are not part of the public CLI contract.
+`test-release.ps1` validates a built release ZIP in a clean directory and
+blocks until the manual/platform gates are recorded (see the next section).
+Source-tree E2E uses test-only environment variables to locate scripts and the
+Profile; those variables are not part of the public CLI contract.
+
+## Release package
+
+The release candidate is a versioned Windows x64 ZIP built from a fixed commit
+with `scripts/build-release.ps1`:
+
+```powershell
+.\scripts\build-release.ps1 -Version 0.1.0-rc.1
+```
+
+The script compiles `nodepaper.exe` inside an isolated git worktree of the
+requested commit, assembles `nodepaper-<version>-windows-x64/` from an
+explicit whitelist (runtime scripts, the CUMCM Profile, the pinned bundled
+Pandoc binaries, a runnable example, README, LICENSE and
+THIRD_PARTY_NOTICES), scans the package for absolute development paths,
+secrets and temp artifacts, and records the ZIP SHA-256 in
+`release-manifest.json`.
+
+Validate the exact ZIP in a clean environment without Go or the source tree:
+
+```powershell
+.\scripts\test-release.ps1 -ReleaseZip .\build\release\nodepaper-0.1.0-rc.1-windows-x64.zip -ManualGatesFile .\gates.json
+```
+
+`test-release.ps1` runs doctor / init / validate / build, checks logs, the PDF
+and repeat builds, and refuses to pass until MiKTeX, Windows 10, race
+detector, PDF manual review and maintainer sign-off are recorded in the gates
+file. The GitHub Actions workflow `.github/workflows/release-build.yml`
+produces the same ZIP as a workflow artifact on demand; it never
+auto-publishes a release.
+
+Package layout:
+
+```text
+nodepaper-<version>-windows-x64/
+├── nodepaper.exe
+├── Build-Paper.ps1
+├── Convert-CumcmProjectToLatex.ps1
+├── profiles/cumcm/
+├── tools/windows-x64/pandoc/ + pandoc-crossref/
+├── examples/cumcm-single-file/
+├── README.md / README.zh-CN.md
+├── LICENSE
+├── THIRD_PARTY_NOTICES.md
+└── licenses/
+```
+
+The bundled Pandoc binaries make the package independent of a global Pandoc
+install; a TeX distribution (TeX Live or MiKTeX with xelatex and latexmk) is
+still required on the tester's machine.
 
 ## Existing SCAU PowerShell compatibility entry
 
@@ -263,7 +323,7 @@ They are not formally supported by the new CLI until metadata, validation, licen
 
 ## Current limitations
 
-- No release ZIP is available yet.
+- No formally released ZIP exists yet; release-candidate ZIPs are built by `scripts/build-release.ps1` and remain gated by the release checklist.
 - No GUI, HTTP server, or VS Code extension is provided.
 - VS Code's built-in Markdown preview is not the final Pandoc/LaTeX PDF.
 - Windows 10/11 x64 is the target, but all release-platform gates are not complete.

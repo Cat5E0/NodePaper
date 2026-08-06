@@ -230,9 +230,15 @@ Fragment 只允许 Project Root 内的相对 UTF-8 `.tex` 普通文件；禁止�
 
 ## 剩余 v0.1 工作
 
-以下门槛尚未完成：
+以下门槛在正式发布前仍未完成：
 
-- MiKTeX、Windows 10、Race Detector、发布 ZIP 和最终人工 PDF 检查。
+- 独立 MiKTeX E2E（关闭自动安装宏包）；
+- Windows 10 冒烟测试；
+- 具备 C 编译器环境的 CI 上运行 Race Detector；
+- 最终人工 PDF 检查；
+- 维护者签署发布清单。
+
+发布打包入口（ZIP 构建、ZIP 验证、GitHub Actions CI、`LICENSE` 和 `THIRD_PARTY_NOTICES.md`）已实现，见下一节。
 
 MinerU 全文导入和语义忠实度审查已延后至 v0.1 后研究项，不阻塞运行时与发布包。
 
@@ -249,9 +255,45 @@ NodePaper 不计划开发 Markdown 包含 Markdown 的自定义 Include。多章
 .\scripts\test-all.ps1
 ```
 
-当前 `test-release.ps1` 会主动阻止发布，因为 ZIP、MiKTeX、Windows 10 和人工检查门槛尚未完成。
+`test-release.ps1` 在干净目录中验证构建好的发布 ZIP，在人工/平台门槛记录前会主动失败（见下一节）。
 
 源码树 E2E 通过测试专用环境变量定位构建脚本和 Profile；这些环境变量不是正式 CLI 协议。
+
+## 发布包
+
+发布候选是从固定 Commit 构建的版本化 Windows x64 ZIP，由 `scripts/build-release.ps1` 生成：
+
+```powershell
+.\scripts\build-release.ps1 -Version 0.1.0-rc.1
+```
+
+脚本在指定 Commit 的隔离 git worktree 中编译 `nodepaper.exe`，按显式白名单组装 `nodepaper-<version>-windows-x64/`（运行时脚本、CUMCM Profile、固定的内置 Pandoc 二进制、可运行示例、README、LICENSE 和 THIRD_PARTY_NOTICES），扫描包内是否存在绝对开发机路径、秘密和临时产物，并在 `release-manifest.json` 中记录 ZIP SHA-256。
+
+在干净环境、不依赖 Go 或源码树的情况下验证同一份 ZIP：
+
+```powershell
+.\scripts\test-release.ps1 -ReleaseZip .\build\release\nodepaper-0.1.0-rc.1-windows-x64.zip -ManualGatesFile .\gates.json
+```
+
+`test-release.ps1` 依次执行 doctor / init / validate / build，检查日志、PDF 和重复构建，并且在 gates 文件中记录 MiKTeX、Windows 10、Race Detector、PDF 人工检查和维护者签署之前拒绝通过。GitHub Actions 工作流 `.github/workflows/release-build.yml` 可按需把同一份 ZIP 作为工作流产物生成；它不会自动发布 Release。
+
+发布包结构：
+
+```text
+nodepaper-<version>-windows-x64/
+├── nodepaper.exe
+├── Build-Paper.ps1
+├── Convert-CumcmProjectToLatex.ps1
+├── profiles/cumcm/
+├── tools/windows-x64/pandoc/ + pandoc-crossref/
+├── examples/cumcm-single-file/
+├── README.md / README.zh-CN.md
+├── LICENSE
+├── THIRD_PARTY_NOTICES.md
+└── licenses/
+```
+
+内置 Pandoc 二进制使发布包不依赖全局 Pandoc 安装；测试机仍需要安装 TeX 发行版（TeX Live 或 MiKTeX，包含 xelatex 和 latexmk）。
 
 ## 现有 SCAU PowerShell 兼容入口
 
@@ -274,7 +316,7 @@ scau-experiment
 
 ## 当前限制
 
-- 没有正式发布 ZIP；
+- 尚未有正式发布的 ZIP；发布候选 ZIP 由 `scripts/build-release.ps1` 构建，并仍受发布清单门槛约束；
 - 不提供 GUI、HTTP Server 或 VS Code 扩展；
 - VS Code 内置 Markdown 预览不等于最终 Pandoc/LaTeX PDF；
 - 只正式面向 Windows 10/11 x64，发布前平台门槛仍未全部完成；

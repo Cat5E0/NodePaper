@@ -245,6 +245,22 @@ try {
         Copy-Item -LiteralPath $source -Destination $target -Force
     }
 
+    if (-not $SkipTools) {
+        $packageTools = @(
+            "tools\windows-x64\pandoc\pandoc.exe",
+            "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"
+        )
+        foreach ($relative in $packageTools) {
+            $source = Join-Path $worktree $relative
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+                throw "Bundled tool missing in worktree: $relative"
+            }
+            $target = Join-Path $packageDir $relative
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+            Copy-Item -LiteralPath $source -Destination $target -Force
+        }
+    }
+
     $profileSource = Join-Path $worktree "profiles\cumcm"
     if (-not (Test-Path -LiteralPath $profileSource -PathType Container)) {
         throw "Profile directory missing: $profileSource"
@@ -338,9 +354,16 @@ try {
     $zipSHA256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
     $gitTag = ""
-    $described = & git -C $root describe --tags --exact-match $resolvedCommit 2>$null
-    if ($LASTEXITCODE -eq 0 -and $described) {
-        $gitTag = $described.Trim()
+    $previousEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $described = (& git -C $root describe --tags --exact-match $resolvedCommit 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -eq 0 -and $described) {
+            $gitTag = $described
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousEAP
     }
 
     $fileList = @(Get-ChildItem -LiteralPath $packageDir -Recurse -File | ForEach-Object {
