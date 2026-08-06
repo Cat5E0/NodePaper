@@ -1,7 +1,8 @@
 # Required CI for NodePaper (AGENTS.md section 29, PLAN.md M4-01).
 #
 # Each check is a separate job so the GitHub Actions UI shows individual
-# pass/fail status at a glance. All jobs run in parallel.
+# pass/fail status at a glance. Jobs run sequentially to stay within the
+# private-repo Windows runner concurrency limit.
 #
 # This is the sole GitHub required check group. Required checks must not be
 # made green by relaxing Warning rules, auto accepting Golden files or
@@ -42,6 +43,7 @@ jobs:
 
   vet:
     name: go vet
+    needs: gofmt
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +56,7 @@ jobs:
 
   test:
     name: go test
+    needs: vet
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +69,7 @@ jobs:
 
   race:
     name: Race detector
+    needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,6 +82,7 @@ jobs:
 
   govulncheck:
     name: govulncheck
+    needs: race
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
