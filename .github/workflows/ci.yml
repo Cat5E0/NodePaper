@@ -127,7 +127,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
           $probeText = "\documentclass[UTF8]{ctexart}`n\begin{document}`nNodePaper 中文环境探针`n\end{document}"
           Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeText -Encoding UTF8
-          & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir $probeDir (Join-Path $probeDir "probe.tex")
+          & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error "-outdir=$probeDir" (Join-Path $probeDir "probe.tex")
           Write-Host "probe exit: $LASTEXITCODE"
           $log = Join-Path $probeDir "probe.log"
           if (Test-Path -LiteralPath $log) {
