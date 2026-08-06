@@ -52,15 +52,21 @@ type Toolchain struct {
 	XeLaTeX        string
 }
 
-// Run inspects the local environment. When projectRoot is non-empty it also
-// verifies project resources.
-func Run(ctx context.Context, projectRoot string, builtinProfileDir string) Result {
+// Run inspects the local environment. resourceRoot is the directory that
+// contains the built-in profiles/ and tools/ trees next to the executable; it
+// is empty when the packaged resources cannot be located. When projectRoot is
+// non-empty it also verifies project resources.
+func Run(ctx context.Context, projectRoot string, resourceRoot string) Result {
 	var checks []Check
 
-	loadedProfile, profileCheck := checkBuiltinProfile(builtinProfileDir)
+	profileDir := ""
+	if resourceRoot != "" {
+		profileDir = filepath.Join(resourceRoot, "profiles", "cumcm")
+	}
+	loadedProfile, profileCheck := checkBuiltinProfile(profileDir)
 	checks = append(checks, profileCheck)
 	checks = append(checks, checkPowershell(ctx))
-	tc := findToolchain()
+	tc := findToolchain(resourceRoot)
 	checks = append(checks,
 		checkPandoc(ctx, tc.Pandoc, loadedProfile.Definition.PandocVersion),
 		checkPandocCrossref(ctx, tc.PandocCrossref, loadedProfile.Definition.PandocCrossrefVersion),
@@ -136,18 +142,38 @@ func checkPowershell(ctx context.Context) Check {
 	return Check{Name: "PowerShell", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
-func findToolchain() Toolchain {
+// findToolchain returns the resolved tool binaries. The pinned bundled
+// binaries shipped in the release package take precedence over PATH entries so
+// that doctor truthfully reports what the build will actually use on machines
+// that do not install Pandoc or pandoc-crossref globally.
+func findToolchain(resourceRoot string) Toolchain {
 	var tc Toolchain
-	tc.Pandoc, _ = exec.LookPath("pandoc")
-	tc.PandocCrossref, _ = exec.LookPath("pandoc-crossref")
+	tc.Pandoc = bundledOrPath(resourceRoot, "pandoc", "pandoc.exe", "pandoc")
+	tc.PandocCrossref = bundledOrPath(resourceRoot, "pandoc-crossref", "pandoc-crossref.exe", "pandoc-crossref")
 	tc.Latexmk, _ = exec.LookPath("latexmk")
 	tc.XeLaTeX, _ = exec.LookPath("xelatex")
 	return tc
 }
 
+// bundledOrPath prefers the pinned binary bundled under
+// <resourceRoot>/tools/windows-x64/<toolDir>/<exeName> and falls back to a
+// command found on PATH.
+func bundledOrPath(resourceRoot, toolDir, exeName, command string) string {
+	if resourceRoot != "" {
+		path := filepath.Join(resourceRoot, "tools", "windows-x64", toolDir, exeName)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path
+		}
+	}
+	if path, err := exec.LookPath(command); err == nil {
+		return path
+	}
+	return ""
+}
+
 func checkPandoc(ctx context.Context, path, expected string) Check {
 	if path == "" {
-		return missingTool("Pandoc", "Install the pinned Pandoc version and ensure pandoc is in PATH.")
+		return missingTool("Pandoc", "Reinstall NodePaper (the bundled pandoc is missing) or install the pinned Pandoc version and ensure it is in PATH.")
 	}
 	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^pandoc\s+\S+`))
 	if err != nil {
@@ -161,7 +187,7 @@ func checkPandoc(ctx context.Context, path, expected string) Check {
 
 func checkPandocCrossref(ctx context.Context, path, expected string) Check {
 	if path == "" {
-		return missingTool("pandoc-crossref", "Install the pinned pandoc-crossref version and ensure it is in PATH.")
+		return missingTool("pandoc-crossref", "Reinstall NodePaper (the bundled pandoc-crossref is missing) or install the pinned pandoc-crossref version and ensure it is in PATH.")
 	}
 	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^pandoc-crossref\s+v?\S+`))
 	if err != nil {

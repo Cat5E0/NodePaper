@@ -1,0 +1,77 @@
+# Required CI for NodePaper (AGENTS.md section 29, PLAN.md M4-01).
+#
+# - `fast`: gofmt, vet, unit, fake-tool integration, race detector and
+#   govulncheck on the GitHub Windows runner (which ships a C toolchain, so the
+#   race detector runs here even though the local dev machine cannot).
+# - `e2e`: real Pandoc/LaTeX E2E on the runner's MiKTeX installation. The
+#   runner environment differs from the canonical Windows 11 + TeX Live 2025
+#   matrix gate, so the local E2E record remains the authoritative E2E result
+#   for a release candidate commit.
+#
+# Required checks must not be made green by relaxing Warning rules, auto
+# accepting Golden files or skipping failing tests.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    name: Fast checks
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: gofmt
+        shell: pwsh
+        run: |
+          $files = & gofmt -l cmd internal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($files) {
+            Write-Error "Go files are not formatted:`n$($files -join [Environment]::NewLine)"
+            exit 1
+          }
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test -count=1 ./...
+      - name: Fake-tool integration (JSON, paths, locks, cancellation)
+        run: go test -count=1 ./internal/validate ./internal/buildlock ./internal/process ./internal/build ./cmd/nodepaper
+      - name: Race detector
+        run: go test -race -count=1 ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+  e2e:
+    name: Real TeX E2E (runner MiKTeX)
+    runs-on: windows-latest
+    needs: fast
+    env:
+      # The runner MiKTeX lacks some packages; CI may fetch them. The formal
+      # release gate (auto-install off) is exercised separately on MiKTeX.
+      MIKTEX_AUTOINSTALL: "yes"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Bootstrap pinned Pandoc tools
+        run: .\Bootstrap-Tools.ps1
+      - name: Install Poppler utilities
+        run: choco install poppler -y --no-progress
+      - name: M3 E2E suite
+        run: .\scripts\test-e2e.ps1

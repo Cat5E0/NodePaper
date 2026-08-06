@@ -1,20 +1,350 @@
+<#
+.SYNOPSIS
+    Validate an extracted (or zipped) NodePaper release-candidate package.
+
+.DESCRIPTION
+    Runs the release package in a clean, source-tree-independent environment:
+      1. ZIP file name, package directory structure and required resources
+      2. extraction to a unique temporary directory outside the repository
+      3. no Go, source tree or source-only environment variable dependencies
+      4. nodepaper.exe doctor
+      5. nodepaper.exe init
+      6. copy a public Fixture, then validate and build (text and JSON)
+      7. build log, PDF and repeat-build / atomic-publish behaviour
+      8. package contents, versions and SHA-256 record
+      9. cleanup on success / retained diagnostics on failure
+     10. unfinished manual/platform gates fail explicitly via -ManualGatesFile
+
+    The Windows 11 + TeX Live mechanical flow is exercised by this script. The
+    remaining release gates (MiKTeX, Windows 10, race detector, PDF manual
+    review and maintainer sign-off) must be recorded as evidence in the JSON
+    file passed via -ManualGatesFile; missing or failed gates fail the script.
+
+.PARAMETER ReleaseZip
+    Path to nodepaper-<version>-windows-x64.zip. Extracted to a unique temp dir.
+.PARAMETER ReleaseDirectory
+    Path to an already-extracted release directory (alternative to ReleaseZip).
+.PARAMETER Fixture
+    Public Fixture name to copy (default complete-single-file).
+.PARAMETER FixtureDirectory
+    Directory of the Fixture project to copy. Defaults to the repository's
+    nodepaper-test-fixtures copy of -Fixture.
+.PARAMETER ManualGatesFile
+    JSON file with confirmed manual gate evidence:
+    { "schemaVersion": 1,
+      "gates": { "miktex": {"date":..., "environment":..., "result":"pass"},
+                 "windows10": {...}, "raceDetector": {...},
+                 "pdfReview": {...}, "maintainer": {"result":"allow-release"} } }
+.PARAMETER SkipTools
+    Skip the bundled tools existence check (layout-only packages built with
+    build-release.ps1 -SkipTools; not valid release candidates).
+.PARAMETER KeepWorkDirectory
+    Keep the temporary work directory for diagnosis.
+#>
 param(
-    [string]$ReleaseDirectory
+    [string]$ReleaseZip = "",
+    [string]$ReleaseDirectory = "",
+    [string]$Fixture = "complete-single-file",
+    [string]$FixtureDirectory = "",
+    [string]$ManualGatesFile = "",
+    [switch]$SkipTools,
+    [switch]$KeepWorkDirectory
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-if (-not $ReleaseDirectory) {
-    throw "ReleaseDirectory is required. Test the extracted release directory, not the source tree."
-}
-if (-not (Test-Path -LiteralPath $ReleaseDirectory -PathType Container)) {
-    throw "Release directory not found: $ReleaseDirectory"
+
+$script:WorkRoot = ""
+$script:Passed = $false
+
+function Assert-True {
+    param(
+        [Parameter(Mandatory = $true)]
+        [bool]$Condition,
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+    if (-not $Condition) {
+        throw "FAIL: $Message"
+    }
 }
 
-Write-Host "Release automation is not complete. Required manual gates remain:"
-Write-Host "- Windows 11 + TeX Live E2E"
-Write-Host "- independent MiKTeX E2E"
-Write-Host "- Windows 10 smoke test"
-Write-Host "- PDF manual review"
-Write-Host "- license and THIRD_PARTY_NOTICES review"
-Write-Host "- S0/S1/S2 review and maintainer sign-off"
-throw "Release gate intentionally remains closed until the release checklist is completed."
+function Get-FileList {
+    param([string]$Root)
+    return @(Get-ChildItem -LiteralPath $Root -Recurse -File | ForEach-Object {
+        $_.FullName.Substring($Root.TrimEnd('\').Length).TrimStart('\') -replace '\\', '/'
+    } | Sort-Object)
+}
+
+function Assert-ManualGates {
+    param([string]$GatesFile)
+    if ([string]::IsNullOrWhiteSpace($GatesFile)) {
+        throw "FAIL: -ManualGatesFile is required. The release gates (MiKTeX, Windows 10, race detector, PDF manual review, maintainer sign-off) are not verified by this script and cannot be assumed to pass."
+    }
+    if (-not (Test-Path -LiteralPath $GatesFile -PathType Leaf)) {
+        throw "FAIL: Manual gates file not found: $GatesFile"
+    }
+    $gates = Get-Content -LiteralPath $GatesFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $required = @(
+        @{ Name = "miktex"; Expect = "pass" },
+        @{ Name = "windows10"; Expect = "pass" },
+        @{ Name = "raceDetector"; Expect = "pass" },
+        @{ Name = "pdfReview"; Expect = "pass" },
+        @{ Name = "maintainer"; Expect = "allow-release" }
+    )
+    $missing = @()
+    foreach ($gate in $required) {
+        $entry = $gates.gates.($gate.Name)
+        if ($null -eq $entry -or [string]::IsNullOrWhiteSpace([string]$entry.result) -or
+            ([string]$entry.result).ToLowerInvariant() -ne $gate.Expect) {
+            $missing += "$($gate.Name) (expected result '$($gate.Expect)')"
+        }
+    }
+    if ($missing.Count -gt 0) {
+        throw "FAIL: manual gates not confirmed: $($missing -join '; ')"
+    }
+    Write-Host "Manual gates confirmed: MiKTeX, Windows 10, race detector, PDF review, maintainer sign-off."
+}
+
+# ---------- input validation and extraction --------------------------------
+
+if ([string]::IsNullOrWhiteSpace($ReleaseZip) -eq [string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
+    throw "Exactly one of -ReleaseZip or -ReleaseDirectory is required."
+}
+
+$zipPath = ""
+$zipSHA256 = ""
+if (-not [string]::IsNullOrWhiteSpace($ReleaseZip)) {
+    $zipPath = (Resolve-Path -LiteralPath $ReleaseZip).Path
+    $zipName = [System.IO.Path]::GetFileName($zipPath)
+    if ($zipName -notmatch '^nodepaper-.+-windows-x64\.zip$') {
+        throw "ZIP file name does not match nodepaper-<version>-windows-x64.zip: $zipName"
+    }
+    $zipSHA256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+try {
+    if ($zipPath) {
+        $script:WorkRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-release-test-" + [Guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Force -Path $script:WorkRoot | Out-Null
+        Write-Host "Extracting $zipName to $script:WorkRoot"
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $script:WorkRoot -Force
+        $packageDirs = @(Get-ChildItem -LiteralPath $script:WorkRoot -Directory)
+        if ($packageDirs.Count -ne 1) {
+            throw "FAIL: ZIP must contain exactly one top-level package directory; found $($packageDirs.Count)"
+        }
+        if ($packageDirs[0].Name -notmatch '^nodepaper-.+-windows-x64$') {
+            throw "FAIL: top-level directory name does not match nodepaper-<version>-windows-x64: $($packageDirs[0].Name)"
+        }
+        $releaseDir = $packageDirs[0].FullName
+    }
+    else {
+        $releaseDir = (Resolve-Path -LiteralPath $ReleaseDirectory).Path
+        if ([System.IO.Path]::GetFileName($releaseDir) -notmatch '^nodepaper-.+-windows-x64$') {
+            throw "FAIL: release directory name does not match nodepaper-<version>-windows-x64: $([System.IO.Path]::GetFileName($releaseDir))"
+        }
+    }
+    $exe = Join-Path $releaseDir "nodepaper.exe"
+
+    # ---------- 1. required resources --------------------------------------
+
+    Write-Host "Checking required package resources..."
+    $requiredFiles = @(
+        "nodepaper.exe",
+        "Build-Paper.ps1",
+        "Convert-CumcmProjectToLatex.ps1",
+        "profiles/cumcm/profile.json",
+        "profiles/cumcm/template.tex",
+        "profiles/cumcm/crossref.yaml",
+        "profiles/cumcm/csl/china-national-standard-gb-t-7714-2015-numeric.csl",
+        "profiles/cumcm/filters/extract-abstract.lua",
+        "profiles/cumcm/filters/layout.lua",
+        "profiles/cumcm/warning-allowlist.json",
+        "README.md",
+        "LICENSE",
+        "THIRD_PARTY_NOTICES.md",
+        "examples/cumcm-single-file/nodepaper.yaml"
+    )
+    if (-not $SkipTools) {
+        $requiredFiles += @(
+            "tools/windows-x64/pandoc/pandoc.exe",
+            "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe"
+        )
+    }
+    foreach ($relative in $requiredFiles) {
+        Assert-True (Test-Path -LiteralPath (Join-Path $releaseDir ($relative -replace '/', '\')) -PathType Leaf) "required release resource missing: $relative"
+    }
+    $licenseFiles = @(Get-ChildItem -LiteralPath (Join-Path $releaseDir "licenses") -File -ErrorAction SilentlyContinue)
+    Assert-True ($licenseFiles.Count -ge 1) "licenses/ directory must contain at least one license text"
+    Assert-True ((Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
+    Assert-True ((Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"
+
+    # ---------- 2/3. environment independence --------------------------------
+
+    foreach ($var in @("NODEPAPER_BUILD_SCRIPT", "NODEPAPER_PROFILE_DIR", "NODEPAPER_GO")) {
+        $value = [Environment]::GetEnvironmentVariable($var)
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            throw "FAIL: $var is set to '$value'; the release test must run without source-tree overrides."
+        }
+    }
+    Write-Host "Environment independence: no source-tree overrides present."
+
+    $versionOutput = (& $exe --version 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: nodepaper.exe --version failed with exit code $LASTEXITCODE"
+    }
+    $reportedVersion = (($versionOutput | Out-String).Trim())
+    Write-Host "Executable version: $reportedVersion"
+    Assert-True ($reportedVersion -match '^nodepaper ') "nodepaper.exe --version output is malformed: '$reportedVersion'"
+
+    # ---------- 4. doctor -----------------------------------------------------
+
+    Write-Host "Running doctor..."
+    $doctorText = (& $exe doctor 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: doctor failed. This machine must provide a working TeX environment. Output:`n$doctorText"
+    }
+    Assert-True ($doctorText.Contains("Success")) "doctor text output lacks the success marker"
+    $doctorJsonText = (& $exe doctor --format json 2>$null | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: doctor --format json failed"
+    }
+    $doctor = $doctorJsonText | ConvertFrom-Json
+    Assert-True ([bool]$doctor.success) "doctor JSON success = false"
+    $profileSHA256 = ""
+    foreach ($check in @($doctor.checks)) {
+        if ($check.name -eq "profile") {
+            Write-Host "Profile check: $($check.message)"
+            if ($check.message -match 'sha256 ([0-9a-f]{64})') {
+                $profileSHA256 = $Matches[1]
+            }
+        }
+        if ($check.name -eq "Pandoc" -and $check.status -eq "pass") {
+            Write-Host "Pandoc check: $($check.message)"
+        }
+    }
+    Assert-True ($profileSHA256 -ne "") "doctor JSON did not report the Profile snapshot SHA-256"
+
+    # ---------- 5. init --------------------------------------------------------
+
+    Write-Host "Running init..."
+    $initDir = Join-Path $script:WorkRoot "init-project"
+    $initJsonText = (& $exe init $initDir --format json 2>$null | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: init failed with exit code $LASTEXITCODE"
+    }
+    $init = $initJsonText | ConvertFrom-Json
+    Assert-True ([bool]$init.success) "init JSON success = false"
+    foreach ($relative in @("nodepaper.yaml", "paper.md", "references.bib", "images")) {
+        Assert-True (Test-Path -LiteralPath (Join-Path $initDir $relative)) "init did not create $relative"
+    }
+
+    # ---------- 6. fixture validate + build ------------------------------------
+
+    $fixtureDir = $FixtureDirectory
+    if ([string]::IsNullOrWhiteSpace($fixtureDir)) {
+        $fixtureDir = Join-Path $PSScriptRoot "..\nodepaper-test-fixtures\tests\fixtures\$Fixture"
+        if (-not (Test-Path -LiteralPath $fixtureDir -PathType Container)) {
+            throw "FAIL: Fixture not found: $fixtureDir. Pass -FixtureDirectory to use a copied fixture."
+        }
+    }
+    $fixtureDir = (Resolve-Path -LiteralPath $fixtureDir).Path
+    $projectDir = Join-Path $script:WorkRoot "fixture-project"
+    Copy-Item -LiteralPath $fixtureDir -Destination $projectDir -Recurse
+    Write-Host "Fixture project: $projectDir"
+
+    Write-Host "Running validate..."
+    $validateJsonText = (& $exe validate $projectDir --format json 2>$null | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: validate failed with exit code $LASTEXITCODE"
+    }
+    $validation = $validateJsonText | ConvertFrom-Json
+    Assert-True ([bool]$validation.success) "validate JSON success = false"
+
+    Write-Host "Running build (text)..."
+    $buildText = (& $exe build $projectDir 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: build (text) failed with exit code $LASTEXITCODE. Output:`n$buildText"
+    }
+    Assert-True ($buildText.Contains("Success")) "build text output lacks the success marker"
+    Assert-True ($buildText.Contains("Build ID:")) "build text output lacks the Build ID"
+
+    Write-Host "Running build (JSON)..."
+    $buildJsonText = (& $exe build $projectDir --format json 2>$null | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: build (JSON) failed with exit code $LASTEXITCODE"
+    }
+    $build = $buildJsonText | ConvertFrom-Json
+    Assert-True ([bool]$build.success) "build JSON success = false"
+    Assert-True (-not [string]::IsNullOrWhiteSpace([string]$build.buildId)) "build JSON lacks buildId"
+    $pdfArtifact = ""
+    foreach ($artifact in @($build.artifacts)) {
+        if ($artifact.kind -eq "pdf") {
+            $pdfArtifact = [string]$artifact.path
+        }
+    }
+    Assert-True ($pdfArtifact -ne "") "build JSON lacks a pdf artifact"
+    $pdfPath = Join-Path $projectDir "dist\paper.pdf"
+    Assert-True (Test-Path -LiteralPath $pdfPath -PathType Leaf) "published PDF not found: $pdfPath"
+
+    # ---------- 7. logs, PDF and repeat build ------------------------------------
+
+    $bytes = [System.IO.File]::ReadAllBytes($pdfPath)
+    Assert-True ($bytes.Length -gt 5) "published PDF is empty"
+    Assert-True ([System.Text.Encoding]::ASCII.GetString($bytes, 0, 5) -eq "%PDF-") "published PDF header is invalid"
+    $pdfSHA256 = (Get-FileHash -LiteralPath $pdfPath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+    $logs = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Filter "build-*.log" -File -ErrorAction SilentlyContinue)
+    Assert-True ($logs.Count -ge 1) "build log was not created"
+    $logText = Get-Content -LiteralPath $logs[0].FullName -Raw -Encoding UTF8
+    Assert-True ($logText.Contains("Build-Paper.ps1")) "build log does not record the PowerShell transition script"
+
+    Write-Host "Running second build (repeatability / atomic publish)..."
+    $secondJsonText = (& $exe build $projectDir --format json 2>$null | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "FAIL: second build failed with exit code $LASTEXITCODE"
+    }
+    $second = $secondJsonText | ConvertFrom-Json
+    Assert-True ([bool]$second.success) "second build JSON success = false"
+    Assert-True ($second.buildId -ne $build.buildId) "second build reused the same Build ID"
+    $logs = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Filter "build-*.log" -File -ErrorAction SilentlyContinue)
+    Assert-True ($logs.Count -ge 2) "two builds did not create distinct log files"
+
+    # ---------- 8. record -----------------------------------------------------------
+
+    $record = [ordered]@{
+        schemaVersion = 1
+        package = [System.IO.Path]::GetFileName($releaseDir)
+        executableVersion = $reportedVersion
+        zip = $zipName
+        zipSHA256 = $zipSHA256
+        profileSnapshotSHA256 = $profileSHA256
+        fixture = $Fixture
+        buildIds = @([string]$build.buildId, [string]$second.buildId)
+        pdfSHA256 = $pdfSHA256
+        validatedAt = (Get-Date).ToString("o")
+        files = Get-FileList $releaseDir
+    }
+    $recordPath = Join-Path $script:WorkRoot "release-test-results.json"
+    $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $recordPath -Encoding UTF8
+    Write-Host "Release test record: $recordPath"
+
+    # ---------- 10. manual gates -----------------------------------------------------
+
+    Assert-ManualGates $ManualGatesFile
+
+    $script:Passed = $true
+    Write-Host ""
+    Write-Host "Release package test passed: $releaseDir"
+    if ($zipSHA256) {
+        Write-Host "ZIP SHA-256: $zipSHA256"
+    }
+}
+finally {
+    if ($script:Passed -and -not $KeepWorkDirectory -and $script:WorkRoot -and (Test-Path -LiteralPath $script:WorkRoot)) {
+        Remove-Item -LiteralPath $script:WorkRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    elseif ($script:WorkRoot -and (Test-Path -LiteralPath $script:WorkRoot)) {
+        Write-Host "Release test work directory retained: $script:WorkRoot"
+    }
+}

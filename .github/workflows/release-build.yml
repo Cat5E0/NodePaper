@@ -1,0 +1,55 @@
+# Manual release-candidate build (PLAN.md M4-01 decision 2: CI only, no CD).
+#
+# This workflow compiles the Windows x64 nodepaper.exe from the pushed commit,
+# assembles the versioned ZIP and uploads it as a workflow artifact. It never
+# auto-publishes a GitHub Release.
+#
+# The maintainer downloads the exact artifact and runs the same SHA-256 ZIP
+# through the platform matrix (Windows 11 + TeX Live, independent MiKTeX,
+# Windows 10), the PDF manual review and the release checklist, then creates
+# the GitHub Release draft manually. `scripts/test-release.ps1` is the
+# mechanical validation entry for that exact ZIP.
+
+name: release-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release candidate version, e.g. 0.1.0-rc.1"
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build release ZIP
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+      - name: Bootstrap pinned Pandoc tools
+        run: .\Bootstrap-Tools.ps1
+      - name: Build release candidate package
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if (-not $version) { $version = "${{ github.ref_name }}" -replace '^v', '' }
+          if (-not $version) { throw "No release version provided." }
+          .\scripts\build-release.ps1 -Version $version -OutputDirectory .\dist-release
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodepaper-release-zip
+          path: dist-release/*.zip
+          if-no-files-found: error

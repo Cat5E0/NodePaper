@@ -16,13 +16,16 @@ import (
 // New returns the default App implementation that orchestrates all NodePaper
 // operations without rendering output or depending on CLI globals.
 func New() App {
+	resourceRoot, profileDir := findResourceDirs()
 	return &appImpl{
-		profileDir: findProfileDir(),
+		resourceRoot: resourceRoot,
+		profileDir:   profileDir,
 	}
 }
 
 type appImpl struct {
-	profileDir string
+	resourceRoot string
+	profileDir   string
 }
 
 func (a *appImpl) Init(ctx context.Context, req InitRequest) (InitResult, error) {
@@ -130,7 +133,7 @@ func (a *appImpl) Doctor(ctx context.Context, req DoctorRequest) (DoctorResult, 
 		return DoctorResult{}, err
 	}
 
-	dr := doctor.Run(ctx, projectRoot, a.profileDir)
+	dr := doctor.Run(ctx, projectRoot, a.resourceRoot)
 
 	var checks []DoctorCheck
 	for _, c := range dr.Checks {
@@ -225,25 +228,29 @@ func writeConfig(root string, cfg projectConfig) error {
 	return os.WriteFile(filepath.Join(root, "nodepaper.yaml"), []byte(content), 0644)
 }
 
-func findProfileDir() string {
+// findResourceDirs resolves the packaged resource tree. The returned
+// resourceRoot contains profiles/ and tools/ and is empty when the packaged
+// resources cannot be located; profileDir points at profiles/cumcm.
+func findResourceDirs() (resourceRoot, profileDir string) {
 	if override := os.Getenv("NODEPAPER_PROFILE_DIR"); override != "" {
-		return override
+		return filepath.Dir(filepath.Dir(override)), override
 	}
 	// Try profiles/cumcm relative to the executable first.
 	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Join(filepath.Dir(exe), "profiles", "cumcm")
+		root := filepath.Dir(exe)
+		dir := filepath.Join(root, "profiles", "cumcm")
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			return dir
+			return root, dir
 		}
 	}
 	// Fallback: look relative to the current working directory (dev mode).
 	if wd, err := os.Getwd(); err == nil {
 		dir := filepath.Join(wd, "profiles", "cumcm")
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			return dir
+			return wd, dir
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func paperMarkdown() string {
