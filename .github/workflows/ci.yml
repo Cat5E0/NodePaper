@@ -1,12 +1,11 @@
 # Required CI for NodePaper (AGENTS.md section 29, PLAN.md M4-01).
 #
-# Fast checks: gofmt, vet, unit, fake-tool integration, race detector and
-# govulncheck on the GitHub Windows runner (which ships a C toolchain, so the
-# race detector runs here even though the local dev machine cannot).
+# Each check is a separate job so the GitHub Actions UI shows individual
+# pass/fail status at a glance. All jobs run in parallel.
 #
-# This is the sole GitHub required check. Required checks must not be made
-# green by relaxing Warning rules, auto accepting Golden files or skipping
-# failing tests.
+# This is the sole GitHub required check group. Required checks must not be
+# made green by relaxing Warning rules, auto accepting Golden files or
+# skipping failing tests.
 #
 # Real Pandoc/LaTeX E2E on a MiKTeX runner lives in the separate
 # non-blocking `miktex-e2e.yml` (workflow_dispatch).
@@ -22,17 +21,13 @@ permissions:
   contents: read
 
 jobs:
-  fast:
-    name: Fast checks
+  gofmt:
+    name: gofmt
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          # Fixed stdlib vulnerabilities (GO-2026-4970, GO-2026-5856);
-          # govulncheck must report zero reachable findings on this version.
           go-version: "1.26.5"
           cache: true
       - name: gofmt
@@ -44,15 +39,51 @@ jobs:
             Write-Error "Go files are not formatted:`n$($files -join [Environment]::NewLine)"
             exit 1
           }
+
+  vet:
+    name: go vet
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
       - name: go vet
         run: go vet ./...
-      - name: go test
+
+  test:
+    name: go test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: Unit + integration tests
         run: go test -count=1 ./...
-      - name: Fake-tool integration (JSON, paths, locks, cancellation)
-        run: go test -count=1 ./internal/validate ./internal/buildlock ./internal/process ./internal/build ./cmd/nodepaper
-      - name: Race detector
+
+  race:
+    name: Race detector
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: go test -race
         run: go test -race -count=1 ./...
+
+  govulncheck:
+    name: govulncheck
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
-
-
