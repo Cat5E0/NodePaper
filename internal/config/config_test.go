@@ -116,6 +116,26 @@ func TestHighlightStyleSelection(t *testing.T) {
 	}
 }
 
+func TestAppendixNewPageDefaultsToTrue(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Appendix.NewPageEnabled() {
+		t.Fatal("Appendix.NewPageEnabled() = false, want default true")
+	}
+}
+
+func TestAppendixNewPageExplicitFalse(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\nappendix:\n  numbering: alpha\n  newPage: false\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Appendix.NewPageEnabled() {
+		t.Fatal("Appendix.NewPageEnabled() = true, want false")
+	}
+}
+
 func TestParseWithOutput(t *testing.T) {
 	cfg, err := Parse([]byte(`
 version: 1

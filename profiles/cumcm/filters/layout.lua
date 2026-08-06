@@ -8,6 +8,12 @@
 -- appendix.numbering selects alpha (default), continuous, or none. Code blocks
 -- without a language are mapped to Pandoc's built-in text syntax so all code
 -- uses the same breakable Highlighting environment.
+--
+-- Page breaks:
+--   - The references section (reference-section-title, default 参考文献)
+--     always starts on a fresh page.
+--   - The retained 附录 heading starts on a fresh page unless
+--     nodepaper-appendix-newpage is false (appendix.newPage: false).
 
 local function stringify(value)
   if value == nil then
@@ -20,6 +26,12 @@ local function is_appendix_header(block)
   return block.t == "Header"
     and block.level == 1
     and stringify(block.content):match("^%s*附录%s*$") ~= nil
+end
+
+local function is_references_header(block, title)
+  return block.t == "Header"
+    and block.level == 1
+    and stringify(block.content) == title
 end
 
 local function add_unnumbered(header)
@@ -48,28 +60,49 @@ function Pandoc(doc)
     mode = "alpha"
   end
 
+  local references_title = stringify(doc.meta["reference-section-title"])
+  if references_title == "" then
+    references_title = "参考文献"
+  end
+
+  local appendix_new_page = true
+  if doc.meta["nodepaper-appendix-newpage"] ~= nil then
+    appendix_new_page = doc.meta["nodepaper-appendix-newpage"] ~= false
+  end
+
   local appendix_index = nil
+  local references_index = nil
   for index, block in ipairs(doc.blocks) do
     if is_appendix_header(block) then
       appendix_index = index
-      break
+    end
+    if is_references_header(block, references_title) then
+      references_index = index
     end
   end
-  if appendix_index == nil or mode == "continuous" then
+  if appendix_index == nil and references_index == nil then
     return doc
   end
 
   local output = pandoc.List()
   for index, block in ipairs(doc.blocks) do
-    if index == appendix_index then
-      add_unnumbered(block)
+    if index == references_index then
+      output:insert(pandoc.RawBlock("latex", "\\newpage"))
+      output:insert(block)
+    elseif index == appendix_index then
+      if appendix_new_page then
+        output:insert(pandoc.RawBlock("latex", "\\newpage"))
+      end
+      if mode ~= "continuous" then
+        add_unnumbered(block)
+      end
       output:insert(block)
       if mode == "alpha" then
         output:insert(pandoc.RawBlock("latex", "\\nodepaperAppendixAlpha"))
-      else
+      elseif mode == "none" then
         output:insert(pandoc.RawBlock("latex", "\\nodepaperAppendixNone"))
       end
-    elseif index > appendix_index and block.t == "Header" then
+    elseif appendix_index ~= nil and index > appendix_index and block.t == "Header" then
       if mode == "alpha" and block.level > 1 then
         block.level = block.level - 1
       elseif mode == "none" then

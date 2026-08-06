@@ -120,6 +120,11 @@ if ([string]::IsNullOrWhiteSpace($appendixNumbering)) {
 if ($appendixNumbering -notin @("alpha", "continuous", "none")) {
     throw "Unsupported appendix numbering mode: $appendixNumbering"
 }
+$appendixNewPage = $true
+if ($null -ne $manifestValue.appendixNewPage) {
+    $appendixNewPage = [bool]$manifestValue.appendixNewPage
+}
+$appendixNewPageMetadata = if ($appendixNewPage) { "true" } else { "false" }
 $highlightStyle = [string]$manifestValue.highlightStyle
 if ([string]::IsNullOrWhiteSpace($highlightStyle)) {
     $highlightStyle = [string]$profileConfig.highlightStyle
@@ -195,6 +200,7 @@ $arguments += @(
     "--csl", $csl,
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
+    "--metadata", "nodepaper-appendix-newpage=$appendixNewPageMetadata",
     "--metadata", "nodepaper-linespread=$linespreadMetadata",
     "--metadata", "nodepaper-abstract-linespread=$abstractLinespreadMetadata",
     "--metadata", "nodepaper-mathfont=$mathFont",
@@ -212,6 +218,7 @@ Write-Output "pandoc-crossref version: $crossrefVersionLine"
 Write-Output "Ordered Sources: $($resolvedSources -join ' | ')"
 Write-Output "LaTeX Fragments: $($resolvedFragments -join ' | ')"
 Write-Output "Appendix numbering: $appendixNumbering"
+Write-Output "Appendix new page: $appendixNewPageMetadata"
 Write-Output "Highlight style: $highlightStyle"
 Write-Output "Linespread: $linespreadMetadata"
 Write-Output "Abstract linespread: $abstractLinespreadMetadata"

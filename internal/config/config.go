@@ -27,9 +27,17 @@ type ProjectConfig struct {
 }
 
 // AppendixConfig controls numbering after the retained level-one appendix
-// heading. The default is alpha.
+// heading. The default is alpha. NewPage starts the appendix on a fresh page
+// (default true).
 type AppendixConfig struct {
 	Numbering string `yaml:"numbering,omitempty"`
+	NewPage   *bool  `yaml:"newPage,omitempty"`
+}
+
+// NewPageEnabled reports whether the appendix must start on a fresh page.
+// The default is true when the field is not set.
+func (a AppendixConfig) NewPageEnabled() bool {
+	return a.NewPage == nil || *a.NewPage
 }
 
 // HighlightConfig selects one of the finite, reviewed built-in Pandoc styles.

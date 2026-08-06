@@ -295,6 +295,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		LineSpread         float64  `json:"linespread"`
 		AbstractLineSpread float64  `json:"abstractLinespread"`
 		MathFont           string   `json:"mathFont"`
+		AppendixNewPage    bool     `json:"appendixNewPage"`
 	}{
 		Sources:            absoluteSources,
 		LatexFragments:     absoluteFragments,
@@ -303,6 +304,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		LineSpread:         cfg.LineSpread,
 		AbstractLineSpread: cfg.AbstractLineSpread,
 		MathFont:           cfg.MathFont,
+		AppendixNewPage:    cfg.Appendix.NewPageEnabled(),
 	}, "", "  ")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
