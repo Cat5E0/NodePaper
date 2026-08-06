@@ -23,6 +23,10 @@ $endif$
 \PassOptionsToPackage{unicode=true,bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,bookmarksdepth=3,pdfpagemode=UseOutlines}{hyperref}
 \usepackage{hyperref}
 \usepackage{cleveref}
+\usepackage{caption}
+% 图题/表题使用空格分隔（如“表 2 位置结果”），不用冒号；
+% 半角冒号的视觉中线与汉字/数字不对齐，空格更稳。
+\captionsetup{labelsep=space}
 
 \hypersetup{hidelinks,pdfcreator={NodePaper 0.1 CUMCM candidate profile}}
 \urlstyle{same}
