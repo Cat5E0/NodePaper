@@ -1,0 +1,7 @@
+# Normalize Go sources to LF on every platform.
+#
+# gofmt -l only accepts LF input. Windows checkouts (CI runners or local
+# clones with core.autocrlf=true) would otherwise convert the index's LF to
+# CRLF and make every Go file appear unformatted. `text eol=lf` overrides
+# autocrlf for these files while leaving other text files untouched.
+*.go text eol=lf
