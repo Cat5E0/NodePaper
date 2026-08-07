@@ -1,12 +1,12 @@
 # Required CI for NodePaper (AGENTS.md section 29, PLAN.md M4-01).
 #
-# Single job with individually-named steps — the private repo has limited
-# Windows concurrency, and multi-job workflows cause runner queue stalls.
-# Each step name is self-explanatory; failures are obvious in the job log.
+# Separate jobs so the GitHub Actions UI shows each check's pass/fail status
+# at a glance. Jobs run sequentially (`needs`) to stay within the private-repo
+# Windows runner concurrency limit.
 #
-# This is the sole GitHub required check. Required checks must not be made
-# green by relaxing Warning rules, auto accepting Golden files or skipping
-# failing tests.
+# This is the sole GitHub required check group. Required checks must not be
+# made green by relaxing Warning rules, auto accepting Golden files or
+# skipping failing tests.
 #
 # Real Pandoc/LaTeX E2E on a MiKTeX runner lives in the separate
 # non-blocking `miktex-e2e.yml` (workflow_dispatch).
@@ -22,8 +22,8 @@ permissions:
   contents: read
 
 jobs:
-  checks:
-    name: All checks
+  gofmt:
+    name: gofmt
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +31,7 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
-
-      - name: "1/5  gofmt"
+      - name: gofmt
         shell: pwsh
         run: |
           $files = & gofmt -l cmd internal
@@ -42,14 +41,54 @@ jobs:
             exit 1
           }
 
-      - name: "2/5  go vet"
+  vet:
+    name: go vet
+    needs: gofmt
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: go vet
         run: go vet ./...
 
-      - name: "3/5  go test (unit + integration)"
+  test:
+    name: go test
+    needs: vet
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: go test (unit + integration)
         run: go test -count=1 ./...
 
-      - name: "4/5  Race detector"
+  race:
+    name: Race detector
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: go test -race
         run: go test -race -count=1 ./...
 
-      - name: "5/5  govulncheck"
+  govulncheck:
+    name: govulncheck
+    needs: race
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
