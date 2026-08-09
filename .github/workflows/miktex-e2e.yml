@@ -5,7 +5,7 @@
 # fonts) differs from the canonical release gate (Windows 11/10 + TeX Live /
 # MiKTeX with auto-install off), so this is purely a compatibility smoke test.
 #
-# Triggered manually or on a weekly schedule. Not a required check — the
+# Triggered manually only. Not a required check — the
 # authoritative E2E results are always the local Windows 11 + TeX Live 2025
 # and independent MiKTeX runs recorded at release time.
 
@@ -13,9 +13,6 @@ name: miktex-e2e
 
 on:
   workflow_dispatch:
-  schedule:
-    # Weekly on Sunday 08:00 UTC
-    - cron: "0 8 * * 0"
 
 permissions:
   contents: read

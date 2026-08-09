@@ -4,7 +4,7 @@ NodePaper is a Windows-oriented Go CLI that builds a Markdown Project identified
 
 The current v0.1 development focus is a candidate CUMCM 2026 electronic-paper Profile. NodePaper owns project discovery, configuration, validation, diagnostics, build locking, logging, and artifact publication. Pandoc, pandoc-crossref, Citeproc, PowerShell, latexmk, and XeLaTeX perform conversion and typesetting.
 
-> Status: under development. The candidate CUMCM Profile has not completed the MiKTeX, Windows 10, race-detector, release-ZIP, or manual PDF review gates and is not endorsed by the competition organizers.
+> Status: under development. The candidate CUMCM Profile has not completed the independent MiKTeX, Windows 10, final release-ZIP, or manual PDF review gates. The race detector passed on the GitHub Windows runner for commit `cd827a4`. NodePaper is not endorsed by the competition organizers.
 
 ## Run from source
 
@@ -227,9 +227,11 @@ The following gates remain incomplete before a formal release:
 
 - independent MiKTeX E2E (auto-install off);
 - Windows 10 smoke test;
-- race detector on a C-enabled CI runner;
+- regenerate and validate the final ZIP from the final commit;
 - final manual PDF review;
 - maintainer sign-off of the release checklist.
+
+The race detector passed on the GitHub Actions Windows runner for commit `cd827a4`; the final release commit must pass the same blocking CI again.
 
 The release packaging entry (ZIP build, ZIP validation, GitHub Actions CI,
 `LICENSE` and `THIRD_PARTY_NOTICES.md`) is implemented; see the next section.

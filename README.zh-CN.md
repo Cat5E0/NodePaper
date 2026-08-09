@@ -4,7 +4,7 @@ NodePaper 是一个面向 Windows 的 Go CLI，用于把包含 `nodepaper.yaml` 
 
 当前 v0.1 开发重点是 CUMCM 2026 电子版候选 Profile。NodePaper 负责项目发现、配置、验证、诊断、构建锁、日志和产物发布；Pandoc、pandoc-crossref、Citeproc、PowerShell、latexmk 和 XeLaTeX 负责文档转换与排版。
 
-> 当前状态：开发中。CUMCM Profile 尚未完成 MiKTeX、Windows 10、Race Detector、发布 ZIP 和人工 PDF 排版门槛，不代表比赛官方认证。
+> 当前状态：开发中。CUMCM Profile 尚未完成独立 MiKTeX、Windows 10、最终发布 ZIP 和人工 PDF 排版门槛；Race Detector 已在 GitHub Windows runner 对提交 `cd827a4` 通过。NodePaper 不代表比赛官方认证。
 
 ## 从源码运行
 
@@ -234,9 +234,11 @@ Fragment 只允许 Project Root 内的相对 UTF-8 `.tex` 普通文件；禁止�
 
 - 独立 MiKTeX E2E（关闭自动安装宏包）；
 - Windows 10 冒烟测试；
-- 具备 C 编译器环境的 CI 上运行 Race Detector；
+- 从最终 Commit 重新生成并验证最终 ZIP；
 - 最终人工 PDF 检查；
 - 维护者签署发布清单。
+
+Race Detector 已在 GitHub Actions Windows runner 对提交 `cd827a4` 运行并通过；最终发布 Commit 仍需由同一阻塞 CI 再次验证。
 
 发布打包入口（ZIP 构建、ZIP 验证、GitHub Actions CI、`LICENSE` 和 `THIRD_PARTY_NOTICES.md`）已实现，见下一节。
 
