@@ -45,6 +45,9 @@ func TestTextWriterInitSuccess(t *testing.T) {
 	if !strings.Contains(out, "markdown: D:\\papers\\a\\paper.md") {
 		t.Fatalf("missing artifact: %s", out)
 	}
+	if !strings.Contains(out, "nodepaper validate") {
+		t.Fatalf("missing next step: %s", out)
+	}
 }
 
 func TestTextWriterInitFailure(t *testing.T) {
@@ -137,6 +140,9 @@ func TestTextWriterBuild(t *testing.T) {
 	}
 	if !strings.Contains(out, "pdf: D:\\papers\\a\\dist\\paper.pdf") {
 		t.Fatalf("missing pdf artifact: %s", out)
+	}
+	if !strings.Contains(out, "open the PDF") {
+		t.Fatalf("missing next step: %s", out)
 	}
 }
 

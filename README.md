@@ -1,64 +1,77 @@
 # NodePaper
 
-NodePaper is a Windows-oriented Go CLI that builds a Markdown Project identified by `nodepaper.yaml` into PDF.
+NodePaper is a Windows command-line tool that builds a Markdown Project identified by `nodepaper.yaml` into PDF.
 
-The current v0.1 development focus is a candidate CUMCM 2026 electronic-paper Profile. NodePaper owns project discovery, configuration, validation, diagnostics, build locking, logging, and artifact publication. Pandoc, pandoc-crossref, Citeproc, PowerShell, latexmk, and XeLaTeX perform conversion and typesetting.
+The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chinese typesetting, equations, figures, tables, cross-references, citations, code blocks, appendices, and ordered multi-file projects.
 
-> Status: under development. The candidate CUMCM Profile has not completed the independent MiKTeX, Windows 10, final release-ZIP, or manual PDF review gates. The race detector passed on the GitHub Windows runner for commit `cd827a4`. NodePaper is not endorsed by the competition organizers.
+> NodePaper is still under beta development and has not been formally released. It is not endorsed by the competition organizers.
 
-## Run from source
+## Installation
 
-From the repository root, bootstrap the pinned Pandoc and pandoc-crossref tools and build the CLI into the repository root. This layout lets the executable find `Build-Paper.ps1` and `profiles/cumcm` beside it:
+NodePaper targets Windows 10/11 x64. Install TeX Live or MiKTeX first and make sure `xelatex` and `latexmk` are available.
 
-```powershell
-.\Bootstrap-Tools.ps1
-go build -o nodepaper.exe .\cmd\nodepaper
-
-.\nodepaper.exe doctor D:\papers\cumcm-a
-.\nodepaper.exe validate D:\papers\cumcm-a
-.\nodepaper.exe build D:\papers\cumcm-a
-```
-
-Avoid invoking `go run` from an arbitrary Project directory because Go's temporary executable does not have the complete build resources beside it. `nodepaper.exe` is the normal product entrypoint; `scripts/test-all.ps1` is the fast developer regression suite, while `scripts/test-e2e.ps1` runs real Pandoc/LaTeX build regression.
-
-Repository Fixtures are read-only test inputs. Copy one outside the repository before manual CLI testing:
+Extract the NodePaper Windows release package, then run from the extracted directory:
 
 ```powershell
-Copy-Item -Recurse `
-  .\nodepaper-test-fixtures\tests\fixtures\complete-single-file `
-  D:\NodePaperTests\complete-single-file
-
-.\nodepaper.exe build D:\NodePaperTests\complete-single-file
+.\Install-NodePaper.ps1
 ```
 
-## Project workflow
+Open a new terminal and run from any directory:
 
-NodePaper operates on Project directories, not isolated Markdown files:
+```powershell
+nodepaper
+```
+
+To uninstall NodePaper:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\NodePaper\Uninstall-NodePaper.ps1"
+```
+
+Uninstalling NodePaper does not delete paper Projects or the TeX environment.
+
+## Quick start
+
+### 1. Check the environment
+
+```powershell
+nodepaper doctor
+```
+
+### 2. Create a Project
+
+```powershell
+nodepaper init D:\papers\cumcm-a
+```
+
+To also create a Project-level AI writing guide:
+
+```powershell
+nodepaper init D:\papers\cumcm-a --ai-guide
+```
+
+### 3. Edit the paper
+
+A basic Project looks like this:
 
 ```text
-my-paper/
+cumcm-a/
 ├── nodepaper.yaml
 ├── paper.md
 ├── references.bib
 ├── images/
 ├── dist/
-│   └── paper.pdf
 └── .nodepaper/
-    ├── build/
-    ├── logs/
-    └── build.lock
 ```
 
-Typical commands:
+The main files are:
 
-```powershell
-nodepaper init D:\papers\cumcm-a
-nodepaper doctor D:\papers\cumcm-a
-nodepaper validate D:\papers\cumcm-a
-nodepaper build D:\papers\cumcm-a
-```
+- `paper.md`: paper source;
+- `references.bib`: bibliography;
+- `images/`: image resources;
+- `nodepaper.yaml`: Project configuration.
 
-Inside a Project or one of its subdirectories, the path may be omitted:
+### 4. Validate and build
 
 ```powershell
 cd D:\papers\cumcm-a
@@ -66,12 +79,48 @@ nodepaper validate
 nodepaper build
 ```
 
-Clean intermediates or all generated output:
+After a successful build, the PDF is located at:
+
+```text
+dist/paper.pdf
+```
+
+## Selecting a Project
+
+NodePaper operates on Project directories, not isolated Markdown files.
+
+From a Project root:
 
 ```powershell
-nodepaper clean D:\papers\cumcm-a
-nodepaper clean D:\papers\cumcm-a --all
+nodepaper validate
+nodepaper build
 ```
+
+When run from a subdirectory, NodePaper searches upward for `nodepaper.yaml`. A Project directory can also be passed explicitly:
+
+```powershell
+nodepaper build D:\papers\cumcm-a
+```
+
+NodePaper does not store a global “current Project.”
+
+## Common commands
+
+```powershell
+nodepaper
+nodepaper init <project-directory>
+nodepaper doctor [project-directory]
+nodepaper validate [project-directory]
+nodepaper build [project-directory]
+nodepaper clean [project-directory]
+nodepaper clean [project-directory] --all
+nodepaper --help
+nodepaper --version
+```
+
+- `clean` removes intermediate build files;
+- `clean --all` also removes `dist/`;
+- running `nodepaper` without arguments suggests the next step for the current location.
 
 Machine-readable output:
 
@@ -79,11 +128,9 @@ Machine-readable output:
 nodepaper build D:\papers\cumcm-a --format json
 ```
 
-JSON stdout is one object with `schemaVersion`; ordinary logs are not mixed into JSON stdout.
+## Project configuration
 
-## Configuration
-
-Single source:
+Minimal single-source configuration:
 
 ```yaml
 version: 1
@@ -93,7 +140,7 @@ output:
   file: dist/paper.pdf
 ```
 
-Ordered multiple sources:
+Ordered multi-source configuration:
 
 ```yaml
 version: 1
@@ -102,9 +149,15 @@ sources:
   - sections/01-abstract.md
   - sections/02-problem.md
   - sections/03-model.md
-latexFragments:
-  - tables/complex-result.tex
-  - equations/objective.tex
+output:
+  file: dist/paper.pdf
+```
+
+Sources are processed in the declared order. Directories are not scanned automatically.
+
+Common optional settings:
+
+```yaml
 appendix:
   numbering: alpha
 highlight:
@@ -112,25 +165,19 @@ highlight:
 linespread: 1.25
 abstractLinespread: 0.95
 mathFont: cm
-output:
-  file: dist/paper.pdf
 ```
 
-`linespread` controls the whole-document line spacing. It is a float with default `1.25` and an allowed range of `[1.0, 1.3]`; larger values make the document airier and longer. `abstractLinespread` overrides the line spacing of the abstract region only (default `0.95`, allowed `[0.85, linespread]`), so a long abstract still fits closer to one page. `mathFont` selects the Latin/math font route: `cm` (default; Latin Modern + Computer Modern) or `newtx` (TeX Gyre Termes + newtxmath, Times style).
-
-Sources are processed in declared order. NodePaper does not scan source directories automatically and does not keep a global current-project state.
-
-## Markdown baseline
+## Markdown examples
 
 The first Source contains YAML front matter:
 
 ```markdown
 ---
-title: Paper Title
+title: Paper title
 problem: A
 keywords:
-  - Keyword One
-  - Keyword Two
+  - Keyword one
+  - Keyword two
 ---
 
 # 摘要
@@ -138,21 +185,23 @@ keywords:
 Write the abstract here.
 ```
 
-Do not repeat a manual `Keywords:` paragraph in the abstract; the Profile renders `keywords` from front matter exactly once.
-
-Citations use Pandoc Citeproc:
+Citation:
 
 ```markdown
 The method is suitable for demand forecasting [@wang2024].
 ```
 
-Cross-references use pandoc-crossref IDs:
+Figure and cross-reference:
 
 ```markdown
 ![Result](images/result.png){#fig:result width=80%}
 
 See @fig:result.
+```
 
+Equation and cross-reference:
+
+```markdown
 $$
 x = 1
 $$ {#eq:model}
@@ -160,175 +209,36 @@ $$ {#eq:model}
 See @eq:model.
 ```
 
-### Tables
+Advanced tables or equations can use LaTeX Fragments explicitly declared in the Project configuration.
 
-Tables are horizontally centered on the page by default: the Profile template applies `\centering` to every table (Pandoc emits `longtable` for each Markdown table). Column alignment inside a table is independent and is controlled by the usual Markdown markers:
+## Main capabilities
 
-```markdown
-| :---- | :----: | ----: |
-| left  | center | right |
-```
+- single-source and ordered multi-source Projects;
+- Chinese abstracts, keywords, and section headings;
+- equations, figures, tables, and footnotes;
+- figure, table, equation, and section cross-references;
+- BibTeX citations with numeric superscripts;
+- syntax highlighting and long code blocks;
+- configurable appendix numbering;
+- PDF bookmark outlines;
+- Project validation, environment diagnostics, build logs, and build locking;
+- human-readable and JSON output.
 
-- Whole-table centering: automatic; the template default `\centering` needs no Markdown marker.
-- In-column alignment: `|:----|` left, `|:----:|` center, `|----:|` right (Pandoc maps these to `l`, `c`, `r` column specifiers).
-- Complex tables (merged cells and similar) are written as controlled LaTeX Fragments declared in `latexFragments` and inserted with `\input{tables/...}`; do not try to express them in Markdown.
+## Current limitations
 
-An image that belongs inside a list item must be indented four spaces under the item, otherwise Pandoc closes the list before the image and the figure floats away from the list:
+- officially targets Windows 10/11 x64 only;
+- requires an external TeX Live or MiKTeX installation;
+- the current CUMCM Profile is still a candidate;
+- no GUI, HTTP service, DOCX, or Typst output;
+- does not execute paper code automatically;
+- does not upload paper content;
+- does not convert isolated Markdown files directly.
 
-```markdown
-1. Step one
-
-    ![Step one result](images/step1.png){#fig:step1 width=80%}
-
-2. Step two
-```
-
-The formal CUMCM bibliography route is:
-
-```text
-references.bib + Pandoc Citeproc + pinned CSL
-```
-
-A controlled Fragment must be declared in `latexFragments` before Markdown can insert it:
-
-```markdown
-\input{tables/complex-result.tex}
-
-See \cref{tab:complex-result}.
-```
-
-Fragments must be relative UTF-8 regular `.tex` files inside the Project Root. Full documents, package loading, nested `input`, TeX I/O, and command execution are rejected. Appendices use:
-
-```markdown
-# 附录
-## Test data
-## Program code
-```
-
-`appendix.numbering` accepts `alpha` (default), `continuous`, or `none`. `highlight.style` accepts the reviewed Pandoc built-in styles `tango` (default), `pygments`, or `kate`; no Python runtime or `shell-escape` is used.
-
-## Current CUMCM behavior
-
-- The first page contains title, abstract, and keywords.
-- The electronic-paper Profile does not generate a contents, commitment, or numbering page.
-- Ordered single- and multi-source projects, Chinese cross-references, Citeproc, and controlled LaTeX Fragments are supported.
-- Pandoc-native highlighting defaults to Tango, allows Pygments/Kate color schemes, and uses a breakable light code frame with safe long-line wrapping.
-- Numeric superscript citations link to their corresponding bibliography entries.
-- The PDF contains a numbered bookmark outline for the abstract, sections, references, and appendices without adding a contents page; it requests the viewer to open the outline panel to level two.
-- The retained appendix heading supports `alpha`, `continuous`, and `none` numbering.
-- Build logs record Profile version, complete resource SHA-256, and Fragment SHA-256; build-time mutation fails.
-- Unknown warnings, overflow, missing characters/fonts, and unresolved references prevent publication.
-- PDF publication checks non-empty content, header, EOF, and the 20 MB limit; real E2E additionally checks A4, text bounds, embedded fonts, and content order.
-- Only one write build may run for a Project at a time.
-
-## Remaining v0.1 work
-
-The following gates remain incomplete before a formal release:
-
-- independent MiKTeX E2E (auto-install off);
-- Windows 10 smoke test;
-- regenerate and validate the final ZIP from the final commit;
-- final manual PDF review;
-- maintainer sign-off of the release checklist.
-
-The race detector passed on the GitHub Actions Windows runner for commit `cd827a4`; the final release commit must pass the same blocking CI again.
-
-The release packaging entry (ZIP build, ZIP validation, GitHub Actions CI,
-`LICENSE` and `THIRD_PARTY_NOTICES.md`) is implemented; see the next section.
-
-MinerU full-paper import and semantic fidelity review are deferred to a post-v0.1 research task and do not block the runtime or release package.
-
-NodePaper will not add custom Markdown-in-Markdown Include syntax. Use ordered `sources` for chapters and controlled LaTeX Fragments for advanced typesetting.
-
-## Source-tree tests
-
-```powershell
-.\scripts\test-unit.ps1
-.\scripts\test-integration.ps1
-.\scripts\test-e2e.ps1
-.\scripts\test-all.ps1
-```
-
-`test-release.ps1` validates a built release ZIP in a clean directory and
-blocks until the manual/platform gates are recorded (see the next section).
-Source-tree E2E uses test-only environment variables to locate scripts and the
-Profile; those variables are not part of the public CLI contract.
-
-## Release package
-
-The release candidate is a versioned Windows x64 ZIP built from a fixed commit
-with `scripts/build-release.ps1`:
-
-```powershell
-.\scripts\build-release.ps1 -Version 0.1.0-rc.1
-```
-
-The script compiles `nodepaper.exe` inside an isolated git worktree of the
-requested commit, assembles `nodepaper-<version>-windows-x64/` from an
-explicit whitelist (runtime scripts, the CUMCM Profile, the pinned bundled
-Pandoc binaries, a runnable example, README, LICENSE and
-THIRD_PARTY_NOTICES), scans the package for absolute development paths,
-secrets and temp artifacts, and records the ZIP SHA-256 in
-`release-manifest.json`.
-
-Validate the exact ZIP in a clean environment without Go or the source tree:
-
-```powershell
-.\scripts\test-release.ps1 -ReleaseZip .\build\release\nodepaper-0.1.0-rc.1-windows-x64.zip -ManualGatesFile .\gates.json
-```
-
-`test-release.ps1` runs doctor / init / validate / build, checks logs, the PDF
-and repeat builds, and refuses to pass until MiKTeX, Windows 10, race
-detector, PDF manual review and maintainer sign-off are recorded in the gates
-file. The GitHub Actions workflow `.github/workflows/release-build.yml`
-produces the same ZIP as a workflow artifact on demand; it never
-auto-publishes a release.
-
-Package layout:
-
-```text
-nodepaper-<version>-windows-x64/
-├── nodepaper.exe
-├── Build-Paper.ps1
-├── Convert-CumcmProjectToLatex.ps1
-├── profiles/cumcm/
-├── tools/windows-x64/pandoc/ + pandoc-crossref/
-├── examples/cumcm-single-file/
-├── README.md / README.zh-CN.md
-├── LICENSE
-├── THIRD_PARTY_NOTICES.md
-└── licenses/
-```
-
-The bundled Pandoc binaries make the package independent of a global Pandoc
-install; a TeX distribution (TeX Live or MiKTeX with xelatex and latexmk) is
-still required on the tester's machine.
-
-## Existing SCAU PowerShell compatibility entry
-
-The repository still contains the original SCAU thesis, assignment, and experiment-report PowerShell templates and commands. They have not yet been migrated into formal Project Profiles and must not be confused with support by the new Go CLI.
-
-The previous detailed documentation is preserved in:
+The SCAU PowerShell templates retained in this repository have not been migrated into formal NodePaper Profiles. See:
 
 - [`README.SCAU-COMPAT.md`](README.SCAU-COMPAT.md)
 - [`README.SCAU-COMPAT.zh-CN.md`](README.SCAU-COMPAT.zh-CN.md)
 
-After CUMCM is stable, the architecture is intended to permit migration of these reviewed built-in Profiles:
+## License
 
-```text
-scau-thesis
-scau-assignment
-scau-experiment
-```
-
-They are not formally supported by the new CLI until metadata, validation, licensing, fixtures, E2E, and manual PDF review are complete.
-
-## Current limitations
-
-- No formally released ZIP exists yet; release-candidate ZIPs are built by `scripts/build-release.ps1` and remain gated by the release checklist.
-- No GUI, HTTP server, or VS Code extension is provided.
-- VS Code's built-in Markdown preview is not the final Pandoc/LaTeX PDF.
-- Windows 10/11 x64 is the target, but all release-platform gates are not complete.
-- NodePaper does not install a complete TeX distribution, execute paper code, or upload papers.
-
-A thin VS Code adapter may be developed only after CLI semantics, JSON Schema, file/line diagnostics, and Project behavior are stable. It must reuse the CLI or Application Service rather than reimplementing build logic.
+Original NodePaper code is licensed under the MIT License. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for third-party components and licenses.

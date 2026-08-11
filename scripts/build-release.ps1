@@ -229,6 +229,8 @@ try {
     $files = @(
         "Build-Paper.ps1",
         "Convert-CumcmProjectToLatex.ps1",
+        "Install-NodePaper.ps1",
+        "Uninstall-NodePaper.ps1",
         "README.md",
         "README.zh-CN.md",
         "LICENSE",
@@ -343,7 +345,34 @@ try {
         Write-Host "Profile snapshot SHA-256 (Go-side, from doctor): $profileSHA256"
     }
 
-    # ---------- ZIP and manifest ------------------------------------------------
+    # ---------- immutable payload manifest --------------------------------------
+
+    # The manifest is inside the payload so installers can verify every other
+    # payload file before changing the installation or user Path. The manifest
+    # itself is covered by the outer ZIP SHA-256 (a file cannot contain its own
+    # hash without a circular definition).
+    $payloadFiles = @(Get-ChildItem -LiteralPath $packageDir -Recurse -File | ForEach-Object {
+        [ordered]@{
+            path = ($_.FullName.Substring($packageDir.Length).TrimStart('\') -replace '\\', '/')
+            size = $_.Length
+            sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    } | Sort-Object { $_.path })
+    $payloadManifest = [ordered]@{
+        schemaVersion = 1
+        channel = "portable-zip"
+        version = $Version
+        sourceCommit = $resolvedCommit
+        profileVersion = [string]$profileMetadata.version
+        profileSnapshotSHA256 = $profileSHA256
+        bundledPandocVersion = [string]$profileMetadata.pandocVersion
+        bundledPandocCrossrefVersion = [string]$profileMetadata.pandocCrossrefVersion
+        files = $payloadFiles
+    }
+    $payloadManifestPath = Join-Path $packageDir "payload-manifest.json"
+    $payloadManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $payloadManifestPath -Encoding UTF8
+
+    # ---------- ZIP and outer release manifest ---------------------------------
 
     $zipPath = Join-Path $OutputDirectory ($tagName + ".zip")
     if (Test-Path -LiteralPath $zipPath) {
@@ -382,6 +411,8 @@ try {
         bundledPandocVersion = [string]$profileMetadata.pandocVersion
         bundledPandocCrossrefVersion = [string]$profileMetadata.pandocCrossrefVersion
         bundledToolsIncluded = (-not $SkipTools)
+        payloadManifest = "payload-manifest.json"
+        payloadFileCount = $payloadFiles.Count
         packageDirectory = $tagName
         zipFile = [System.IO.Path]::GetFileName($zipPath)
         zipSHA256 = $zipSHA256

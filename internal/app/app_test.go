@@ -48,6 +48,13 @@ func TestRequestsExposeProjectDir(t *testing.T) {
 	}
 }
 
+func TestInitRequestSupportsOptionalAIGuide(t *testing.T) {
+	request := InitRequest{ProjectDir: `D:\papers\cumcm-a`, GenerateAIGuide: true}
+	if !request.GenerateAIGuide {
+		t.Fatal("InitRequest.GenerateAIGuide = false, want true")
+	}
+}
+
 func TestCleanRequestSupportsAll(t *testing.T) {
 	request := CleanRequest{ProjectDir: `D:\papers\cumcm-a`, All: true}
 	if !request.All {

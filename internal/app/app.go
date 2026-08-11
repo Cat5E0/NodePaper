@@ -25,7 +25,8 @@ type Artifact = artifact.Artifact
 type Diagnostic = diagnostic.Diagnostic
 
 type InitRequest struct {
-	ProjectDir string
+	ProjectDir      string
+	GenerateAIGuide bool
 }
 
 type DoctorRequest struct {

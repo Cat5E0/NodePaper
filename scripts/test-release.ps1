@@ -76,6 +76,66 @@ function Get-FileList {
     } | Sort-Object)
 }
 
+function Test-UserInstallation {
+    param([string]$ReleaseRoot, [string]$WorkRoot, [string]$ExpectedVersion)
+
+    $installRoot = Join-Path $WorkRoot "用户 安装\NodePaper"
+    $installer = Join-Path $ReleaseRoot "Install-NodePaper.ps1"
+    $originalProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
+    try {
+        Write-Host "Testing user-level installation, rollback and repeat install..."
+        & $installer -InstallRoot $installRoot -PathScope Process
+        if ($LASTEXITCODE -ne 0) { throw "FAIL: Install-NodePaper.ps1 failed with exit code $LASTEXITCODE" }
+
+        # A tampered payload must fail before replacing the known-good install.
+        $unexpected = Join-Path $ReleaseRoot "unexpected-install-test.tmp"
+        Set-Content -LiteralPath $unexpected -Value "must be rejected" -Encoding ASCII
+        $rejected = $false
+        try { & $installer -InstallRoot $installRoot -PathScope Process }
+        catch { $rejected = $_.Exception.Message -match "Unverified extra file" }
+        finally { Remove-Item -LiteralPath $unexpected -Force -ErrorAction SilentlyContinue }
+        Assert-True $rejected "installer did not reject an unverified extra payload file"
+        Assert-True (Test-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe") -PathType Leaf) "failed upgrade did not preserve the previous installation"
+
+        & $installer -InstallRoot $installRoot -PathScope Process
+        if ($LASTEXITCODE -ne 0) { throw "FAIL: repeated Install-NodePaper.ps1 failed with exit code $LASTEXITCODE" }
+
+        $command = Get-Command nodepaper -CommandType Application -ErrorAction Stop
+        Assert-True ((Resolve-Path -LiteralPath $command.Source).Path -eq (Resolve-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe")).Path) "global nodepaper command did not resolve to the installed payload"
+
+        $arbitraryDir = Join-Path $WorkRoot "任意 工作目录"
+        New-Item -ItemType Directory -Force -Path $arbitraryDir | Out-Null
+        Push-Location $arbitraryDir
+        try {
+            $versionText = (& nodepaper --version 2>&1 | Out-String).Trim()
+            Assert-True ($LASTEXITCODE -eq 0) "installed nodepaper --version failed"
+            Assert-True ($versionText -eq "nodepaper $ExpectedVersion") "installed command version mismatch: '$versionText'"
+            $guideText = (& nodepaper 2>&1 | Out-String)
+            Assert-True ($LASTEXITCODE -eq 0) "installed no-argument onboarding failed"
+            Assert-True ($guideText.Contains("nodepaper init")) "installed no-argument onboarding lacks init guidance"
+            Assert-True (-not (Test-Path -LiteralPath (Join-Path $arbitraryDir "nodepaper.yaml"))) "no-argument onboarding modified the current directory"
+        }
+        finally {
+            Pop-Location
+        }
+
+        $uninstaller = Join-Path $installRoot "Uninstall-NodePaper.ps1"
+        & $uninstaller -InstallRoot $installRoot -PathScope Process
+        if ($LASTEXITCODE -ne 0) { throw "FAIL: Uninstall-NodePaper.ps1 failed with exit code $LASTEXITCODE" }
+        Assert-True (-not (Test-Path -LiteralPath $installRoot)) "uninstall left the installation directory"
+        $normalizedInstall = [System.IO.Path]::GetFullPath($installRoot).TrimEnd('\').ToLowerInvariant()
+        $remaining = @([Environment]::GetEnvironmentVariable("Path", "Process") -split ';' | ForEach-Object {
+            try { [System.IO.Path]::GetFullPath($_.Trim().Trim('"')).TrimEnd('\').ToLowerInvariant() } catch { "" }
+        })
+        Assert-True (-not ($remaining -contains $normalizedInstall)) "uninstall left the NodePaper Path entry"
+        Write-Host "User-level install, rollback, global command, repeat install and uninstall passed."
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable("Path", $originalProcessPath, "Process")
+        if (Test-Path -LiteralPath $installRoot) { Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
 function Assert-ManualGates {
     param([string]$GatesFile)
     if ([string]::IsNullOrWhiteSpace($GatesFile)) {
@@ -153,6 +213,9 @@ try {
         "nodepaper.exe",
         "Build-Paper.ps1",
         "Convert-CumcmProjectToLatex.ps1",
+        "Install-NodePaper.ps1",
+        "Uninstall-NodePaper.ps1",
+        "payload-manifest.json",
         "profiles/cumcm/profile.json",
         "profiles/cumcm/template.tex",
         "profiles/cumcm/crossref.yaml",
@@ -196,6 +259,11 @@ try {
     $reportedVersion = (($versionOutput | Out-String).Trim())
     Write-Host "Executable version: $reportedVersion"
     Assert-True ($reportedVersion -match '^nodepaper ') "nodepaper.exe --version output is malformed: '$reportedVersion'"
+    $expectedVersion = $reportedVersion.Substring("nodepaper ".Length)
+
+    # ---------- installation / global command ---------------------------------
+
+    Test-UserInstallation $releaseDir $script:WorkRoot $expectedVersion
 
     # ---------- 4. doctor -----------------------------------------------------
 

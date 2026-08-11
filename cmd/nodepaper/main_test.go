@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,26 +28,73 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
+func TestRunNoArgsShowsReadOnlyOnboardingOutsideProject(t *testing.T) {
+	workingDir := t.TempDir()
+	before, err := os.ReadDir(workingDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := runWithIO(context.Background(), nil, strings.NewReader(""), &stdout, &stderr, false, workingDir); code != 0 {
+		t.Fatalf("run() exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"No NodePaper Project", "nodepaper.yaml", "nodepaper init", "nodepaper doctor", "nodepaper --help"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("stdout missing %q: %s", want, stdout.String())
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	after, err := os.ReadDir(workingDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != len(after) {
+		t.Fatalf("onboarding modified the directory: before=%d after=%d", len(before), len(after))
+	}
+}
+
+func TestRunNoArgsShowsProjectCommandsFromSubdirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "nodepaper.yaml"), []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	subdir := filepath.Join(root, "sections")
+	if err := os.Mkdir(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := runWithIO(context.Background(), nil, strings.NewReader(""), &stdout, &stderr, false, subdir); code != 0 {
+		t.Fatalf("run() exit code = %d, want 0", code)
+	}
+	for _, want := range []string{"Project found", root, "nodepaper validate", "nodepaper build", "nodepaper clean"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("stdout missing %q: %s", want, stdout.String())
+		}
+	}
+}
+
 func TestRunHelp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run(nil, &stdout, &stderr); code != 0 {
+	if code := run([]string{"--help"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run() exit code = %d, want 0", code)
 	}
 	if !strings.HasPrefix(stdout.String(), "Usage:\n") {
 		t.Fatalf("stdout does not contain usage: %q", stdout.String())
 	}
-	if stderr.Len() != 0 {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
-	}
 }
 
-func TestRunUsageError(t *testing.T) {
+func TestRunUsageErrorIncludesFocusedSuggestion(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"build", "--format", "yaml"}, &stdout, &stderr); code != 2 {
+	if code := run([]string{"buid"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("run() exit code = %d, want 2", code)
 	}
-	if !strings.Contains(stderr.String(), "unsupported format") {
-		t.Fatalf("stderr = %q, want format error", stderr.String())
+	if !strings.Contains(stderr.String(), "unknown command") || !strings.Contains(stderr.String(), "nodepaper build") {
+		t.Fatalf("stderr = %q, want error and correction", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "Usage:\n") {
+		t.Fatalf("stderr should not bury the correction under generic usage: %q", stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -83,6 +132,111 @@ func TestRunInit(t *testing.T) {
 	if info, err := os.Stat(imagesDir); err != nil || !info.IsDir() {
 		t.Fatalf("images/ directory not created: %v", err)
 	}
+}
+
+func TestRunInitMissingPathNeverPromptsWhenNonInteractive(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, strings.NewReader("should-not-be-read\n"), &stdout, &stderr, false, "")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "non-interactive") {
+		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestRunInitJSONMissingPathNeverPrompts(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init", "--format", "json"}, strings.NewReader("should-not-be-read\n"), &stdout, &stderr, true, "")
+	if code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 || strings.Contains(stderr.String(), "Project directory (") {
+		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestRunInteractiveInitDefaultsToAIGuide(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "interactive project")
+	input := strings.NewReader(projectDir + "\n\n")
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, "")
+	if code != 0 {
+		t.Fatalf("exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "AGENTS.md")); err != nil {
+		t.Fatalf("default interactive init did not create AGENTS.md: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Generate AI writing guide") {
+		t.Fatalf("stdout lacks AI guide prompt: %s", stdout.String())
+	}
+}
+
+func TestRunInteractiveInitCanDeclineAIGuide(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "project")
+	input := strings.NewReader(projectDir + "\nn\n")
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, "")
+	if code != 0 {
+		t.Fatalf("exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("AGENTS.md should not exist after declining; err=%v", err)
+	}
+}
+
+func TestRunInteractiveInitEOFCancelsWithoutFiles(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "project")
+	// EOF after the directory, before the AI-guide answer, cancels atomically.
+	input := strings.NewReader(projectDir + "\n")
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, "")
+	if code != 130 {
+		t.Fatalf("exit code = %d, want 130; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
+		t.Fatalf("canceled init left project files; err=%v", err)
+	}
+}
+
+func TestRunCanceledExplicitInitUsesExit130AndLeavesNoProject(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "project")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(ctx, []string{"init", projectDir}, strings.NewReader(""), &stdout, &stderr, false, "")
+	if code != 130 {
+		t.Fatalf("exit code = %d, want 130; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
+		t.Fatalf("canceled init left project files; err=%v", err)
+	}
+}
+
+func TestRunExplicitInitDoesNotConsumeInput(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "project")
+	input := &countingReader{Reader: strings.NewReader("unexpected\n")}
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init", projectDir}, input, &stdout, &stderr, true, "")
+	if code != 0 {
+		t.Fatalf("exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if input.reads != 0 {
+		t.Fatalf("explicit init read stdin %d times", input.reads)
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("explicit init should not generate AGENTS.md by default; err=%v", err)
+	}
+}
+
+type countingReader struct {
+	io.Reader
+	reads int
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	r.reads++
+	return r.Reader.Read(p)
 }
 
 func TestRunInitJSON(t *testing.T) {

@@ -28,6 +28,9 @@ func (tw *TextWriter) Init(result app.InitResult) {
 	tw.writeSuccess(result.Success)
 	tw.writeArtifacts(result.Artifacts)
 	tw.writeDiagnostics(result.Diagnostics)
+	if IsTerminalSuccess(result.Diagnostics, result.Success) {
+		fmt.Fprintf(tw.W, "Next: cd \"%s\", then run nodepaper validate\n", result.ProjectRoot)
+	}
 }
 
 // Doctor renders a DoctorResult.
@@ -42,6 +45,13 @@ func (tw *TextWriter) Doctor(result app.DoctorResult) {
 	}
 	fmt.Fprintln(tw.W)
 	tw.writeSuccess(result.Success)
+	if IsTerminalSuccess(result.Diagnostics, result.Success) {
+		if result.ProjectRoot == "" {
+			fmt.Fprintln(tw.W, "Next: run nodepaper init <project-directory>")
+		} else {
+			fmt.Fprintln(tw.W, "Next: run nodepaper validate")
+		}
+	}
 }
 
 func doctorStatusPrefix(status string) string {
@@ -64,6 +74,9 @@ func (tw *TextWriter) Validate(result app.ValidateResult) {
 	tw.writeProjectRoot(result.ProjectRoot)
 	tw.writeSuccess(result.Success)
 	tw.writeDiagnostics(result.Diagnostics)
+	if IsTerminalSuccess(result.Diagnostics, result.Success) {
+		fmt.Fprintln(tw.W, "Next: run nodepaper build")
+	}
 }
 
 // Build renders a BuildResult.
@@ -75,6 +88,14 @@ func (tw *TextWriter) Build(result app.BuildResult) {
 	tw.writeSuccess(result.Success)
 	tw.writeArtifacts(result.Artifacts)
 	tw.writeDiagnostics(result.Diagnostics)
+	if IsTerminalSuccess(result.Diagnostics, result.Success) {
+		for _, artifact := range result.Artifacts {
+			if artifact.Kind == "pdf" {
+				fmt.Fprintf(tw.W, "Next: open the PDF at %s\n", artifact.Path)
+				break
+			}
+		}
+	}
 }
 
 // Clean renders a CleanResult.
