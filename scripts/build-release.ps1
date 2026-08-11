@@ -3,7 +3,7 @@
     Build the Windows x64 NodePaper release-candidate package from a fixed commit.
 
 .DESCRIPTION
-    - Resolves the release version (parameter, or the Profile version by default)
+    - Requires an explicit release version independent from the Profile version
     - Creates an isolated git worktree at the requested commit (default HEAD)
     - Copies the pinned bundled Pandoc / pandoc-crossref binaries into the worktree
     - Builds nodepaper.exe for windows/amd64 with -trimpath and version ldflags
@@ -17,8 +17,8 @@
     earlier verification.
 
 .PARAMETER Version
-    Release version string (for example "0.1.0-rc.1"). Defaults to the version
-    declared in profiles/cumcm/profile.json.
+    Required release version string (for example "0.1.0-rc.3"). It is
+    intentionally independent from the frozen Profile candidate version.
 
 .PARAMETER Commit
     Git commit to package (rev, branch or hash). Default: current HEAD.
@@ -35,10 +35,11 @@
     Keep the temporary worktree, package directory and ZIP for inspection.
 
 .EXAMPLE
-    .\scripts\build-release.ps1 -Version 0.1.0-rc.1
+    .\scripts\build-release.ps1 -Version 0.1.0-rc.3
 #>
 param(
-    [string]$Version = "",
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
     [string]$Commit = "HEAD",
     [string]$OutputDirectory = "",
     [switch]$SkipTools,
@@ -121,14 +122,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $root ".git") -PathType Container)) 
     throw "Not a git repository: $root"
 }
 
-$profileMetadataPath = Join-Path $root "profiles\cumcm\profile.json"
-if (-not (Test-Path -LiteralPath $profileMetadataPath -PathType Leaf)) {
-    throw "Profile metadata not found: $profileMetadataPath"
-}
-$profileMetadata = Get-Content -LiteralPath $profileMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = [string]$profileMetadata.version
-}
 if ($Version -notmatch '^[A-Za-z0-9][A-Za-z0-9._+-]*$') {
     throw "Invalid release version string: $Version"
 }
@@ -164,14 +157,33 @@ $worktree = $script:Worktree
 
 try {
     Write-Host "Creating isolated worktree at $resolvedCommit"
-    Invoke-Git @("-C", $root, "worktree", "add", "--detach", $worktree, $resolvedCommit) | Out-Null
+    Invoke-Git @("-C", $root, "-c", "core.autocrlf=false", "worktree", "add", "--detach", $worktree, $resolvedCommit) | Out-Null
 
-    # Bundled third-party binaries live outside version control; copy them into
-    # the isolated worktree so the package is assembled from one tree.
+    # The release worktree must preserve every frozen Profile byte exactly.
+    $profilePaths = @(Invoke-Git @("-C", $root, "ls-tree", "-r", "--name-only", $resolvedCommit, "profiles/cumcm"))
+    foreach ($profilePath in $profilePaths) {
+        $expectedBlob = @(Invoke-Git @("-C", $root, "rev-parse", "$resolvedCommit`:$profilePath"))[0].Trim()
+        $actualBlob = @(Invoke-Git @("-C", $root, "hash-object", (Join-Path $worktree ($profilePath -replace '/', '\'))))[0].Trim()
+        if ($actualBlob -ne $expectedBlob) {
+            throw "Frozen Profile byte mismatch after checkout: $profilePath"
+        }
+    }
+    Write-Host "Frozen Profile byte check passed."
+
+    $profileMetadataPath = Join-Path $worktree "profiles\cumcm\profile.json"
+    if (-not (Test-Path -LiteralPath $profileMetadataPath -PathType Leaf)) {
+        throw "Profile metadata not found at fixed commit: $profileMetadataPath"
+    }
+    $profileMetadata = Get-Content -LiteralPath $profileMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+
+    # Bundled third-party binaries and corresponding sources live outside
+    # version control; copy them into the isolated worktree for packaging.
     if (-not $SkipTools) {
         $bundledTools = @(
             @{ Source = "tools\windows-x64\pandoc\pandoc.exe"; Target = "tools\windows-x64\pandoc\pandoc.exe" },
-            @{ Source = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"; Target = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe" }
+            @{ Source = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"; Target = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe" },
+            @{ Source = "tools\windows-x64\sources\pandoc-3.9-source.tar.gz"; Target = "tools\windows-x64\sources\pandoc-3.9-source.tar.gz" },
+            @{ Source = "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz"; Target = "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz" }
         )
         foreach ($tool in $bundledTools) {
             $source = Join-Path $root $tool.Source
@@ -250,16 +262,35 @@ try {
     if (-not $SkipTools) {
         $packageTools = @(
             "tools\windows-x64\pandoc\pandoc.exe",
-            "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"
+            "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe",
+            "tools\windows-x64\sources\pandoc-3.9-source.tar.gz",
+            "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz"
         )
         foreach ($relative in $packageTools) {
             $source = Join-Path $worktree $relative
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-                throw "Bundled tool missing in worktree: $relative"
+                throw "Bundled tool or corresponding source missing in worktree: $relative"
             }
             $target = Join-Path $packageDir $relative
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
             Copy-Item -LiteralPath $source -Destination $target -Force
+        }
+
+        $toolVersionsMetadata = Get-Content -LiteralPath (Join-Path $worktree "tools\versions.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        $toolHashes = @(
+            @{ Path = "tools\windows-x64\pandoc\pandoc.exe"; Expected = [string]$toolVersionsMetadata.pandoc.executable_sha256 },
+            @{ Path = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"; Expected = [string]$toolVersionsMetadata.pandoc_crossref.executable_sha256 },
+            @{ Path = "tools\windows-x64\sources\pandoc-3.9-source.tar.gz"; Expected = [string]$toolVersionsMetadata.pandoc.source_sha256 },
+            @{ Path = "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz"; Expected = [string]$toolVersionsMetadata.pandoc_crossref.source_sha256 }
+        )
+        foreach ($entry in $toolHashes) {
+            if ([string]::IsNullOrWhiteSpace($entry.Expected)) {
+                throw "Missing pinned SHA-256 for $($entry.Path)"
+            }
+            $actual = (Get-FileHash -LiteralPath (Join-Path $packageDir $entry.Path) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $entry.Expected.ToLowerInvariant()) {
+                throw "Bundled tool/source SHA-256 mismatch for $($entry.Path): expected $($entry.Expected), got $actual"
+            }
         }
     }
 
@@ -300,7 +331,7 @@ try {
         '(?i)github_pat_[A-Za-z0-9_]{20,}'
         'AKIA[0-9A-Z]{16}'
     )
-    $binaryExtensions = @(".exe", ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".7z", ".woff", ".woff2", ".otf", ".ttf")
+    $binaryExtensions = @(".exe", ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".7z", ".gz", ".tar", ".woff", ".woff2", ".otf", ".ttf")
     Get-ChildItem -LiteralPath $packageDir -Recurse -File | ForEach-Object {
         $relative = $_.FullName.Substring($packageDir.Length).TrimStart('\')
         if ($binaryExtensions -contains $_.Extension.ToLowerInvariant()) {
@@ -367,6 +398,8 @@ try {
         profileSnapshotSHA256 = $profileSHA256
         bundledPandocVersion = [string]$profileMetadata.pandocVersion
         bundledPandocCrossrefVersion = [string]$profileMetadata.pandocCrossrefVersion
+        bundledPandocSourceSHA256 = if ($SkipTools) { "" } else { [string]$toolVersionsMetadata.pandoc.source_sha256 }
+        bundledPandocCrossrefSourceSHA256 = if ($SkipTools) { "" } else { [string]$toolVersionsMetadata.pandoc_crossref.source_sha256 }
         files = $payloadFiles
     }
     $payloadManifestPath = Join-Path $packageDir "payload-manifest.json"
@@ -410,6 +443,8 @@ try {
         goVersion = ((& $go version) -join " ").Trim()
         bundledPandocVersion = [string]$profileMetadata.pandocVersion
         bundledPandocCrossrefVersion = [string]$profileMetadata.pandocCrossrefVersion
+        bundledPandocSourceSHA256 = if ($SkipTools) { "" } else { [string]$toolVersionsMetadata.pandoc.source_sha256 }
+        bundledPandocCrossrefSourceSHA256 = if ($SkipTools) { "" } else { [string]$toolVersionsMetadata.pandoc_crossref.source_sha256 }
         bundledToolsIncluded = (-not $SkipTools)
         payloadManifest = "payload-manifest.json"
         payloadFileCount = $payloadFiles.Count

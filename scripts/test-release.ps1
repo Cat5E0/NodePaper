@@ -226,12 +226,22 @@ try {
         "README.md",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
+        "licenses/Apache-2.0.txt",
+        "licenses/BSD-3-Clause.txt",
+        "licenses/CC-BY-SA-3.0.txt",
+        "licenses/GPL-2.0.txt",
+        "licenses/MIT.txt",
+        "licenses/PANDOC-COPYRIGHT.txt",
+        "licenses/YAML-V3-LICENSE.txt",
+        "tools/versions.json",
         "examples/cumcm-single-file/nodepaper.yaml"
     )
     if (-not $SkipTools) {
         $requiredFiles += @(
             "tools/windows-x64/pandoc/pandoc.exe",
-            "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe"
+            "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe",
+            "tools/windows-x64/sources/pandoc-3.9-source.tar.gz",
+            "tools/windows-x64/sources/pandoc-crossref-0.3.24-source.tar.gz"
         )
     }
     foreach ($relative in $requiredFiles) {
@@ -239,6 +249,21 @@ try {
     }
     $licenseFiles = @(Get-ChildItem -LiteralPath (Join-Path $releaseDir "licenses") -File -ErrorAction SilentlyContinue)
     Assert-True ($licenseFiles.Count -ge 1) "licenses/ directory must contain at least one license text"
+    if (-not $SkipTools) {
+        $toolVersions = Get-Content -LiteralPath (Join-Path $releaseDir "tools\versions.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        $toolHashes = @(
+            @{ Path = "tools/windows-x64/pandoc/pandoc.exe"; Expected = [string]$toolVersions.pandoc.executable_sha256 },
+            @{ Path = "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe"; Expected = [string]$toolVersions.pandoc_crossref.executable_sha256 },
+            @{ Path = "tools/windows-x64/sources/pandoc-3.9-source.tar.gz"; Expected = [string]$toolVersions.pandoc.source_sha256 },
+            @{ Path = "tools/windows-x64/sources/pandoc-crossref-0.3.24-source.tar.gz"; Expected = [string]$toolVersions.pandoc_crossref.source_sha256 }
+        )
+        foreach ($entry in $toolHashes) {
+            Assert-True (-not [string]::IsNullOrWhiteSpace($entry.Expected)) "missing pinned SHA-256 for $($entry.Path)"
+            $actual = (Get-FileHash -LiteralPath (Join-Path $releaseDir ($entry.Path -replace '/', '\')) -Algorithm SHA256).Hash.ToLowerInvariant()
+            Assert-True ($actual -eq $entry.Expected.ToLowerInvariant()) "SHA-256 mismatch for $($entry.Path): expected $($entry.Expected), got $actual"
+        }
+        Write-Host "Bundled executable and corresponding-source SHA-256 checks passed."
+    }
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"
 

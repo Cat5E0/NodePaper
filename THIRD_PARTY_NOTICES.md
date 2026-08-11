@@ -25,16 +25,20 @@ The following are original NodePaper works licensed under the MIT License
 
 `nodepaper.exe` is compiled with the Go toolchain and contains Go standard
 library code. The Go standard library is distributed under a BSD-3-Clause
-license; full text in `licenses/BSD-3-Clause.txt`. The Go project's license
-information is available at <https://go.dev/LICENSE>.
+license; the Go-specific copyright and license text is in
+`licenses/BSD-3-Clause.txt`. The Go project's license information is available
+at <https://go.dev/LICENSE>.
 
 ## gopkg.in/yaml.v3 — MIT AND Apache-2.0
 
 The Go module `gopkg.in/yaml.v3` (v3.0.1) is used for `nodepaper.yaml`
 parsing. It is covered by two licenses: the MIT License (files ported from
-libyaml) and the Apache License 2.0. Full texts in `licenses/MIT.txt` and
-`licenses/Apache-2.0.txt`; upstream:
-<https://github.com/go-yaml/yaml>.
+libyaml) and the Apache License 2.0. The exact upstream v3.0.1 copyright and
+dual-license notice is in `licenses/YAML-V3-LICENSE.txt`; the Apache 2.0 full
+text is in `licenses/Apache-2.0.txt`. Upstream:
+<https://github.com/go-yaml/yaml/tree/v3.0.1>. (The separate
+`licenses/MIT.txt` is NodePaper's own MIT text and does not replace the YAML
+upstream notice.)
 
 ## Pandoc 3.9 — GPL-2.0-or-later (bundled binary)
 
@@ -46,10 +50,13 @@ linked into `nodepaper.exe`.
 - Copyright (C) 2006-2024 John MacFarlane
 - License: GNU General Public License version 2 or later; full text in
   `licenses/GPL-2.0.txt`
-- Upstream and source: <https://github.com/jgm/pandoc>,
+- Exact upstream 3.9 copyright and per-component notices:
+  `licenses/PANDOC-COPYRIGHT.txt`
+- Corresponding source archive included in the package:
+  `tools/windows-x64/sources/pandoc-3.9-source.tar.gz`, SHA-256
+  `d8da16e1ad1f685123fbc1a5a83b74766bcfd939dc6989484822f023bb70438f`
+- Upstream: <https://github.com/jgm/pandoc/tree/3.9>,
   <https://hackage.haskell.org/package/pandoc-3.9>
-- Upstream copyright and per-component notices: the `COPYRIGHT` file at
-  <https://github.com/jgm/pandoc/blob/master/COPYRIGHT>
 
 ## pandoc-crossref 0.3.24 — GPL-2.0-or-later (bundled binary)
 
@@ -60,8 +67,10 @@ build time; it is not linked into `nodepaper.exe`.
 
 - License: GNU General Public License version 2 or later; full text in
   `licenses/GPL-2.0.txt`
-- Upstream and source:
-  <https://github.com/lierdakil/pandoc-crossref>
+- Corresponding source archive included in the package:
+  `tools/windows-x64/sources/pandoc-crossref-0.3.24-source.tar.gz`, SHA-256
+  `ea9e06e5f95dee428d48005a4776bffa4d02c4936097aff269cafe81ec39105b`
+- Upstream: <https://github.com/lierdakil/pandoc-crossref/tree/v0.3.24>
 
 ## CSL style — CC BY-SA 3.0
 
@@ -85,9 +94,10 @@ machine paths.
 ## Redistribution conditions
 
 - The bundled GPL executables (Pandoc, pandoc-crossref) are redistributed
-  under the GPL-2.0-or-later terms; their complete source is available at the
-  upstream URLs above, and this notice plus the license text is distributed
-  with the package.
+  under the GPL-2.0-or-later terms. Their exact-version source archives,
+  SHA-256 values, upstream notices and GPL text are distributed in the same
+  package; `tools/versions.json` records the binary/source download URLs and
+  checksums.
 - The CSL style is redistributed under CC BY-SA 3.0 terms; modifications must
   preserve attribution and comply with ShareAlike.
 - NodePaper makes no claim of official certification by the competition

@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release candidate version, e.g. 0.1.0-rc.1"
+        description: "Release candidate version, e.g. 0.1.0-rc.3"
         required: true
         type: string
   push:
