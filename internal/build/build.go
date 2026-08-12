@@ -384,8 +384,15 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		})
 		return result
 	}
-	if diags := inspectLatexLog(logger, latexLogPath, allowlist); len(diags) > 0 {
-		result.Diagnostics = append(result.Diagnostics, diags...)
+	// Overfull boxes are reported as warnings: the PDF itself is valid and the
+	// cause is almost always the source content (a display formula written on
+	// one line, a long unbreakable string, an oversized table) rather than a
+	// NodePaper defect. The author is told where to fix it and still gets the
+	// PDF. Defects that make the PDF wrong - missing glyphs, unresolved
+	// references, fatal LaTeX errors - keep blocking publication.
+	logDiags := inspectLatexLog(logger, latexLogPath, allowlist)
+	result.Diagnostics = append(result.Diagnostics, logDiags...)
+	if hasError(logDiags) {
 		return result
 	}
 
@@ -631,6 +638,16 @@ func hasErrors(diags []diagnostic.Diagnostic) bool {
 	return false
 }
 
+// hasError reports whether any diagnostic blocks publication.
+func hasError(diags []diagnostic.Diagnostic) bool {
+	for _, d := range diags {
+		if d.Severity == diagnostic.SeverityError {
+			return true
+		}
+	}
+	return false
+}
+
 func inspectLatexLog(logger *buildLogger, path string, allowlist latexlog.Allowlist) []diagnostic.Diagnostic {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -658,13 +675,19 @@ func inspectLatexLog(logger *buildLogger, path string, allowlist latexlog.Allowl
 			logger.Printf("Allowed LaTeX Warning: reason=%s", finding.Reason)
 			continue
 		}
+		severity := diagnostic.SeverityError
+		suggestion := "Fix the LaTeX source or Profile; do not allowlist a warning without maintainer review."
+		if finding.Category == latexlog.CategoryOverflow {
+			severity = diagnostic.SeverityWarning
+			suggestion = "Content overflows the text area. Split a long display formula across lines (aligned/split), break a long unbreakable string, or narrow an oversized table or image. The PDF was still published."
+		}
 		diags = append(diags, diagnostic.Diagnostic{
-			Severity:   diagnostic.SeverityError,
+			Severity:   severity,
 			Code:       codes[finding.Category],
 			Message:    fmt.Sprintf("%s: %s", finding.Category, finding.Text),
 			File:       path,
 			Line:       finding.Line,
-			Suggestion: "Fix the LaTeX source or Profile; do not allowlist a warning without maintainer review.",
+			Suggestion: suggestion,
 			Source:     "latex",
 		})
 	}

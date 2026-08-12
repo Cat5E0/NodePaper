@@ -383,6 +383,59 @@ func TestBuildRejectsPDFWithoutEOFMarker(t *testing.T) {
 	}
 }
 
+// Overfull boxes come from the source content, not from a NodePaper defect:
+// the author is warned and the PDF is still published.
+func TestBuildWarnsOnOverfullAndStillPublishesPDF(t *testing.T) {
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	distDir := filepath.Join(projectDir, "dist")
+	if err := os.MkdirAll(distDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	finalPDF := filepath.Join(distDir, "paper.pdf")
+	if err := os.WriteFile(finalPDF, []byte("%PDF-1.4\nold\n%%EOF\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	executor := &fakeExecutor{behavior: func(ctx context.Context, dir, command string, args []string) (process.Result, error) {
+		result, err := successfulFakeTool(ctx, dir, command, args)
+		if err == nil {
+			err = os.WriteFile(filepath.Join(argumentValue(args, "-BuildDirectory"), "paper.log"),
+				[]byte("Overfull \\hbox (21.6pt too wide) detected at line 1076\n"), 0o644)
+		}
+		return result, err
+	}}
+	result := runWithExecutor(context.Background(), projectDir, executor)
+
+	if !result.Success {
+		t.Fatalf("result.Success = false, want true; diagnostics = %#v", result.Diagnostics)
+	}
+	if !hasDiagnosticCode(result, "NP6101") {
+		t.Fatalf("missing NP6101 warning: %#v", result.Diagnostics)
+	}
+	for _, d := range result.Diagnostics {
+		if d.Code != "NP6101" {
+			continue
+		}
+		if d.Severity != diagnostic.SeverityWarning {
+			t.Fatalf("NP6101 severity = %q, want warning", d.Severity)
+		}
+		if d.Suggestion == "" {
+			t.Fatal("NP6101 must tell the author how to fix the content")
+		}
+	}
+	for _, d := range result.Diagnostics {
+		if d.Severity == diagnostic.SeverityError {
+			t.Fatalf("a warning-only build must not carry an error diagnostic: %#v", d)
+		}
+	}
+	published, err := os.ReadFile(finalPDF)
+	if err != nil {
+		t.Fatalf("published PDF missing: %v", err)
+	}
+	if string(published) == "%PDF-1.4\nold\n%%EOF\n" {
+		t.Fatal("the new PDF was not published despite only warnings")
+	}
+}
+
 func TestBuildRejectsCriticalLatexLogAndPreservesOldPDF(t *testing.T) {
 	projectDir := copyBuildFixture(t, "minimal-valid")
 	distDir := filepath.Join(projectDir, "dist")
@@ -397,13 +450,13 @@ func TestBuildRejectsCriticalLatexLogAndPreservesOldPDF(t *testing.T) {
 	executor := &fakeExecutor{behavior: func(ctx context.Context, dir, command string, args []string) (process.Result, error) {
 		result, err := successfulFakeTool(ctx, dir, command, args)
 		if err == nil {
-			err = os.WriteFile(filepath.Join(argumentValue(args, "-BuildDirectory"), "paper.log"), []byte("Overfull \\hbox (8.0pt too wide)\n"), 0o644)
+			err = os.WriteFile(filepath.Join(argumentValue(args, "-BuildDirectory"), "paper.log"), []byte("Missing character: There is no X (U+1234) in font\n"), 0o644)
 		}
 		return result, err
 	}}
 	result := runWithExecutor(context.Background(), projectDir, executor)
-	if result.Success || !hasDiagnosticCode(result, "NP6101") {
-		t.Fatalf("result = %#v, want NP6101", result)
+	if result.Success || !hasDiagnosticCode(result, "NP6102") {
+		t.Fatalf("result = %#v, want NP6102", result)
 	}
 	got, err := os.ReadFile(finalPDF)
 	if err != nil || string(got) != string(oldPDF) {
