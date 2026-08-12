@@ -281,9 +281,14 @@ try {
     foreach ($fragment in @(
         "https://github.com/Cat5E0/NodePaper",
         "NodePaper-Setup-",
+        "release-manifest-",
+        "Get-FileHash",
+        "Get-AuthenticodeSignature",
         "nodepaper --version",
         "nodepaper doctor",
-        "SHA-256"
+        "SHA-256",
+        "SmartScreen",
+        "Defender"
     )) {
         Assert-True ($chineseReadme.Contains($fragment)) "Chinese README AI install prompt lacks '$fragment'"
         Assert-True ($englishReadme.Contains($fragment)) "English README AI install prompt lacks '$fragment'"
