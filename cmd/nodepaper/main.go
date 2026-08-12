@@ -21,8 +21,46 @@ var version = "dev"
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	args := os.Args[1:]
 	interactive := isTerminal(os.Stdin) && isTerminal(os.Stdout) && os.Getenv("CI") == ""
-	os.Exit(runWithIO(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr, interactive, ""))
+	code := runWithIO(ctx, args, os.Stdin, os.Stdout, os.Stderr, interactive, "")
+	if shouldHoldConsole(args, interactive) {
+		holdConsole(os.Stdin, os.Stdout)
+	}
+	os.Exit(code)
+}
+
+// shouldHoldConsole reports whether the printed output would otherwise vanish
+// with the console window Windows created for this process alone. It is false
+// for terminals, pipes, redirected output, JSON output and CI, so automation
+// semantics are unchanged.
+func shouldHoldConsole(args []string, interactive bool) bool {
+	if !interactive || !ownsConsoleWindow() {
+		return false
+	}
+	if invocation, err := cli.Parse(args); err == nil && invocation.Format == cli.FormatJSON {
+		return false
+	}
+	return true
+}
+
+// holdConsole explains why the window exists and waits for a single Enter (or
+// end of input). It runs after the command finished, changes no exit code and
+// performs no installation or Project change.
+func holdConsole(stdin io.Reader, stdout io.Writer) {
+	writeConsoleHoldNotice(stdout)
+	reader := bufio.NewReader(stdin)
+	_, _ = reader.ReadString('\n')
+}
+
+func writeConsoleHoldNotice(w io.Writer) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "This window was opened only for nodepaper.exe and would close immediately.")
+	fmt.Fprintln(w, "NodePaper is a command-line tool; nothing was installed or changed here.")
+	fmt.Fprintln(w, "Start it from:")
+	fmt.Fprintln(w, "  Start menu > NodePaper")
+	fmt.Fprintln(w, "  or a terminal (Windows Terminal / PowerShell): nodepaper --help")
+	fmt.Fprint(w, "Press Enter to close this window. ")
 }
 
 // run is the deterministic non-interactive entry used by command tests.

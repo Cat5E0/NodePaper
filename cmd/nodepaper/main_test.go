@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -369,5 +370,61 @@ func TestRunClean(t *testing.T) {
 	code = run([]string{"clean", projectDir}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("clean exit code = %d, stderr: %s", code, stderr.String())
+	}
+}
+
+func TestConsoleHoldNoticeGuidesToStartMenuAndTerminal(t *testing.T) {
+	var stdout bytes.Buffer
+	writeConsoleHoldNotice(&stdout)
+	for _, want := range []string{
+		"would close immediately",
+		"nothing was installed or changed",
+		"Start menu > NodePaper",
+		"nodepaper --help",
+		"Press Enter to close this window.",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("console hold notice missing %q: %s", want, stdout.String())
+		}
+	}
+}
+
+func TestHoldConsoleReturnsOnEnterAndOnEndOfInput(t *testing.T) {
+	for name, input := range map[string]string{"enter": "\n", "eof": ""} {
+		t.Run(name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			done := make(chan struct{})
+			go func() {
+				holdConsole(strings.NewReader(input), &stdout)
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("holdConsole did not return")
+			}
+			if stdout.Len() == 0 {
+				t.Fatal("holdConsole printed nothing")
+			}
+		})
+	}
+}
+
+func TestShouldHoldConsoleNeverBlocksAutomation(t *testing.T) {
+	// Non-interactive input (pipes, redirection, CI) must never wait, and JSON
+	// output must never wait even on an interactive console.
+	if shouldHoldConsole(nil, false) {
+		t.Error("shouldHoldConsole(non-interactive) = true, want false")
+	}
+	if shouldHoldConsole([]string{"build", "--format", "json"}, true) {
+		t.Error("shouldHoldConsole(json) = true, want false")
+	}
+	if shouldHoldConsole([]string{"build", "--format=json"}, true) {
+		t.Error("shouldHoldConsole(json=) = true, want false")
+	}
+	// The remaining interactive case depends on the real console layout: a test
+	// process is never the only process attached to its console.
+	if ownsConsoleWindow() && shouldHoldConsole(nil, true) != true {
+		t.Error("shouldHoldConsole(owned console) = false, want true")
 	}
 }

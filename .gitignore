@@ -31,8 +31,10 @@ logs/
 # Local experiment screenshots are not repository assets.
 /image/Exp*.png
 
-# Bundled third-party binaries (distributed separately)
+# Bundled third-party binaries and pinned build toolchains (fetched, verified
+# and never committed)
 tools/windows-x64/
+tools/_downloads/
 !tools/versions.json
 
 # Python
