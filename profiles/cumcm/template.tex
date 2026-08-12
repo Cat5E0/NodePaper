@@ -3,6 +3,12 @@
 % in SOURCES.md. It is not an official or competition-certified template.
 \documentclass[UTF8,zihao=-4,a4paper]{ctexart}
 \xeCJKsetup{AutoFakeSlant=true,AutoFakeBold=true}
+% Characters that Chinese papers use as text but that Latin fonts do not
+% cover: circled numbers, Greek letters and CJK punctuation blocks. Without
+% this the glyphs silently disappear from the PDF.
+\xeCJKDeclareSubCJKBlock{NodePaperGreek}{"0370 -> "03FF}
+\xeCJKDeclareSubCJKBlock{NodePaperEnclosed}{"2460 -> "24FF}
+\xeCJKDeclareSubCJKBlock{NodePaperCJKSymbol}{"3000 -> "303F, "FF00 -> "FFEF}
 
 \usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
 \usepackage{amsmath,amssymb}

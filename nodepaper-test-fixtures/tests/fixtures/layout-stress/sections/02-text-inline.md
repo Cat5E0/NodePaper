@@ -5,3 +5,5 @@ NP-LAYOUT-TEXT-01。这是一段包含较长中文说明的虚构文本，用来
 长 URL 使用可断行链接：<https://example.invalid/nodepaper/layout/stress/a-very-long-but-entirely-fictional-resource-path?profile=cumcm&year=2026&mode=electronic-paper>。
 
 DOI 示例为 <https://doi.org/10.0000/nodepaper.layout.stress.2026>。Windows 路径示例为 `C:\Users\Student\Documents\NodePaper\layout-stress\sections\02-text-inline.md`，行内代码示例为 `nodepaper build D:\papers\cumcm-layout-stress`。
+
+行内代码内的中文必须保留字形，反斜杠不得被改写：中文路径示例为 `D:\论文样例\第一章\模型求解.md`，中英混排命令示例为 `nodepaper build D:\论文\2026建模`。

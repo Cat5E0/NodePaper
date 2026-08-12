@@ -40,11 +40,48 @@ local function add_unnumbered(header)
   end
 end
 
+-- Inline code keeps Pandoc's own \texttt escaping so that CJK characters stay
+-- on the CJK font and backslashes survive verbatim. Earlier versions routed
+-- inline code through hyperref's \nolinkurl, which silently dropped every CJK
+-- glyph (the URL font is Latin-only) and rewrote Windows backslashes as
+-- forward slashes. Break opportunities are injected between separators so long
+-- paths and identifiers can still wrap instead of overflowing the text area.
+local CODE_BREAK_AFTER = "[/\\\\:;,._-]"
+
 function Code(inline)
-  -- xurl's nolinkurl permits safe line breaks in long inline code and Windows
-  -- paths without interpreting the content as TeX commands.
-  local text = inline.text:gsub("\\", "/")
-  return pandoc.RawInline("latex", "\\nolinkurl{" .. text .. "}")
+  local text = inline.text
+  if text == "" then
+    return nil
+  end
+
+  local pieces = {}
+  local chunk = {}
+  for index = 1, #text do
+    local char = text:sub(index, index)
+    chunk[#chunk + 1] = char
+    -- Break after a separator, but never after the final character and never
+    -- between two separators, so "://" or ".." stay together.
+    if char:match(CODE_BREAK_AFTER) and index < #text
+        and not text:sub(index + 1, index + 1):match(CODE_BREAK_AFTER) then
+      pieces[#pieces + 1] = table.concat(chunk)
+      chunk = {}
+    end
+  end
+  if #chunk > 0 then
+    pieces[#pieces + 1] = table.concat(chunk)
+  end
+  if #pieces < 2 then
+    return nil
+  end
+
+  local result = {}
+  for index, piece in ipairs(pieces) do
+    result[#result + 1] = pandoc.Code(piece, inline.attr)
+    if index < #pieces then
+      result[#result + 1] = pandoc.RawInline("latex", "\\allowbreak{}")
+    end
+  end
+  return result
 end
 
 function CodeBlock(block)
