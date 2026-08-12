@@ -224,6 +224,7 @@ try {
         "profiles/cumcm/filters/layout.lua",
         "profiles/cumcm/warning-allowlist.json",
         "README.md",
+        "README.en.md",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
         "licenses/Apache-2.0.txt",
@@ -263,6 +264,29 @@ try {
             Assert-True ($actual -eq $entry.Expected.ToLowerInvariant()) "SHA-256 mismatch for $($entry.Path): expected $($entry.Expected), got $actual"
         }
         Write-Host "Bundled executable and corresponding-source SHA-256 checks passed."
+    }
+    # ---------- 1b. bilingual README entry points ---------------------------
+
+    Write-Host "Checking bilingual README entry points and AI install prompts..."
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $releaseDir "README.zh-CN.md"))) "package still contains the removed README.zh-CN.md"
+    $chineseReadme = Get-Content -LiteralPath (Join-Path $releaseDir "README.md") -Raw -Encoding UTF8
+    $englishReadme = Get-Content -LiteralPath (Join-Path $releaseDir "README.en.md") -Raw -Encoding UTF8
+    $notices = Get-Content -LiteralPath (Join-Path $releaseDir "THIRD_PARTY_NOTICES.md") -Raw -Encoding UTF8
+    Assert-True ($chineseReadme -match '[\u4e00-\u9fff]') "root README.md is not Simplified Chinese"
+    Assert-True ($chineseReadme.Contains("README.en.md")) "Chinese README.md does not link to README.en.md"
+    Assert-True ($englishReadme.Contains("README.md")) "README.en.md does not link back to README.md"
+    foreach ($text in @(@{ Name = "README.md"; Value = $chineseReadme }, @{ Name = "README.en.md"; Value = $englishReadme }, @{ Name = "THIRD_PARTY_NOTICES.md"; Value = $notices })) {
+        Assert-True (-not ($text.Value -match 'README\.zh-CN\.md')) "$($text.Name) still references the removed README.zh-CN.md"
+    }
+    foreach ($fragment in @(
+        "https://github.com/Cat5E0/NodePaper",
+        "NodePaper-Setup-",
+        "nodepaper --version",
+        "nodepaper doctor",
+        "SHA-256"
+    )) {
+        Assert-True ($chineseReadme.Contains($fragment)) "Chinese README AI install prompt lacks '$fragment'"
+        Assert-True ($englishReadme.Contains($fragment)) "English README AI install prompt lacks '$fragment'"
     }
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"

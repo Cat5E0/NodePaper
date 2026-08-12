@@ -69,7 +69,7 @@ NodePaper/
   Convert-MarkdownToScauLatex.ps1
   Bootstrap-Tools.ps1
   README.md
-  README.zh-CN.md
+  README.en.md
   examples/
     paper.md
     assignment.md

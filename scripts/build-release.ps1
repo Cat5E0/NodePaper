@@ -244,7 +244,7 @@ try {
         "Install-NodePaper.ps1",
         "Uninstall-NodePaper.ps1",
         "README.md",
-        "README.zh-CN.md",
+        "README.en.md",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
         "tools\versions.json"

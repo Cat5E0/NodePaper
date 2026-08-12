@@ -17,7 +17,8 @@ The following are original NodePaper works licensed under the MIT License
   `Convert-CumcmProjectToLatex.ps1`;
 - the CUMCM Profile under `profiles/cumcm/` (`profile.json`, `template.tex`,
   `crossref.yaml`, `warning-allowlist.json`, `filters/*.lua`);
-- `scripts/`, `README.md`, `README.zh-CN.md` and `examples/cumcm-single-file`
+- `scripts/`, `installer/windows/`, `README.md` (Simplified Chinese),
+  `README.en.md` (English) and `examples/cumcm-single-file`
   (fictional test content generated for this project; no real persons,
   schools, teams or papers).
 
@@ -83,6 +84,22 @@ under Creative Commons Attribution-ShareAlike 3.0; full text in
 contributor Zeping Lee. Upstream:
 <https://github.com/citation-style-language/styles>.
 
+## Inno Setup 6.7.3 — Inno Setup License (Setup channel only)
+
+The Windows Setup channel
+(`NodePaper-Setup-<version>-windows-x64.exe`) is generated with the pinned
+Inno Setup 6.7.3 compiler and therefore contains Inno Setup installer code,
+copyright (C) 1997-2026 Jordan Russell and (C) 2000-2026 Martijn Laan. The
+license text of the pinned version is in
+`installer/windows/INNO-SETUP-LICENSE.txt`; the pinned download URL, SHA-256
+values and license location are recorded in
+`installer/windows/innosetup-toolchain.json`. Upstream:
+<https://github.com/jrsoftware/issrc> (tag `is-6_7_3`).
+
+The Inno Setup compiler itself is a build tool. It is not part of the release
+payload, not contained in `nodepaper-<version>-windows-x64.zip` and not
+installed on user machines.
+
 ## Not bundled
 
 NodePaper does **not** bundle a TeX distribution. Users must install TeX Live
@@ -100,5 +117,12 @@ machine paths.
   checksums.
 - The CSL style is redistributed under CC BY-SA 3.0 terms; modifications must
   preserve attribution and comply with ShareAlike.
+- The Setup channel is redistributed under the Inno Setup License; the Inno
+  Setup copyright notices and web addresses embedded by the compiler are left
+  untouched.
+- Neither the Setup nor the ZIP is Authenticode signed at this stage. The
+  unsigned state, the fixed source commit, the file sizes and the SHA-256
+  values are published as-is; NodePaper never claims a trusted publisher and
+  never asks users to disable security features.
 - NodePaper makes no claim of official certification by the competition
   organizers, and the candidate CUMCM Profile is not an official template.
