@@ -93,7 +93,7 @@ func runWithIO(ctx context.Context, args []string, stdin io.Reader, stdout, stde
 			writeUsageError(stderr, cli.InitDirectoryRequiredError())
 			return 2
 		}
-		projectDir, generateGuide, ok := promptInit(ctx, stdin, stdout, invocation.AIGuide)
+		projectDir, generateGuide, ok := promptInit(ctx, stdin, stdout, workingDir, invocation.AIGuide)
 		if !ok {
 			fmt.Fprintln(stderr, "nodepaper: initialization canceled; no Project files were created.")
 			return 130
@@ -149,30 +149,50 @@ func writeOnboarding(w io.Writer, workingDir string) {
 	fmt.Fprintln(w, "  nodepaper --help")
 }
 
-func promptInit(ctx context.Context, input io.Reader, output io.Writer, guideAlreadySelected bool) (string, bool, bool) {
+// promptInit is the only interactive path in NodePaper: a bare "init" in a
+// real terminal confirms the current directory as the Project location and
+// then asks about the AI writing guide. It never runs for JSON, non-TTY,
+// pipelines or CI; those must pass an explicit project directory. Every
+// answer defaults to the safe choice and canceling creates nothing.
+func promptInit(ctx context.Context, input io.Reader, output io.Writer, workingDir string, guideAlreadySelected bool) (string, bool, bool) {
+	if workingDir == "" {
+		var err error
+		workingDir, err = os.Getwd()
+		if err != nil {
+			fmt.Fprintln(output, "NodePaper could not determine the current directory.")
+			fmt.Fprintln(output, "Pass an explicit directory: nodepaper init <project-directory>")
+			return "", false, false
+		}
+	}
 	reader := bufio.NewReader(input)
-	fmt.Fprint(output, "Project directory (leave empty to cancel): ")
-	projectDir, ok := readPromptLine(ctx, reader)
-	projectDir = strings.TrimSpace(projectDir)
-	if !ok || projectDir == "" {
-		return "", false, false
-	}
-	projectDir = trimMatchingQuotes(projectDir)
-
-	if guideAlreadySelected {
-		return projectDir, true, true
-	}
 	for {
-		fmt.Fprint(output, "Generate AI writing guide AGENTS.md? (Y/n): ")
+		fmt.Fprintf(output, "Initialize a NodePaper Project in the current directory?\n  %s\nContinue? [Y/n]: ", workingDir)
 		answer, ok := readPromptLine(ctx, reader)
 		if !ok {
 			return "", false, false
 		}
 		switch strings.ToLower(strings.TrimSpace(answer)) {
 		case "", "y", "yes":
-			return projectDir, true, true
+			if guideAlreadySelected {
+				return workingDir, true, true
+			}
+			for {
+				fmt.Fprint(output, "Generate AI writing guide AGENTS.md? (Y/n): ")
+				guideAnswer, ok := readPromptLine(ctx, reader)
+				if !ok {
+					return "", false, false
+				}
+				switch strings.ToLower(strings.TrimSpace(guideAnswer)) {
+				case "", "y", "yes":
+					return workingDir, true, true
+				case "n", "no":
+					return workingDir, false, true
+				default:
+					fmt.Fprintln(output, "Please enter Y or N.")
+				}
+			}
 		case "n", "no":
-			return projectDir, false, true
+			return "", false, false
 		default:
 			fmt.Fprintln(output, "Please enter Y or N.")
 		}
@@ -198,13 +218,6 @@ func readPromptLine(ctx context.Context, reader *bufio.Reader) (string, bool) {
 		}
 		return strings.TrimRight(got.line, "\r\n"), true
 	}
-}
-
-func trimMatchingQuotes(value string) string {
-	if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'')) {
-		return value[1 : len(value)-1]
-	}
-	return value
 }
 
 func isTerminal(file *os.File) bool {

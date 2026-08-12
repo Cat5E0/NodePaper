@@ -152,50 +152,116 @@ func TestRunInitJSONMissingPathNeverPrompts(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
-	if stdout.Len() != 0 || strings.Contains(stderr.String(), "Project directory (") {
+	if stdout.Len() != 0 || strings.Contains(stderr.String(), "Continue? [Y/n]") {
 		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }
 
-func TestRunInteractiveInitDefaultsToAIGuide(t *testing.T) {
-	projectDir := filepath.Join(t.TempDir(), "interactive project")
-	input := strings.NewReader(projectDir + "\n\n")
+func TestRunInteractiveInitDefaultsToCurrentDirectoryAndAIGuide(t *testing.T) {
+	projectDir := t.TempDir()
+	// Enter on the directory confirmation (default: initialize here), then
+	// Enter on the AI-guide question (default: generate AGENTS.md).
+	input := strings.NewReader("\n\n")
 	var stdout, stderr bytes.Buffer
-	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, "")
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, projectDir)
 	if code != 0 {
 		t.Fatalf("exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
+	if _, err := os.Stat(filepath.Join(projectDir, "nodepaper.yaml")); err != nil {
+		t.Fatalf("default interactive init did not create nodepaper.yaml: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(projectDir, "AGENTS.md")); err != nil {
 		t.Fatalf("default interactive init did not create AGENTS.md: %v", err)
+	}
+	if !strings.Contains(stdout.String(), projectDir) {
+		t.Fatalf("confirmation does not show the current directory: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Continue? [Y/n]") {
+		t.Fatalf("confirmation prompt missing: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "Generate AI writing guide") {
 		t.Fatalf("stdout lacks AI guide prompt: %s", stdout.String())
 	}
 }
 
-func TestRunInteractiveInitCanDeclineAIGuide(t *testing.T) {
-	projectDir := filepath.Join(t.TempDir(), "project")
-	input := strings.NewReader(projectDir + "\nn\n")
+func TestRunInteractiveInitDeclinesAIGuide(t *testing.T) {
+	projectDir := t.TempDir()
+	// "y" confirms the current directory, "n" declines the AI guide.
+	input := strings.NewReader("y\nn\n")
 	var stdout, stderr bytes.Buffer
-	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, "")
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, projectDir)
 	if code != 0 {
 		t.Fatalf("exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "nodepaper.yaml")); err != nil {
+		t.Fatalf("interactive init did not create nodepaper.yaml: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(projectDir, "AGENTS.md")); !os.IsNotExist(err) {
 		t.Fatalf("AGENTS.md should not exist after declining; err=%v", err)
 	}
 }
 
-func TestRunInteractiveInitEOFCancelsWithoutFiles(t *testing.T) {
-	projectDir := filepath.Join(t.TempDir(), "project")
-	// EOF after the directory, before the AI-guide answer, cancels atomically.
-	input := strings.NewReader(projectDir + "\n")
+func TestRunInteractiveInitDecliningDirectoryCancels(t *testing.T) {
+	projectDir := t.TempDir()
+	// "n" on the directory confirmation cancels before anything is created.
+	input := strings.NewReader("n\n")
 	var stdout, stderr bytes.Buffer
-	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, "")
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, projectDir)
 	if code != 130 {
 		t.Fatalf("exit code = %d, want 130; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
-	if _, err := os.Stat(projectDir); !os.IsNotExist(err) {
+	if !strings.Contains(stderr.String(), "canceled") {
+		t.Fatalf("stderr does not mention cancelation: %s", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "nodepaper.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("canceled init left project files; err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("canceled init left AGENTS.md; err=%v", err)
+	}
+}
+
+func TestRunInteractiveInitRejectsInvalidAnswersThenContinues(t *testing.T) {
+	projectDir := t.TempDir()
+	// "maybe" is invalid, then Enter continues with defaults.
+	input := strings.NewReader("maybe\n\n\n")
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, projectDir)
+	if code != 0 {
+		t.Fatalf("exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Please enter Y or N") {
+		t.Fatalf("invalid answer was not rejected: %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "nodepaper.yaml")); err != nil {
+		t.Fatalf("init did not complete after the invalid answer: %v", err)
+	}
+}
+
+func TestRunInteractiveInitEOFCancelsWithoutFiles(t *testing.T) {
+	projectDir := t.TempDir()
+	// EOF on the directory confirmation cancels atomically.
+	input := strings.NewReader("")
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, projectDir)
+	if code != 130 {
+		t.Fatalf("exit code = %d, want 130; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "nodepaper.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("canceled init left project files; err=%v", err)
+	}
+}
+
+func TestRunInteractiveInitEOFAfterConfirmBeforeGuideCancels(t *testing.T) {
+	projectDir := t.TempDir()
+	// Confirm the directory, then hit EOF before the AI-guide answer.
+	input := strings.NewReader("y\n")
+	var stdout, stderr bytes.Buffer
+	code := runWithIO(context.Background(), []string{"init"}, input, &stdout, &stderr, true, projectDir)
+	if code != 130 {
+		t.Fatalf("exit code = %d, want 130; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(projectDir, "nodepaper.yaml")); !os.IsNotExist(err) {
 		t.Fatalf("canceled init left project files; err=%v", err)
 	}
 }
