@@ -10,87 +10,47 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 ## Installation
 
-NodePaper targets Windows 10/11 x64. Install TeX Live or MiKTeX first and make sure `xelatex` and `latexmk` are available.
+Requires Windows 10/11 x64 and either TeX Live or MiKTeX (providing `xelatex`).
 
-Two channels are produced from one and the same release payload:
-
-| Channel | File | Audience |
-| --- | --- | --- |
-| Setup installer | `NodePaper-Setup-<version>-windows-x64.exe` | ordinary users, double-click install |
-| Portable ZIP | `nodepaper-<version>-windows-x64.zip` | advanced users, offline and verifiable use |
-
-Both channels contain the identical `nodepaper.exe`, Profile, template, bundled tools and licenses; each channel package records its own SHA-256.
-
-> How to obtain it: NodePaper has not been released yet, so the official repository <https://github.com/Cat5E0/NodePaper> has no Release assets. During this test phase the candidate files are handed out directly by the maintainer together with `release-manifest-<version>.json`, which records the version, source commit, file size and SHA-256. Do not obtain a “NodePaper installer” from third-party mirrors, file-sharing links or search results, and do not assemble one from `Source code (zip)`. Download from the official Releases page once it exists.
-
-### Option 1: Setup installer (recommended)
-
-1. Obtain `NodePaper-Setup-<version>-windows-x64.exe` and the matching `release-manifest-<version>.json` from the maintainer.
-2. Verify that the file name, size and SHA-256 match the `setup-exe` channel entry in `release-manifest-<version>.json`:
-
-   ```powershell
-   Get-FileHash .\NodePaper-Setup-<version>-windows-x64.exe -Algorithm SHA256
-   ```
-
-3. The current Setup is not Authenticode signed. Windows SmartScreen or security software may therefore warn about an unknown publisher. Check the source and the SHA-256 first and decide for yourself whether to continue; NodePaper never asks you to disable Defender, SmartScreen or any other protection.
-4. Double-click the Setup. It installs for the current user without administrator rights, defaults to `%LOCALAPPDATA%\Programs\NodePaper` and accepts any other user-writable directory. It registers the current user's Path and creates the Start-menu entries “NodePaper” and “卸载 NodePaper” (Uninstall NodePaper); the desktop shortcut is optional and unchecked by default.
-5. The final wizard page offers “Launch NodePaper”, which opens a persistent command-line window. You can also open a new terminal and run, from any directory:
-
-   ```powershell
-   nodepaper --version
-   nodepaper doctor
-   ```
-
-Setup performs no network access, no telemetry and no automatic update. It verifies the embedded payload version and file hashes before finishing, and rolls back to the previous installation on failure.
-
-### Option 2: Portable ZIP
-
-Extract `nodepaper-<version>-windows-x64.zip`, then run from the extracted directory:
+Download `NodePaper-Setup-<version>-windows-x64.exe` from [Releases](https://github.com/Cat5E0/NodePaper/releases), run it, then open a new terminal:
 
 ```powershell
-.\Install-NodePaper.ps1
+nodepaper doctor
 ```
 
-Open a new terminal and run from any directory:
+It installs into your user profile without administrator rights. Uninstall from Windows Settings → Apps, or the Start-menu entry.
+
+> Test phase: candidate files are handed out directly by the maintainer; the Releases page has no assets yet.
+
+<details>
+<summary>Portable build, download verification and the unsigned build</summary>
+
+**Portable ZIP**: extract `nodepaper-<version>-windows-x64.zip` and run `.\Install-NodePaper.ps1` to register the command, or just run `nodepaper.exe` from the extracted folder without installing or touching PATH. `Uninstall-NodePaper.ps1` sits next to it.
+
+**Verify the download**: every version ships `release-manifest-<version>.json` with the size and SHA-256 of both channels.
 
 ```powershell
-nodepaper
+Get-FileHash .\NodePaper-Setup-<version>-windows-x64.exe -Algorithm SHA256
 ```
 
-The ZIP can also be used fully portable: run `nodepaper.exe` from the extracted directory without installing anything or changing the Path.
+**Unsigned**: this build has no Authenticode signature, so Windows SmartScreen may warn about an unknown publisher. Check the source and hash, then decide for yourself; do not disable security features for it.
 
-### Uninstalling
+**What uninstalling keeps**: it removes only the installation directory, the PATH entry it added, its shortcuts and its uninstall registration. Paper Projects, PDFs in `dist` and your TeX installation are untouched.
 
-- Setup installation: Windows “Settings → Apps → Installed apps → NodePaper → Uninstall”, or the Start-menu “卸载 NodePaper” entry. The uninstaller is stored inside the installation directory, so uninstalling still works after the downloaded Setup has been deleted.
-- ZIP installation:
+</details>
 
-  ```powershell
-  & "$env:LOCALAPPDATA\Programs\NodePaper\Uninstall-NodePaper.ps1"
-  ```
+### Let an AI assistant install it
 
-Uninstalling removes only NodePaper's installation directory, the Path entry it created, its own shortcuts and its uninstall registration. Paper Projects, PDFs in `dist`, TeX Live/MiKTeX and other software are never removed. If a build is still running, the uninstaller asks you to close NodePaper and try again.
-
-### Optional: let an AI assistant install it
-
-If you use Codex, Claude Code, Cursor or another coding agent that can operate your machine, you can copy the prompt below verbatim. It is an optional entry point, not the only way to install NodePaper and not a NodePaper runtime capability; the manual steps above always work.
-
-The current prompt covers the test-phase installation from candidate files that are already on your machine. A prompt for downloading and verifying from the official GitHub Releases will be added once NodePaper is released.
+Copy this to Codex, Claude Code, Cursor or another agent that can operate your machine:
 
 ```text
-You are a coding agent that can run commands on my Windows machine. Please install NodePaper from the installer file I already have locally, and follow these rules strictly.
-
-1. Use only the local file paths I give you in this message: the Setup NodePaper-Setup-<version>-windows-x64.exe (or the portable nodepaper-<version>-windows-x64.zip), verified against release-manifest-<version>.json from the same batch of files. Do not download any “NodePaper installer” from the internet, do not use third-party mirrors, file-sharing links or search results, and do not compile or assemble an installer from source yourself.
-2. If I did not give you a file path or release-manifest-<version>.json, stop and ask me for them instead of looking for a substitute file.
-3. Verify before installing and report the results verbatim without drawing the conclusion for me:
-   whether the file name matches the file recorded for the setup-exe channel in release-manifest-<version>.json;
-   whether Get-FileHash <file path> -Algorithm SHA256 equals the sha256 in that manifest;
-   whether the file size equals the size in that manifest;
-   what Get-AuthenticodeSignature <file path> reports.
-4. Stop and report if the file name, size or SHA-256 disagree in any way.
-5. This is an unreleased candidate and the current Setup is not Authenticode signed. Before running it, tell me the version, the source commit from the manifest, the unsigned state and the fact that Windows SmartScreen or security software may block it, and wait for my explicit approval. Never bypass, disable or modify Defender, SmartScreen, the firewall or any other security setting.
-6. Run the Setup with its visible user interface. Do not use silent-install switches and do not request administrator rights (NodePaper installs for the current user). If any step needs administrator rights, deletes files, or installs a large dependency such as TeX Live or MiKTeX, explain the disk and time cost first and ask for my approval.
-7. After installation, open a new terminal, run nodepaper --version and nodepaper doctor, explain the real output truthfully, and confirm that --version matches the version in the manifest. If doctor reports a missing TeX environment, explain it and ask me before installing anything.
-8. Never ask for or use tokens, passwords or credentials; never execute code from a paper appendix; never delete or modify my paper Projects, the PDFs in dist or any other file. Your output is only a record of the installation and is not evidence that tests passed or that quality was verified.
+Please install NodePaper (Windows). Rules:
+1. Use only the local installer path I give you, or the official Releases at https://github.com/Cat5E0/NodePaper - no third-party mirrors, file-sharing links or search results.
+2. Before installing, check the SHA-256 with Get-FileHash against the release-manifest for that version; stop and tell me if it differs.
+3. This is an unsigned test build and SmartScreen may block it. Leave the decision to continue to me and never disable security software.
+4. Run the installer normally with its UI; no silent install and no administrator rights.
+5. If a large dependency such as TeX Live or MiKTeX is needed, tell me the size and time cost and ask me first.
+6. Afterwards run nodepaper --version and nodepaper doctor in a new terminal and show me the real output.
 ```
 
 ## Quick start

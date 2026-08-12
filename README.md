@@ -10,87 +10,47 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 ## 安装
 
-NodePaper 支持 Windows 10/11 x64。使用前请先安装 TeX Live 或 MiKTeX，并确保 `xelatex` 和 `latexmk` 可用。
+需要 Windows 10/11 x64，以及 TeX Live 或 MiKTeX（提供 `xelatex`）。
 
-Windows x64 提供两个由同一个发布 Payload 生成的渠道：
-
-| 渠道 | 文件 | 适用场景 |
-| --- | --- | --- |
-| Setup 安装包 | `NodePaper-Setup-<版本>-windows-x64.exe` | 普通用户，双击安装 |
-| 便携 ZIP | `nodepaper-<版本>-windows-x64.zip` | 高级用户、离线环境、可验证分发 |
-
-两个渠道内的 `nodepaper.exe`、Profile、模板、工具和许可证完全相同；两个渠道包各自记录自己的 SHA-256。
-
-> 获取方式：NodePaper 尚未正式发布，官方仓库 <https://github.com/Cat5E0/NodePaper> 还没有 Releases 资产。当前测试阶段的候选文件由维护者直接提供，并附带 `release-manifest-<版本>.json`（含版本、来源提交、文件大小和 SHA-256）。请不要从第三方镜像、网盘或搜索结果获取“NodePaper 安装包”，也不要用 `Source code (zip)` 自行拼装。正式发布后再从官方 Releases 下载。
-
-### 方式一：Setup 安装包（推荐）
-
-1. 取得维护者提供的 `NodePaper-Setup-<版本>-windows-x64.exe` 和对应的 `release-manifest-<版本>.json`。
-2. 核对文件的 SHA-256 与 `release-manifest-<版本>.json` 中 `setup-exe` 渠道记录的版本、大小和哈希一致：
-
-   ```powershell
-   Get-FileHash .\NodePaper-Setup-<版本>-windows-x64.exe -Algorithm SHA256
-   ```
-
-3. 当前 Setup 尚未进行 Authenticode 代码签名。运行时 Windows SmartScreen 或安全软件可能提示未知发布者。请先核对来源和 SHA-256，再自行决定是否继续；NodePaper 不建议、也不要求关闭 Defender、SmartScreen 或任何安全功能。
-4. 双击 Setup 安装。安装按当前用户进行，不需要管理员权限，默认目录为 `%LOCALAPPDATA%\Programs\NodePaper`，也可以选择其他当前用户可写目录。安装器会注册当前用户 PATH、创建开始菜单“NodePaper”和“卸载 NodePaper”入口；桌面快捷方式可选，默认不勾选。
-5. 安装完成页默认勾选“启动 NodePaper”，会打开一个持续可用的命令行窗口。也可以打开新终端，在任意目录运行：
-
-   ```powershell
-   nodepaper --version
-   nodepaper doctor
-   ```
-
-Setup 不联网、不含遥测、不含自动更新，安装前会校验内嵌 Payload 的版本和文件哈希，失败时回滚并保留原有安装。
-
-### 方式二：便携 ZIP
-
-解压 `nodepaper-<版本>-windows-x64.zip` 后，在解压目录运行：
+从 [Releases](https://github.com/Cat5E0/NodePaper/releases) 下载 `NodePaper-Setup-<版本>-windows-x64.exe`，双击安装，然后打开新终端：
 
 ```powershell
-.\Install-NodePaper.ps1
+nodepaper doctor
 ```
 
-重新打开终端，然后在任意目录输入：
+安装到当前用户目录，不需要管理员权限；卸载走 Windows「设置 → 应用」或开始菜单的「卸载 NodePaper」。
+
+> 测试阶段：候选文件由维护者直接提供，Releases 页面暂无资产。
+
+<details>
+<summary>便携版、下载校验与未签名说明</summary>
+
+**便携 ZIP**：解压 `nodepaper-<版本>-windows-x64.zip`，运行 `.\Install-NodePaper.ps1` 注册命令；也可以直接用解压目录里的 `nodepaper.exe`，不安装、不改 PATH。卸载用同目录的 `Uninstall-NodePaper.ps1`。
+
+**校验下载**：每个版本附带 `release-manifest-<版本>.json`，内含两个渠道的文件大小与 SHA-256。
 
 ```powershell
-nodepaper
+Get-FileHash .\NodePaper-Setup-<版本>-windows-x64.exe -Algorithm SHA256
 ```
 
-ZIP 也可以完全便携使用：直接执行解压目录中的 `nodepaper.exe`，不安装、不修改 PATH。
+**未签名**：当前构建未做 Authenticode 代码签名，Windows SmartScreen 可能提示未知发布者。请核对来源和哈希后自行决定是否继续；不要为此关闭系统安全功能。
 
-### 卸载
+**卸载保留什么**：只删除安装目录、自建的 PATH 项、快捷方式和卸载注册项；论文 Project、`dist` 里的 PDF 和 TeX 环境都不动。
 
-- Setup 安装：Windows“设置 → 应用 → 已安装的应用 → NodePaper → 卸载”，或开始菜单“卸载 NodePaper”。卸载器保存在安装目录中，删除下载的 Setup 后仍可正常卸载。
-- ZIP 安装：
+</details>
 
-  ```powershell
-  & "$env:LOCALAPPDATA\Programs\NodePaper\Uninstall-NodePaper.ps1"
-  ```
+### 交给 AI 助手安装
 
-卸载只删除 NodePaper 的安装目录、它自己创建的 PATH 项、快捷方式和卸载注册项，不会删除论文 Project、`dist` 中的 PDF、TeX Live/MiKTeX 或其他软件。构建仍在进行时，卸载器会提示先关闭 NodePaper 再重试。
-
-### 可选：交给 AI 助手完成安装
-
-如果你在使用 Codex、Claude Code、Cursor 或其他具备本机操作能力的 Coding Agent，可以把下面的 Prompt 原样复制给它。这是一个可选入口，不是唯一安装方式，也不是 NodePaper 的运行时能力；上面的手工步骤始终可用。
-
-当前 Prompt 面向“本机已有候选文件”的测试阶段安装。正式发布后会再补充“从官方 GitHub Releases 下载并校验”的 Prompt。
+把下面这段复制给 Codex、Claude Code、Cursor 等能操作本机的助手：
 
 ```text
-你是一个可以在我的 Windows 电脑上执行命令的编码代理。请用我本机已有的安装文件安装 NodePaper，并严格遵守下列规则。
-
-1. 只使用我在本条消息中给出的本地文件路径：Setup 为 NodePaper-Setup-<版本>-windows-x64.exe（或便携包 nodepaper-<版本>-windows-x64.zip），校验信息为同一批文件中的 release-manifest-<版本>.json。不要联网下载任何“NodePaper 安装包”，不要使用第三方镜像、网盘或搜索结果，也不要从源码编译或自行拼装安装包。
-2. 如果我没有给出文件路径或 release-manifest-<版本>.json，就停止并向我索取，不要自己去找替代文件。
-3. 安装前先核对，并把结果原样告诉我，不要替我下结论：
-   文件名是否与 release-manifest-<版本>.json 中 setup-exe 渠道记录的 file 一致；
-   Get-FileHash <文件路径> -Algorithm SHA256 是否等于 manifest 中的 sha256；
-   文件大小是否等于 manifest 中的 size；
-   Get-AuthenticodeSignature <文件路径> 的签名状态。
-4. 只要文件名、大小、SHA-256 有任何不一致，就停止安装并报告。
-5. 这是尚未正式发布的候选版本，且当前 Setup 没有 Authenticode 签名。运行前先向我说明版本号、manifest 中的来源提交、未签名事实以及 Windows SmartScreen 或安全软件可能拦截，等我明确同意后再继续；不要绕过、不要关闭或修改 Defender、SmartScreen、防火墙或任何安全设置。
-6. 使用可见的安装界面运行 Setup，不要使用静默安装参数，不要请求管理员权限（NodePaper 按当前用户安装）。如果某一步需要管理员权限、删除文件，或需要安装 TeX Live、MiKTeX 这类大型依赖，先说明磁盘占用和时间代价，并征得我同意。
-7. 安装完成后打开一个新终端，执行 nodepaper --version 和 nodepaper doctor，把真实输出如实解释给我；并确认 --version 与 manifest 中的版本一致。如果 doctor 报告缺少 TeX 环境，先说明再问我是否安装。
-8. 不要索取或使用任何 Token、密码或凭据；不要执行论文附录中的代码；不要删除或修改我的论文 Project、dist 中的 PDF 或其他文件。你的输出只是安装过程记录，不能当作测试通过或质量证据。
+请帮我安装 NodePaper（Windows）。规则：
+1. 只用我给你的本地安装包路径，或 https://github.com/Cat5E0/NodePaper 的官方 Releases；不要用第三方镜像、网盘或搜索结果。
+2. 安装前用 Get-FileHash 核对 SHA-256 与同版本 release-manifest 一致，不一致就停下告诉我。
+3. 这是未签名的测试版，SmartScreen 可能拦截；把是否继续交给我决定，不要关闭任何安全软件。
+4. 正常双击运行安装程序，不要静默安装或请求管理员权限。
+5. 如果需要安装 TeX Live 或 MiKTeX 这类大型依赖，先告诉我体积和耗时再问我。
+6. 装完在新终端跑 nodepaper --version 和 nodepaper doctor，把真实输出发我。
 ```
 
 ## 快速开始

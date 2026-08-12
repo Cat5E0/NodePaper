@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Validate an extracted (or zipped) NodePaper release-candidate package.
 
@@ -278,17 +278,23 @@ try {
     foreach ($text in @(@{ Name = "README.md"; Value = $chineseReadme }, @{ Name = "README.en.md"; Value = $englishReadme }, @{ Name = "THIRD_PARTY_NOTICES.md"; Value = $notices })) {
         Assert-True (-not ($text.Value -match 'README\.zh-CN\.md')) "$($text.Name) still references the removed README.zh-CN.md"
     }
+    # The AI prompt must keep its substantive safety constraints even when the
+    # prose is shortened: unsigned build disclosed, security software never
+    # disabled, and the decision left to the user.
+    foreach ($readme in @(@{ Name = "README.md"; Value = $chineseReadme; Unsigned = "未签名"; NoDisable = "不要关闭" },
+                          @{ Name = "README.en.md"; Value = $englishReadme; Unsigned = "unsigned"; NoDisable = "never disable" })) {
+        Assert-True ($readme.Value -match [regex]::Escape($readme.Unsigned)) "$($readme.Name) does not disclose the unsigned build"
+        Assert-True ($readme.Value -match [regex]::Escape($readme.NoDisable)) "$($readme.Name) does not forbid disabling security software"
+    }
     foreach ($fragment in @(
         "https://github.com/Cat5E0/NodePaper",
         "NodePaper-Setup-",
         "release-manifest-",
         "Get-FileHash",
-        "Get-AuthenticodeSignature",
         "nodepaper --version",
         "nodepaper doctor",
         "SHA-256",
-        "SmartScreen",
-        "Defender"
+        "SmartScreen"
     )) {
         Assert-True ($chineseReadme.Contains($fragment)) "Chinese README AI install prompt lacks '$fragment'"
         Assert-True ($englishReadme.Contains($fragment)) "English README AI install prompt lacks '$fragment'"
