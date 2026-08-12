@@ -265,11 +265,22 @@ try {
     New-Item -ItemType Directory -Force -Path $arbitrary | Out-Null
     $originalProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
     try {
+        # A new terminal combines the machine and user Path. The installed
+        # command must be reachable there.
         [Environment]::SetEnvironmentVariable("Path", ([Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")), "Process")
+        $resolutions = @(Get-Command nodepaper -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object { (Resolve-Path -LiteralPath $_.Source).Path })
+        Assert-True ($resolutions -contains (Resolve-Path -LiteralPath $installedExe).Path) "a new terminal reaches the installed nodepaper through the user Path"
+        if ($resolutions.Count -gt 1) {
+            Write-Host "  note: this machine has $($resolutions.Count) nodepaper.exe on the Path; the first is $($resolutions[0])"
+        }
+        # Version and onboarding are checked with the installation directory
+        # first, so an unrelated pre-existing NodePaper installation on the
+        # same machine cannot mask the result.
+        [Environment]::SetEnvironmentVariable("Path", ($script:InstallRoot + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine")), "Process")
         Push-Location $arbitrary
         try {
             $reported = (& nodepaper --version 2>&1 | Out-String).Trim()
-            Assert-True ($reported -eq "nodepaper $version") "a new terminal resolves nodepaper from any directory ($reported)"
+            Assert-True ($reported -eq "nodepaper $version") "the installed command reports the release version from any directory ($reported)"
             $onboarding = (& nodepaper 2>&1 | Out-String)
             Assert-True ($LASTEXITCODE -eq 0) "no-argument onboarding exits with 0 in a non-TTY context"
             Assert-True ($onboarding.Contains("nodepaper init")) "no-argument onboarding guides the next step"
