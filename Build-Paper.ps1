@@ -227,34 +227,59 @@ if ($SkipPdf) {
     exit 0
 }
 
-$latexmk = Find-CommandPath @(
-    (Join-Path $PSScriptRoot "tools\windows-x64\texlive\bin\windows\latexmk.exe"),
-    "latexmk.exe",
-    "latexmk"
-)
 $xelatex = Find-CommandPath @(
     (Join-Path $PSScriptRoot "tools\windows-x64\texlive\bin\windows\xelatex.exe"),
     "xelatex.exe",
     "xelatex"
 )
 
-if (-not $latexmk -or -not $xelatex) {
+if (-not $xelatex) {
     Write-Log "LaTeX compiler not found. Generated LaTeX, but skipped PDF: $outputPath" "WARN"
     exit 0
 }
 
+# XeLaTeX is driven directly instead of through latexmk. latexmk is a Perl
+# script and MiKTeX ships no Perl interpreter, so requiring it made every
+# MiKTeX installation fail on a dependency the user cannot see. Its remaining
+# value here was only "re-run until cross-references stabilise": citations are
+# already resolved by Pandoc's citeproc before the .tex exists, so no
+# bibtex/biber stage is needed.
+$latexLogPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtension($outputPath) + ".log")
 $compileArgs = @(
-    "-xelatex",
     "-interaction=nonstopmode",
     "-file-line-error",
-    "-f",
-    "-outdir=$buildDir",
+    "-halt-on-error=0",
+    "-output-directory=$buildDir",
     $outputPath
 )
 
-$code = Invoke-LoggedCommand -FilePath $latexmk -Arguments $compileArgs -StepName "LaTeX"
+$maxPasses = 4
+$code = 0
+for ($pass = 1; $pass -le $maxPasses; $pass++) {
+    $code = Invoke-LoggedCommand -FilePath $xelatex -Arguments $compileArgs -StepName "LaTeX pass $pass"
+    if ($code -ne 0) {
+        break
+    }
+    if (-not (Test-Path -LiteralPath $latexLogPath)) {
+        break
+    }
+    # XeLaTeX asks for another pass whenever labels, the TOC, bookmarks or
+    # crossref counters moved. Stop as soon as it stops asking.
+    $logText = Get-Content -LiteralPath $latexLogPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($null -eq $logText) {
+        break
+    }
+    if ($logText -notmatch 'Rerun to get|Rerun LaTeX|Label\(s\) may have changed|rerunfilecheck Warning') {
+        Write-Log "LaTeX converged after $pass pass(es)."
+        break
+    }
+    if ($pass -eq $maxPasses) {
+        Write-Log "LaTeX still requested a rerun after $maxPasses passes; continuing with the current PDF." "WARN"
+    }
+}
+
 if ($code -ne 0) {
-    $logPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtension($outputPath) + ".log")
+    $logPath = $latexLogPath
     if (Test-Path -LiteralPath $logPath) {
         Write-Host ""
         Write-Host "Last LaTeX log lines:"

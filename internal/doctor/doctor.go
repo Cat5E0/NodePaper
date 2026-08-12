@@ -70,7 +70,7 @@ func Run(ctx context.Context, projectRoot string, resourceRoot string) Result {
 	checks = append(checks,
 		checkPandoc(ctx, tc.Pandoc, loadedProfile.Definition.PandocVersion),
 		checkPandocCrossref(ctx, tc.PandocCrossref, loadedProfile.Definition.PandocCrossrefVersion),
-		checkLatexmk(ctx, tc.Latexmk),
+		checkXeLaTeXDriver(ctx, tc),
 		checkXeLaTeX(ctx, tc.XeLaTeX),
 	)
 	checks = append(checks, checkChineseProbe(ctx, tc))
@@ -200,15 +200,31 @@ func checkPandocCrossref(ctx context.Context, path, expected string) Check {
 	return Check{Name: "pandoc-crossref", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
-func checkLatexmk(ctx context.Context, path string) Check {
-	if path == "" {
-		return missingTool("latexmk", "Install TeX Live or MiKTeX and ensure latexmk is in PATH.")
+// checkXeLaTeXDriver reports how the PDF stage is driven. NodePaper runs
+// XeLaTeX directly and repeats the pass until cross-references stabilise, so
+// latexmk - a Perl script that MiKTeX cannot run without a separate Perl
+// install - is no longer required. It is still reported when present because
+// users often expect to see it.
+func checkXeLaTeXDriver(ctx context.Context, tc Toolchain) Check {
+	if tc.Latexmk == "" {
+		return Check{
+			Name:    "LaTeX driver",
+			Status:  StatusPass,
+			Message: "NodePaper drives XeLaTeX directly (latexmk and Perl are not required)",
+		}
 	}
-	version, err := commandVersion(ctx, path, []string{"-v"}, regexp.MustCompile(`^Latexmk,.*Version\s+\S+`))
+	version, err := commandVersion(ctx, tc.Latexmk, []string{"-v"}, regexp.MustCompile(`^Latexmk,.*Version\s+\S+`))
 	if err != nil {
-		return failedVersionCheck("latexmk", err)
+		// A latexmk that cannot report its version is almost always a MiKTeX
+		// installation without Perl. It no longer blocks the build.
+		return Check{
+			Name:       "LaTeX driver",
+			Status:     StatusPass,
+			Message:    "NodePaper drives XeLaTeX directly; the latexmk found on PATH cannot run (typically MiKTeX without Perl) and is unused",
+			Suggestion: "No action needed for NodePaper. Install Strawberry Perl only if other tools of yours need latexmk.",
+		}
 	}
-	return Check{Name: "latexmk", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
+	return Check{Name: "LaTeX driver", Status: StatusPass, Message: fmt.Sprintf("XeLaTeX driven directly; latexmk also available (%s)", version)}
 }
 
 func checkXeLaTeX(ctx context.Context, path string) Check {
@@ -246,12 +262,12 @@ func commandVersion(ctx context.Context, path string, args []string, linePattern
 }
 
 func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
-	if tc.Latexmk == "" || tc.XeLaTeX == "" {
+	if tc.XeLaTeX == "" {
 		return Check{
 			Name:       "Chinese TeX probe",
 			Status:     StatusSkipped,
-			Message:    "latexmk or XeLaTeX prerequisite is missing",
-			Suggestion: "Install the missing TeX tools, then run doctor again.",
+			Message:    "XeLaTeX prerequisite is missing",
+			Suggestion: "Install TeX Live or MiKTeX, then run doctor again.",
 		}
 	}
 
@@ -272,12 +288,11 @@ NodePaper 中文环境探针
 	}
 
 	runner := &process.Runner{Dir: dir, CaptureSize: 256 * 1024}
-	processResult, runErr := runner.Run(ctx, tc.Latexmk,
-		"-xelatex",
+	processResult, runErr := runner.Run(ctx, tc.XeLaTeX,
 		"-interaction=nonstopmode",
 		"-halt-on-error",
 		"-file-line-error",
-		"-outdir="+dir,
+		"-output-directory="+dir,
 		texPath,
 	)
 	if runErr != nil || processResult.ExitCode != 0 {
