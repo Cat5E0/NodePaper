@@ -26,6 +26,26 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Keep the window alive after install when the script runs in a console that
+# Windows opened only for it (for example right-click "Run with PowerShell");
+# piped, redirected, non-console and CI invocations must never block.
+function Test-InteractivePause {
+    if ($env:CI) { return $false }
+    if ($null -eq $Host -or $Host.Name -ne "ConsoleHost") { return $false }
+    try {
+        if ([Console]::IsOutputRedirected) { return $false }
+    }
+    catch { return $false }
+    return $true
+}
+
+function Wait-CloseWindow {
+    if (-not (Test-InteractivePause)) { return }
+    Write-Host ""
+    Write-Host "Press Enter to close this window."
+    Read-Host | Out-Null
+}
+
 function Get-NormalizedPathEntry {
     param([string]$Path)
     return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/').ToLowerInvariant()
@@ -166,6 +186,7 @@ catch {
 finally {
     if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction SilentlyContinue }
+    Wait-CloseWindow
 }
 
 Write-Host "NodePaper $($manifest.version) installed for the current user."

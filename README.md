@@ -27,6 +27,8 @@ nodepaper doctor
 
 **便携 ZIP**：解压 `nodepaper-<版本>-windows-x64.zip`，运行 `.\Install-NodePaper.ps1` 注册命令；也可以直接用解压目录里的 `nodepaper.exe`，不安装、不改 PATH。卸载用同目录的 `Uninstall-NodePaper.ps1`。
 
+> 注意：双击 `nodepaper.exe` 只会打开一个显示引导文字的窗口，**不会安装任何东西**，按回车关闭；安装请双击 Setup，或用 PowerShell 窗口运行 `Install-NodePaper.ps1`（脚本在独立窗口运行结束时会在显示结果后停留，提示按回车关闭）。
+
 **校验下载**：每个版本附带 `release-manifest-<版本>.json`，内含两个渠道的文件大小与 SHA-256。
 
 ```powershell

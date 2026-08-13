@@ -57,6 +57,7 @@ func writeConsoleHoldNotice(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "This window was opened only for nodepaper.exe and would close immediately.")
 	fmt.Fprintln(w, "NodePaper is a command-line tool; nothing was installed or changed here.")
+	fmt.Fprintln(w, "To install NodePaper, run the NodePaper-Setup-<version>-windows-x64.exe file.")
 	fmt.Fprintln(w, "Start it from:")
 	fmt.Fprintln(w, "  Start menu > NodePaper")
 	fmt.Fprintln(w, "  or a terminal (Windows Terminal / PowerShell): nodepaper --help")

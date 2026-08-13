@@ -445,6 +445,7 @@ func TestConsoleHoldNoticeGuidesToStartMenuAndTerminal(t *testing.T) {
 	for _, want := range []string{
 		"would close immediately",
 		"nothing was installed or changed",
+		"NodePaper-Setup-<version>-windows-x64.exe",
 		"Start menu > NodePaper",
 		"nodepaper --help",
 		"Press Enter to close this window.",
