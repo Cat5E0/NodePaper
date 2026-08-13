@@ -175,6 +175,13 @@ $if(abstract)$
 \begin{center}
   {\heiti\zihao{3} 摘要\par}
 \end{center}
+% center 是 trivlist，\end{center} 会触发 \@doendpe 往 \everypar 里装
+% {\setbox\z@\lastbox}，把紧随其后那一段的缩进盒子吞掉——摘要正文首段因此
+% 丢失 2em 中文首行缩进，而后续段落正常。ctexart 的 indentfirst 只覆盖
+% \@afterheading 那条路径，救不了这里；\@endpefalse 也无效，因为真正生效的
+% 是 \everypar 钩子而不是 @endpe 标志。这里清空 \everypar 即可，且不改动
+% center 自身的垂直间距，版面除首行缩进外保持不变。
+\everypar{}
 \vspace{0.5em}
 $if(nodepaper-abstract-linespread)$
 {\linespread{$nodepaper-abstract-linespread$}\selectfont
