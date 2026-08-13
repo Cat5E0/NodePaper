@@ -59,7 +59,7 @@ func TestRunSuccessMatchesFailingChecks(t *testing.T) {
 func TestFormatChecks(t *testing.T) {
 	checks := []Check{
 		{Name: "pandoc", Status: StatusPass, Message: "ok"},
-		{Name: "latexmk", Status: StatusWarning, Message: "untested", Suggestion: "verify version"},
+		{Name: "LaTeX driver", Status: StatusWarning, Message: "untested", Suggestion: "verify version"},
 		{Name: "xelatex", Status: StatusFail, Message: "missing"},
 		{Name: "probe", Status: StatusSkipped, Message: "blocked"},
 	}

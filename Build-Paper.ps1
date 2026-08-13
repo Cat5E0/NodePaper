@@ -54,6 +54,18 @@ function Find-CommandPath {
     return $null
 }
 
+# Mirrors internal/latexlog CategoryRerun (NP6104) so the pass loop and the
+# Go-side log inspection agree on what still needs another XeLaTeX run. The
+# hyperref /PageLabels rerun is also included: without it the final pass would
+# leave that package warning and Go would classify it as an unknown warning.
+function Test-LaTeXNeedsRerun {
+    param([string]$LogText)
+    if ([string]::IsNullOrWhiteSpace($LogText)) {
+        return $false
+    }
+    return $LogText -match 'Label\(s\) may have changed|Rerun to get cross-references right|Rerun to get /PageLabels entry|Please .*rerun|rerunfilecheck Warning:'
+}
+
 function Copy-LatexLog {
     param(
         [string]$BuildDir,
@@ -258,23 +270,33 @@ $code = 0
 for ($pass = 1; $pass -le $maxPasses; $pass++) {
     $code = Invoke-LoggedCommand -FilePath $xelatex -Arguments $compileArgs -StepName "LaTeX pass $pass"
     if ($code -ne 0) {
+        Write-Log "XeLaTeX pass $pass exited non-zero; stopping." "ERROR"
         break
     }
-    if (-not (Test-Path -LiteralPath $latexLogPath)) {
+    if (-not (Test-Path -LiteralPath $latexLogPath -PathType Leaf)) {
+        Write-Log "XeLaTeX pass $pass produced no log at $latexLogPath; stopping." "ERROR"
+        $code = 1
         break
     }
     # XeLaTeX asks for another pass whenever labels, the TOC, bookmarks or
     # crossref counters moved. Stop as soon as it stops asking.
     $logText = Get-Content -LiteralPath $latexLogPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($null -eq $logText) {
+        Write-Log "XeLaTeX pass $pass log could not be read; stopping." "ERROR"
+        $code = 1
         break
     }
-    if ($logText -notmatch 'Rerun to get|Rerun LaTeX|Label\(s\) may have changed|rerunfilecheck Warning') {
-        Write-Log "LaTeX converged after $pass pass(es)."
+    if (-not (Test-LaTeXNeedsRerun -LogText $logText)) {
+        Write-Log "LaTeX converged after $pass pass(es); no rerun requested."
         break
     }
+    Write-Log "LaTeX pass $pass requested another run."
     if ($pass -eq $maxPasses) {
-        Write-Log "LaTeX still requested a rerun after $maxPasses passes; continuing with the current PDF." "WARN"
+        # Convergence is a NodePaper build contract: an unconverged PDF could
+        # contain stale references. Fail and let Go surface NP6104 instead of
+        # publishing a PDF whose rerun request we already saw.
+        Write-Log "LaTeX still requested a rerun after $maxPasses passes; convergence was not reached." "ERROR"
+        $code = 1
     }
 }
 

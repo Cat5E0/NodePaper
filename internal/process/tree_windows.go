@@ -16,7 +16,8 @@ func configureProcessTreeCancellation(cmd *exec.Cmd) {
 		}
 
 		// taskkill /T terminates descendants created by PowerShell, Pandoc,
-		// latexmk and XeLaTeX. Process.Kill alone only stops the direct child.
+		// XeLaTeX (and the historical latexmk transition). Process.Kill alone
+		// only stops the direct child.
 		killer := exec.Command("taskkill.exe", "/PID", strconv.Itoa(cmd.Process.Pid), "/T", "/F")
 		if err := killer.Run(); err == nil {
 			return nil

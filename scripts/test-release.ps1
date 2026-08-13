@@ -350,6 +350,11 @@ try {
         if ($check.name -eq "Pandoc" -and $check.status -eq "pass") {
             Write-Host "Pandoc check: $($check.message)"
         }
+        if ($check.name -eq "LaTeX driver") {
+            Assert-True ($check.status -eq "pass") "doctor LaTeX driver check did not pass: $($check.message)"
+            Assert-True ($check.message -match "XeLaTeX driven directly|drives XeLaTeX directly") "doctor does not report direct XeLaTeX drive: $($check.message)"
+            Write-Host "LaTeX driver check: $($check.message)"
+        }
     }
     Assert-True ($profileSHA256 -ne "") "doctor JSON did not report the Profile snapshot SHA-256"
 
