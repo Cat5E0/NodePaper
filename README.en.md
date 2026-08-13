@@ -28,6 +28,7 @@ It installs into your user profile without administrator rights. Uninstall from 
 **Portable ZIP**: extract `nodepaper-<version>-windows-x64.zip` and run `.\Install-NodePaper.ps1` to register the command, or just run `nodepaper.exe` from the extracted folder without installing or touching PATH. `Uninstall-NodePaper.ps1` sits next to it.
 
 > Note: double-clicking `nodepaper.exe` only opens a window with guidance text and **installs nothing**; press Enter to close it. To install, double-click the Setup, or run `Install-NodePaper.ps1` from a PowerShell window (when it runs in its own window it stays open after showing the result and asks you to press Enter).
+> Version behaviour: `Install-NodePaper.ps1` detects the version already installed in the target directory. Upgrade and same-version repair continue directly; if this package is older than the installed version (downgrade), it asks for confirmation in an owned console and is rejected in non-interactive (piped/CI) runs, where you must uninstall the newer version first or confirm interactively.
 
 **Verify the download**: every version ships `release-manifest-<version>.json` with the size and SHA-256 of both channels.
 

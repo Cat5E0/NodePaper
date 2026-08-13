@@ -56,8 +56,8 @@ function Invoke-Installer {
     param([string]$PackageDir, [string]$InstallRoot, [string]$Label)
     $installer = Join-Path $PackageDir "Install-NodePaper.ps1"
     $uninstaller = Join-Path $PackageDir "Uninstall-NodePaper.ps1"
-    Assert-True (Test-Path -LiteralPath $installer) "$Label: Install-NodePaper.ps1 missing in $PackageDir"
-    Assert-True (Test-Path -LiteralPath $uninstaller) "$Label: Uninstall-NodePaper.ps1 missing in $PackageDir"
+    Assert-True (Test-Path -LiteralPath $installer) "${Label}: Install-NodePaper.ps1 missing in $PackageDir"
+    Assert-True (Test-Path -LiteralPath $uninstaller) "${Label}: Uninstall-NodePaper.ps1 missing in $PackageDir"
     $callError = ""
     try {
         & $installer -InstallRoot $InstallRoot -PathScope Process 2>&1 | ForEach-Object { Write-Host $_ }
@@ -81,13 +81,13 @@ function Get-InstalledVersion {
 
 function Test-Residue {
     param([string]$InstallRoot, [string]$Label)
-    Assert-True (-not (Test-Path -LiteralPath $InstallRoot)) "$Label: install directory residue"
+    Assert-True (-not (Test-Path -LiteralPath $InstallRoot)) "${Label}: install directory residue"
     $processPath = [Environment]::GetEnvironmentVariable("Path", "Process")
     $normalized = Get-NormalizedPathEntry $InstallRoot
     $inPath = @($processPath -split ';' | ForEach-Object {
         try { (Get-NormalizedPathEntry $_.Trim().Trim('"')) -eq $normalized } catch { $false }
     } | Where-Object { $_ })
-    Assert-True ($inPath.Count -eq 0) "$Label: PATH residue"
+    Assert-True ($inPath.Count -eq 0) "${Label}: PATH residue"
 }
 
 function Uninstall-Cleanup {
@@ -141,9 +141,16 @@ try {
     Assert-True ($repair.Exit -eq 0) "repair install failed: $($repair.Error)"
     Assert-True ((Get-InstalledVersion $installRoot) -eq $upgradedVersion) "repair install changed the version"
 
-    # 4. Silent downgrade must be rejected; the new version stays.
+    # 4. Silent downgrade must be rejected by the NEW installer when a newer
+    # version is already installed. There is no published candidate newer than
+    # rc.8, so simulate it by raising the installed manifest version; the exe
+    # itself still reports rc.8 and must stay untouched after the rejection.
     $versionBeforeDowngrade = Get-InstalledVersion $installRoot
-    $downgrade = Invoke-Installer $oldDir $installRoot "downgrade-old"
+    $installedManifestPath = Join-Path $installRoot "payload-manifest.json"
+    $installedManifest = Get-Content -LiteralPath $installedManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $installedManifest.version = "0.1.0-rc.99"
+    $installedManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $installedManifestPath -Encoding UTF8
+    $downgrade = Invoke-Installer $newDir $installRoot "downgrade-new"
     Assert-True ($downgrade.Exit -ne 0) "silent downgrade was not rejected: $($downgrade.Error)"
     Assert-True ((Get-InstalledVersion $installRoot) -eq $versionBeforeDowngrade) "silent downgrade changed the installed version"
     Assert-True (Test-Path -LiteralPath $pdfBefore -PathType Leaf) "silent downgrade removed the Project PDF"
