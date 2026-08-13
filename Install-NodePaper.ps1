@@ -51,6 +51,42 @@ function Get-NormalizedPathEntry {
     return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/').ToLowerInvariant()
 }
 
+# Compare NodePaper versions like the Setup does: major.minor.patch numerically,
+# then the -rc.N prerelease suffix ordinally. Returns -1 (Left < Right), 0 or 1.
+function Compare-NodePaperVersion {
+    param([string]$Left, [string]$Right)
+    $leftMain = $Left; $leftPre = ""
+    $dash = $leftMain.IndexOf('-')
+    if ($dash -gt 0) { $leftPre = $leftMain.Substring($dash + 1); $leftMain = $leftMain.Substring(0, $dash) }
+    $rightMain = $Right; $rightPre = ""
+    $dash = $rightMain.IndexOf('-')
+    if ($dash -gt 0) { $rightPre = $rightMain.Substring($dash + 1); $rightMain = $rightMain.Substring(0, $dash) }
+    $leftNumbers = @($leftMain.Split('.') | ForEach-Object { $value = 0; [int]::TryParse($_, [ref]$value) | Out-Null; $value })
+    $rightNumbers = @($rightMain.Split('.') | ForEach-Object { $value = 0; [int]::TryParse($_, [ref]$value) | Out-Null; $value })
+    for ($index = 0; $index -lt 3; $index++) {
+        $leftValue = if ($index -lt $leftNumbers.Count) { $leftNumbers[$index] } else { 0 }
+        $rightValue = if ($index -lt $rightNumbers.Count) { $rightNumbers[$index] } else { 0 }
+        if ($leftValue -lt $rightValue) { return -1 }
+        if ($leftValue -gt $rightValue) { return 1 }
+    }
+    if ($leftPre -eq $rightPre) { return 0 }
+    if ($leftPre -eq "") { return 1 }
+    if ($rightPre -eq "") { return -1 }
+    return [Math]::Sign([string]::CompareOrdinal($leftPre, $rightPre))
+}
+
+# Ask for confirmation only when this script runs in a console that Windows
+# opened only for it; piped, redirected, non-console and CI invocations never
+# prompt and follow the safe default per case (see caller).
+function Confirm-Installation {
+    param([string]$Message)
+    if (-not (Test-InteractivePause)) { return $true }
+    Write-Host $Message
+    Write-Host "Continue? [Y/n]: " -NoNewline
+    $answer = Read-Host
+    return ($answer -eq "" -or $answer -match '^[Yy]')
+}
+
 function Get-PathValue {
     param([string]$Scope)
     if ($Scope -eq "Process") { return [Environment]::GetEnvironmentVariable("Path", "Process") }
@@ -139,6 +175,45 @@ if ($sourceNormalized -eq $targetNormalized -or $targetNormalized.StartsWith($so
 
 $parent = Split-Path -Parent $InstallRoot
 New-Item -ItemType Directory -Force -Path $parent | Out-Null
+
+# Detect an existing installation and compare versions before touching it.
+# Upgrade and repair continue; downgrade must be confirmed interactively and is
+# rejected in non-interactive runs, matching the Setup's silent-mode default.
+$installedVersion = ""
+$installedManifestPath = Join-Path $InstallRoot "payload-manifest.json"
+if (Test-Path -LiteralPath $installedManifestPath -PathType Leaf) {
+    try {
+        $installedManifest = Get-Content -LiteralPath $installedManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $installedVersion = [string]$installedManifest.version
+    }
+    catch { $installedVersion = "" }
+}
+if ($installedVersion -ne "") {
+    $versionComparison = Compare-NodePaperVersion ([string]$manifest.version) $installedVersion
+    if ($versionComparison -lt 0) {
+        # Downgrade: confirm interactively; reject silently otherwise.
+        if (-not (Test-InteractivePause)) {
+            throw "A newer NodePaper ($installedVersion) is already installed and this package is the older $($manifest.version). Downgrade requires confirmation; run this script interactively or uninstall the newer version first."
+        }
+        if (-not (Confirm-Installation "NodePaper $installedVersion is already installed. This package is the older $($manifest.version); continuing will downgrade to $($manifest.version).")) {
+            throw "Installation cancelled by the user; the existing installation was not changed."
+        }
+        Write-Host "Downgrading NodePaper from $installedVersion to $($manifest.version)."
+    }
+    elseif ($versionComparison -gt 0) {
+        if (-not (Confirm-Installation "NodePaper $installedVersion is already installed. This package will upgrade it to $($manifest.version).")) {
+            throw "Installation cancelled by the user; the existing installation was not changed."
+        }
+        Write-Host "Upgrading NodePaper from $installedVersion to $($manifest.version)."
+    }
+    else {
+        if (-not (Confirm-Installation "NodePaper $($manifest.version) is already installed. Continuing performs a repair install.")) {
+            throw "Installation cancelled by the user; the existing installation was not changed."
+        }
+        Write-Host "Repairing NodePaper $($manifest.version)."
+    }
+}
+
 $stage = Join-Path $parent (".nodepaper-install-" + [Guid]::NewGuid().ToString("N"))
 $backup = Join-Path $parent (".nodepaper-backup-" + [Guid]::NewGuid().ToString("N"))
 $oldPath = Get-PathValue $PathScope
