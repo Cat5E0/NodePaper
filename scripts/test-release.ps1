@@ -281,10 +281,13 @@ try {
     # The AI prompt must keep its substantive safety constraints even when the
     # prose is shortened: unsigned build disclosed, security software never
     # disabled, and the decision left to the user.
-    foreach ($readme in @(@{ Name = "README.md"; Value = $chineseReadme; Unsigned = "未签名"; NoDisable = "不要关闭" },
-                          @{ Name = "README.en.md"; Value = $englishReadme; Unsigned = "unsigned"; NoDisable = "never disable" })) {
+    foreach ($readme in @(@{ Name = "README.md"; Value = $chineseReadme; Unsigned = "未签名"; NoDisable = "不要[^\n]{0,30}关闭" },
+                          @{ Name = "README.en.md"; Value = $englishReadme; Unsigned = "unsigned"; NoDisable = "never[^\n]{0,30}disable" })) {
         Assert-True ($readme.Value -match [regex]::Escape($readme.Unsigned)) "$($readme.Name) does not disclose the unsigned build"
-        Assert-True ($readme.Value -match [regex]::Escape($readme.NoDisable)) "$($readme.Name) does not forbid disabling security software"
+        # README forbids disabling security software in its own phrasing (for
+        # example "不要为此关闭系统安全功能" / "never bypass or disable security
+        # software"); match the negative requirement instead of one literal string.
+        Assert-True ($readme.Value -match $readme.NoDisable) "$($readme.Name) does not forbid disabling security software"
     }
     foreach ($fragment in @(
         "https://github.com/Cat5E0/NodePaper",
