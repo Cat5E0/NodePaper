@@ -60,7 +60,8 @@ func Run(ctx context.Context, projectDir string) Result {
 
 	result.Diagnostics = append(result.Diagnostics, validateConfigPaths(p, cfg)...)
 	result.Diagnostics = append(result.Diagnostics, validateSources(p, cfg)...)
-	result.Diagnostics = append(result.Diagnostics, validateFragments(p, cfg)...)
+	validFragments, fragmentDiags := validateFragments(p, cfg)
+	result.Diagnostics = append(result.Diagnostics, fragmentDiags...)
 
 	files := readableSources(p, cfg)
 	if len(files) > 0 {
@@ -72,7 +73,7 @@ func Run(ctx context.Context, projectDir string) Result {
 	if !appendCancellation(ctx, &result) {
 		result.Diagnostics = append(result.Diagnostics, validateResources(p, files)...)
 		result.Diagnostics = append(result.Diagnostics, validateCitationsAndCrossrefs(p, files)...)
-		result.Diagnostics = append(result.Diagnostics, validateDeclaredFragmentInputs(files, cfg)...)
+		result.Diagnostics = append(result.Diagnostics, validateDeclaredFragmentInputs(files, cfg, validFragments)...)
 		result.Diagnostics = append(result.Diagnostics, validateRawLatex(files)...)
 	}
 
@@ -121,13 +122,13 @@ func validateConfigPaths(p project.Project, cfg config.ProjectConfig) []diagnost
 	return nil
 }
 
-func validateFragments(p project.Project, cfg config.ProjectConfig) []diagnostic.Diagnostic {
-	_, issues := fragment.Inspect(p.Root, cfg.LatexFragments)
+func validateFragments(p project.Project, cfg config.ProjectConfig) ([]fragment.File, []diagnostic.Diagnostic) {
+	files, issues := fragment.Inspect(p.Root, cfg.LatexFragments)
 	diags := make([]diagnostic.Diagnostic, 0, len(issues))
 	for _, issue := range issues {
 		diags = append(diags, fragmentDiagnostic(issue, "validate"))
 	}
-	return diags
+	return files, diags
 }
 
 func fragmentDiagnostic(issue fragment.Issue, source string) diagnostic.Diagnostic {
@@ -552,18 +553,21 @@ func sortedKeys(values map[string]string) []string {
 var fragmentInputRE = regexp.MustCompile(`\\input\s*\{([^}\r\n]+)\}`)
 var unsafeRawTeXCommandRE = regexp.MustCompile(`(?i)\\(?:include|includeonly|inputiffileexists|subfile|import|subimport|includegraphics|verbatiminput|lstinputlisting|bibliography|addbibresource|write18|shellescape|pdfshellescape|immediate|openin|openout|read|write|catcode|csname|scantokens|special|directlua|endlinechar|escapechar)\b`)
 
-func validateDeclaredFragmentInputs(files []sourceFile, cfg config.ProjectConfig) []diagnostic.Diagnostic {
-	declared := make(map[string]bool, len(cfg.LatexFragments))
+func validateDeclaredFragmentInputs(files []sourceFile, cfg config.ProjectConfig, validFragments []fragment.File) []diagnostic.Diagnostic {
+	declared := make(map[string]string, len(cfg.LatexFragments))
 	for _, path := range cfg.LatexFragments {
-		declared[strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(path))))] = true
+		key := strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(path))))
+		declared[key] = path
 	}
+	used := make(map[string]bool, len(declared))
 	var diags []diagnostic.Diagnostic
 	for _, file := range files {
 		content := removeCodeBlocks(string(file.data))
 		for _, match := range fragmentInputRE.FindAllStringSubmatchIndex(content, -1) {
 			path := strings.TrimSpace(content[match[2]:match[3]])
 			key := strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(path))))
-			if declared[key] {
+			if _, ok := declared[key]; ok {
+				used[key] = true
 				continue
 			}
 			line := strings.Count(content[:match[0]], "\n") + 1
@@ -588,6 +592,28 @@ func validateDeclaredFragmentInputs(files []sourceFile, cfg config.ProjectConfig
 				Source:     "validate",
 			})
 		}
+	}
+
+	valid := make(map[string]bool, len(validFragments))
+	for _, file := range validFragments {
+		key := strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(file.Relative))))
+		valid[key] = true
+	}
+	reported := make(map[string]bool, len(declared))
+	for _, path := range cfg.LatexFragments {
+		key := strings.ToLower(filepath.ToSlash(filepath.Clean(filepath.FromSlash(path))))
+		if !valid[key] || used[key] || reported[key] {
+			continue
+		}
+		reported[key] = true
+		diags = append(diags, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityWarning,
+			Code:       fragment.CodeUnusedDeclaration,
+			Message:    fmt.Sprintf("LaTeX fragment is declared but not inserted in any Markdown Source: %s", path),
+			File:       "nodepaper.yaml",
+			Suggestion: fmt.Sprintf("Insert it at the intended location in a Markdown Source with \\input{%s}.", path),
+			Source:     "validate",
+		})
 	}
 	return diags
 }

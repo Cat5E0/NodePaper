@@ -22,6 +22,35 @@ func TestValidateAcceptsDeclaredFragmentInput(t *testing.T) {
 	if !result.Success {
 		t.Fatalf("Run() diagnostics = %#v", result.Diagnostics)
 	}
+	if diagnosticsContain(result, "NP2511") {
+		t.Fatalf("Run() diagnostics = %#v, did not want NP2511", result.Diagnostics)
+	}
+}
+
+func TestValidateWarnsWhenDeclaredFragmentIsNotInserted(t *testing.T) {
+	projectDir := fragmentProject(t, `latexFragments:
+  - tables/result.tex
+`)
+	if err := os.MkdirAll(filepath.Join(projectDir, "tables"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "tables", "result.tex"), []byte("\\begin{longtable}{ll}\na & b\\\\\n\\end{longtable}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := Run(context.Background(), projectDir)
+	if !result.Success {
+		t.Fatalf("Run() diagnostics = %#v, want warning-only success", result.Diagnostics)
+	}
+	for _, diag := range result.Diagnostics {
+		if diag.Code == "NP2511" {
+			if diag.File != "nodepaper.yaml" || diag.Severity != "warning" || diag.Suggestion != "Insert it at the intended location in a Markdown Source with \\input{tables/result.tex}." {
+				t.Fatalf("NP2511 = %#v", diag)
+			}
+			return
+		}
+	}
+	t.Fatalf("Run() diagnostics = %#v, want NP2511", result.Diagnostics)
 }
 
 func TestValidateRejectsUndeclaredFragmentInput(t *testing.T) {

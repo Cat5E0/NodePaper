@@ -10,17 +10,17 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 ## Installation
 
-Requires Windows 10/11 x64 and either TeX Live or MiKTeX (providing `xelatex`).
+Requires Windows 10/11 x64 and either TeX Live or MiKTeX (providing `xelatex`). NodePaper drives XeLaTeX directly; **latexmk and Perl are not required**.
 
-Download `NodePaper-Setup-<version>-windows-x64.exe` from [Releases](https://github.com/Cat5E0/NodePaper/releases), run it, then open a new terminal:
+> The official repository, <https://github.com/Cat5E0/NodePaper>, has no public GitHub Release assets yet. Test candidates are handed out directly by the maintainer. Obtain `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP) together with the matching `release-manifest-<version>.json`; do not use third-party downloads or GitHub's Source code ZIP.
+
+Run the Setup, then open a new terminal:
 
 ```powershell
 nodepaper doctor
 ```
 
 It installs into your user profile without administrator rights. Uninstall from Windows Settings → Apps, or the Start-menu entry.
-
-> Test phase: candidate files are handed out directly by the maintainer; the Releases page has no assets yet.
 
 <details>
 <summary>Portable build, download verification and the unsigned build</summary>
@@ -44,13 +44,14 @@ Get-FileHash .\NodePaper-Setup-<version>-windows-x64.exe -Algorithm SHA256
 Copy this to Codex, Claude Code, Cursor or another agent that can operate your machine:
 
 ```text
-Please install NodePaper (Windows). Rules:
-1. Use only the local installer path I give you, or the official Releases at https://github.com/Cat5E0/NodePaper - no third-party mirrors, file-sharing links or search results.
-2. Before installing, check the SHA-256 with Get-FileHash against the release-manifest for that version; stop and tell me if it differs.
-3. This is an unsigned test build and SmartScreen may block it. Leave the decision to continue to me and never disable security software.
-4. Run the installer normally with its UI; no silent install and no administrator rights.
-5. If a large dependency such as TeX Live or MiKTeX is needed, tell me the size and time cost and ask me first.
-6. Afterwards run nodepaper --version and nodepaper doctor in a new terminal and show me the real output.
+Please install NodePaper on Windows. Rules:
+1. Use only the local candidate files I explicitly provide: the Setup (or portable ZIP) and the matching release-manifest-<version>.json. Do not search online, use mirrors, file-sharing sites, search results or a Source code ZIP, and do not assemble a package from source.
+2. If either the package or Manifest is missing, ask me for it instead of finding a substitute.
+3. Before installing, report whether the file name and size match the relevant Manifest channel, whether Get-FileHash matches its SHA-256, and the actual Get-AuthenticodeSignature status. Unsigned is expected for the current candidate and does not need to be fixed, but stop on any file-name, size or SHA-256 mismatch.
+4. This is an unreleased, unsigned candidate and SmartScreen may block it. Explain that and wait for my explicit approval; never bypass or disable security software.
+5. Use the visible installer UI, with no silent installation or administrator rights. Before deleting files or installing a large dependency such as TeX Live or MiKTeX, explain the size and time cost and ask me.
+6. Afterwards run nodepaper --version and nodepaper doctor in a new terminal, and show me the real output and version comparison.
+7. Do not request tokens or passwords, execute paper code, or delete or modify paper Projects. Do not present AI output as test evidence.
 ```
 
 ## Quick start
@@ -240,7 +241,20 @@ $$ {#eq:model}
 See @eq:model.
 ```
 
-Advanced tables or equations can use LaTeX Fragments explicitly declared in the Project configuration.
+Advanced tables or equations can use LaTeX Fragments. Usage has two required steps: declare the safety allowlist in `nodepaper.yaml`, then place `\input{...}` at the intended location in a Markdown Source. **A declaration alone does not insert anything into the PDF.**
+
+```yaml
+latexFragments:
+  - tables/complex-result.tex
+```
+
+```markdown
+## Complex result table
+
+\input{tables/complex-result.tex}
+```
+
+`nodepaper validate` rejects an undeclared `\input`. If a Fragment is declared but not inserted in any Markdown Source, it returns the `NP2511` Warning with the required `\input{...}` reminder.
 
 ## Main capabilities
 
@@ -258,7 +272,7 @@ Advanced tables or equations can use LaTeX Fragments explicitly declared in the 
 ## Current limitations
 
 - officially targets Windows 10/11 x64 only;
-- requires an external TeX Live or MiKTeX installation;
+- requires an external TeX Live or MiKTeX installation providing XeLaTeX; latexmk and Perl are not required;
 - the current CUMCM Profile is still a candidate;
 - the Setup is not Authenticode signed yet;
 - no GUI, HTTP service, DOCX, or Typst output;

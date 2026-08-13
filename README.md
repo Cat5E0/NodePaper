@@ -10,17 +10,17 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 ## 安装
 
-需要 Windows 10/11 x64，以及 TeX Live 或 MiKTeX（提供 `xelatex`）。
+需要 Windows 10/11 x64，以及 TeX Live 或 MiKTeX（提供 `xelatex`）。NodePaper 直接驱动 XeLaTeX，**不需要 latexmk 或 Perl**。
 
-从 [Releases](https://github.com/Cat5E0/NodePaper/releases) 下载 `NodePaper-Setup-<版本>-windows-x64.exe`，双击安装，然后打开新终端：
+> 官方仓库 <https://github.com/Cat5E0/NodePaper> 当前尚无公开 GitHub Release 资产。测试候选由维护者直接提供；请同时取得 `NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP）和同批 `release-manifest-<版本>.json`，不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包。
+
+双击 Setup 安装，然后打开新终端：
 
 ```powershell
 nodepaper doctor
 ```
 
 安装到当前用户目录，不需要管理员权限；卸载走 Windows「设置 → 应用」或开始菜单的「卸载 NodePaper」。
-
-> 测试阶段：候选文件由维护者直接提供，Releases 页面暂无资产。
 
 <details>
 <summary>便携版、下载校验与未签名说明</summary>
@@ -45,12 +45,13 @@ Get-FileHash .\NodePaper-Setup-<版本>-windows-x64.exe -Algorithm SHA256
 
 ```text
 请帮我安装 NodePaper（Windows）。规则：
-1. 只用我给你的本地安装包路径，或 https://github.com/Cat5E0/NodePaper 的官方 Releases；不要用第三方镜像、网盘或搜索结果。
-2. 安装前用 Get-FileHash 核对 SHA-256 与同版本 release-manifest 一致，不一致就停下告诉我。
-3. 这是未签名的测试版，SmartScreen 可能拦截；把是否继续交给我决定，不要关闭任何安全软件。
-4. 正常双击运行安装程序，不要静默安装或请求管理员权限。
-5. 如果需要安装 TeX Live 或 MiKTeX 这类大型依赖，先告诉我体积和耗时再问我。
-6. 装完在新终端跑 nodepaper --version 和 nodepaper doctor，把真实输出发我。
+1. 只使用我明确给出的本地候选文件：Setup（或便携 ZIP）和同批 release-manifest-<版本>.json。不要联网寻找安装包，不要使用第三方镜像、网盘、搜索结果、Source code ZIP，也不要从源码自行拼装。
+2. 缺少安装包或 Manifest 时先向我索取，不要寻找替代文件。
+3. 安装前核对并报告：文件名和大小是否等于 Manifest 对应渠道记录、Get-FileHash 的 SHA-256 是否一致、Get-AuthenticodeSignature 的实际状态。未签名是当前候选的已知状态，不要求补签名；但文件名、大小或 SHA-256 任一不一致都必须停止。
+4. 这是未正式发布、未签名的候选版，SmartScreen 可能拦截。说明风险并等我明确同意；不要绕过或关闭任何安全软件。
+5. 使用可见安装界面，不静默安装、不请求管理员权限。删除文件或安装 TeX Live/MiKTeX 等大型依赖前，先说明体积和耗时并征得同意。
+6. 安装后在新终端运行 nodepaper --version 和 nodepaper doctor，把真实输出和版本核对结果发给我。
+7. 不索取 Token 或密码，不执行论文代码，不删除或修改论文 Project；不要把 AI 输出当作测试通过证据。
 ```
 
 ## 快速开始
@@ -240,7 +241,20 @@ $$ {#eq:model}
 见式 @eq:model。
 ```
 
-复杂表格或公式可以使用项目配置中显式声明的 LaTeX Fragment。
+复杂表格或公式可以使用 LaTeX Fragment。使用时必须完成两步：先在 `nodepaper.yaml` 中声明安全白名单，再在某个 Markdown Source 的目标位置写 `\input{...}`；**仅在配置中声明不会自动插入 PDF**。
+
+```yaml
+latexFragments:
+  - tables/complex-result.tex
+```
+
+```markdown
+## 复杂结果表
+
+\input{tables/complex-result.tex}
+```
+
+`nodepaper validate` 会拒绝未声明的 `\input`；如果 Fragment 已声明但没有在任何 Markdown Source 中插入，则返回 `NP2511` Warning，并提示需要补写的 `\input{...}`。
 
 ## 主要能力
 
@@ -258,7 +272,7 @@ $$ {#eq:model}
 ## 当前限制
 
 - 仅正式面向 Windows 10/11 x64；
-- 需要外部 TeX Live 或 MiKTeX；
+- 需要外部 TeX Live 或 MiKTeX 提供 XeLaTeX；不需要 latexmk 或 Perl；
 - 当前 CUMCM Profile 仍是候选版本；
 - Setup 尚未进行 Authenticode 代码签名；
 - 不提供 GUI、HTTP 服务、DOCX 或 Typst 输出；

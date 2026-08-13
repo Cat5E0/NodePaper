@@ -26,6 +26,7 @@ const (
 	CodeCommandExecution   = "NP2508"
 	CodeUndeclaredInput    = "NP2509"
 	CodeChanged            = "NP2510"
+	CodeUnusedDeclaration  = "NP2511"
 )
 
 // File is a validated immutable fragment snapshot.

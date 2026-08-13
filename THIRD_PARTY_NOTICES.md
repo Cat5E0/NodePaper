@@ -103,8 +103,8 @@ installed on user machines.
 ## Not bundled
 
 NodePaper does **not** bundle a TeX distribution. Users must install TeX Live
-or MiKTeX with `xelatex` and `latexmk` themselves; those distributions carry
-their own licenses and obligations. The release package contains no user
+or MiKTeX with `xelatex`; NodePaper drives XeLaTeX directly and does not require
+`latexmk` or Perl. Those distributions carry their own licenses and obligations. The release package contains no user
 papers, no real contest submissions, no secrets and no absolute development
 machine paths.
 
