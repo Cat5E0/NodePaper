@@ -45,3 +45,9 @@ __pycache__/
 # OS
 Thumbs.db
 .DS_Store
+
+# Claude Code 本地权限配置（含本机绝对路径，不共享）
+.claude/settings.local.json
+
+# XeLaTeX 在仓库根目录留下的临时日志
+texput.log
