@@ -302,6 +302,23 @@ try {
         Assert-True ($chineseReadme.Contains($fragment)) "Chinese README AI install prompt lacks '$fragment'"
         Assert-True ($englishReadme.Contains($fragment)) "English README AI install prompt lacks '$fragment'"
     }
+
+    # The TeX prerequisite has to be stated before the install section and with
+    # real numbers. NodePaper installs in seconds while TeX is the multi-hour
+    # part, and a reader who only learns that at `doctor` time has already been
+    # misled about what they were signing up for.
+    Write-Host "Checking README prerequisite section..."
+    foreach ($readme in @(@{ Name = "README.md"; Value = $chineseReadme; Heading = "## 环境准备"; Install = "## 安装" },
+                          @{ Name = "README.en.md"; Value = $englishReadme; Heading = "## Before you start"; Install = "## Installation" })) {
+        $headingAt = $readme.Value.IndexOf($readme.Heading)
+        $installAt = $readme.Value.IndexOf($readme.Install)
+        Assert-True ($headingAt -ge 0) "$($readme.Name) lacks the prerequisite section '$($readme.Heading)'"
+        Assert-True ($installAt -ge 0) "$($readme.Name) lacks '$($readme.Install)'"
+        Assert-True ($headingAt -lt $installAt) "$($readme.Name) puts the prerequisite section after the install section"
+        foreach ($fragment in @("miktex.org/download", "tug.org/texlive", "140 MB", "6.3 GB")) {
+            Assert-True ($readme.Value.Contains($fragment)) "$($readme.Name) prerequisite section lacks '$fragment'"
+        }
+    }
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"
 

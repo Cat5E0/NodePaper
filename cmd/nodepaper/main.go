@@ -148,6 +148,13 @@ func writeOnboarding(w io.Writer, workingDir string) {
 	fmt.Fprintln(w, `  nodepaper init <project-directory>`)
 	fmt.Fprintln(w, "  nodepaper doctor")
 	fmt.Fprintln(w, "  nodepaper --help")
+	// Most people reach this branch on their first run. NodePaper installs in
+	// seconds, which makes it easy to assume the setup is finished, while the
+	// PDF stage needs a TeX distribution that is orders of magnitude larger.
+	// Saying so here costs one line and saves discovering it mid-build.
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "PDF output needs a TeX distribution (TeX Live or MiKTeX) providing xelatex.")
+	fmt.Fprintln(w, "Run `nodepaper doctor` to check it and get install instructions.")
 }
 
 // promptInit is the only interactive path in NodePaper: a bare "init" in a

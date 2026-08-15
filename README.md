@@ -8,9 +8,36 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 > 当前仍处于测试版开发阶段，尚未正式发布。NodePaper 不代表比赛官方认证。
 
-## 安装
+## 环境准备
 
-需要 Windows 10/11 x64，以及 TeX Live 或 MiKTeX（提供 `xelatex`）。NodePaper 直接驱动 XeLaTeX，**不需要 latexmk 或 Perl**。
+需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完，但它**不自带 TeX**——PDF 排版由你机器上的 TeX 发行版完成，安装 TeX 是整个流程中耗时最长的一步。
+
+| 方案 | 下载 | 装完占盘 | 耗时 | 适用 |
+|---|---|---|---|---|
+| **MiKTeX**（推荐先试） | 约 140 MB | 约 1 GB | 约 10～20 分钟 | 磁盘空间有限。首次构建时会自动下载所缺宏包，需联网 |
+| **TeX Live 完整版** | 约 6.3 GB | 约 8～9 GB | 20～60 分钟（使用国内镜像） | 磁盘空间充裕，希望一次装全、之后完全离线 |
+
+以上为量级参考，实际取决于网络与磁盘性能。
+
+下载地址（请使用官方来源）：
+
+- MiKTeX：<https://miktex.org/download>
+- TeX Live：<https://tug.org/texlive/windows.html>
+
+**国内用户建议更换镜像。** TeX Live 默认从国外服务器下载，可能需要数小时；改用国内镜像后通常几十分钟内完成。配置方法见镜像站说明：
+
+- 清华 TUNA：<https://mirrors.tuna.tsinghua.edu.cn/help/CTAN/>
+- 中科大 USTC：<https://mirrors.ustc.edu.cn/CTAN/systems/texlive/tlnet/>
+
+### 注意事项
+
+- 安装路径不要包含中文或空格。TeX 生态对非 ASCII 路径的支持不稳定。
+- 安装完成后需要**打开一个新终端**。PATH 变更不作用于已打开的窗口，这是「已安装但提示找不到 `xelatex`」最常见的原因。
+- 不建议使用 CTeX 套装。它捆绑的是多年未更新的旧版 MiKTeX，可能与当前宏包版本不兼容。NodePaper 只需要一个能运行 `xelatex` 的现代 TeX 发行版。
+
+在新终端执行 `xelatex --version`，有版本输出即表示环境就绪。NodePaper 直接驱动 XeLaTeX，**不需要 latexmk 或 Perl**。
+
+## 安装
 
 > 官方仓库 <https://github.com/Cat5E0/NodePaper> 当前尚无公开 GitHub Release 资产。测试候选由维护者直接提供；请同时取得 `NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP）和同批 `release-manifest-<版本>.json`，不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包。
 

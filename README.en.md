@@ -8,9 +8,33 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 > NodePaper is still under beta development and has not been formally released. It is not endorsed by the competition organizers.
 
-## Installation
+## Before you start
 
-Requires Windows 10/11 x64 and either TeX Live or MiKTeX (providing `xelatex`). NodePaper drives XeLaTeX directly; **latexmk and Perl are not required**.
+Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds, but NodePaper **does not bundle TeX** — typesetting is done by a TeX distribution on your machine, and installing it is the longest step of the whole process.
+
+| Option | Download | Installed | Time | Suits |
+|---|---|---|---|---|
+| **MiKTeX** (try this first) | ~140 MB | ~1 GB | 10–20 min | Limited disk space. Missing packages are downloaded on demand during the first build, so it needs a network connection |
+| **TeX Live, full** | ~6.3 GB | ~8–9 GB | 20–60 min (with a nearby mirror) | Plenty of disk space; everything installed up front and fully offline afterwards |
+
+These are order-of-magnitude figures; the real numbers depend on your network and disk.
+
+Download from the official sources:
+
+- MiKTeX: <https://miktex.org/download>
+- TeX Live: <https://tug.org/texlive/windows.html>
+
+**Use a nearby CTAN mirror.** TeX Live downloads from its default server can take hours; a local mirror usually brings that down to tens of minutes. Mirror lists and setup instructions are published by each mirror, for example <https://mirrors.tuna.tsinghua.edu.cn/help/CTAN/>.
+
+### Notes
+
+- Install to a path without spaces or non-ASCII characters. TeX tooling handles such paths inconsistently.
+- **Open a new terminal after installing.** PATH changes do not apply to already-open windows, and this is the most common reason for "installed but `xelatex` not found".
+- Avoid the CTeX suite. It bundles a years-old MiKTeX that may not match current packages. NodePaper only needs a current TeX distribution that can run `xelatex`.
+
+Run `xelatex --version` in a new terminal; a version banner means you are ready. NodePaper drives XeLaTeX directly; **latexmk and Perl are not required**.
+
+## Installation
 
 > The official repository, <https://github.com/Cat5E0/NodePaper>, has no public GitHub Release assets yet. Test candidates are handed out directly by the maintainer. Obtain `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP) together with the matching `release-manifest-<version>.json`; do not use third-party downloads or GitHub's Source code ZIP.
 

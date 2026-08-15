@@ -39,7 +39,12 @@ func TestRunNoArgsShowsReadOnlyOnboardingOutsideProject(t *testing.T) {
 	if code := runWithIO(context.Background(), nil, strings.NewReader(""), &stdout, &stderr, false, workingDir); code != 0 {
 		t.Fatalf("run() exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"No NodePaper Project", "nodepaper.yaml", "nodepaper init", "nodepaper doctor", "nodepaper --help"} {
+	for _, want := range []string{
+		"No NodePaper Project", "nodepaper.yaml", "nodepaper init", "nodepaper doctor", "nodepaper --help",
+		// First-run users need to learn about the TeX prerequisite here rather
+		// than partway through their first build.
+		"TeX Live or MiKTeX", "xelatex",
+	} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("stdout missing %q: %s", want, stdout.String())
 		}
@@ -73,6 +78,11 @@ func TestRunNoArgsShowsProjectCommandsFromSubdirectory(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("stdout missing %q: %s", want, stdout.String())
 		}
+	}
+	// Someone with a Project already got past setup, so repeating the TeX
+	// prerequisite on every bare invocation would just be noise.
+	if strings.Contains(stdout.String(), "TeX Live or MiKTeX") {
+		t.Errorf("prerequisite notice leaked into the in-project view: %s", stdout.String())
 	}
 }
 
