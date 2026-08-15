@@ -1,17 +1,23 @@
 <#
 .SYNOPSIS
-    Install the verified NodePaper release payload for the current Windows user.
+    Register this extracted NodePaper release on the current user's Path.
 
 .DESCRIPTION
-    Copies this complete release payload to a user-level installation directory,
-    verifies every payload file against payload-manifest.json, and registers the
-    installation directory on the user Path. No administrator rights, network
-    access, telemetry, or automatic update is used.
+    Verifies every payload file against payload-manifest.json, then puts this
+    folder on the user Path. Nothing is copied: NodePaper runs from where it
+    was extracted, which is why this folder must stay where it is. If a
+    previous run registered a different folder, that entry is removed first.
 
-    Reopen the terminal after installation, then run: nodepaper
+    No administrator rights, network access, telemetry, or automatic update is
+    used, and nothing outside the user Path and HKCU\Software\NodePaper is
+    written. Setup installs elsewhere and is left untouched.
+
+    Reopen the terminal afterwards, then run: nodepaper
 
 .PARAMETER InstallRoot
-    User-level destination. Default: %LOCALAPPDATA%\Programs\NodePaper
+    Removed. NodePaper now runs from the folder it was extracted to; passing
+    this reports an error rather than silently ignoring it. To change location,
+    move the folder and run this script again from there.
 
 .PARAMETER PathScope
     User (default) updates the current user's persistent Path. Process exists
@@ -87,10 +93,27 @@ function Confirm-Installation {
     return ($answer -eq "" -or $answer -match '^[Yy]')
 }
 
+# The user Path must be read and written through the registry, never through
+# [Environment]::GetEnvironmentVariable/SetEnvironmentVariable with the User
+# target. Those two damage unrelated software in different ways:
+#
+#   Reading expands the value, so a Path containing %JAVA_HOME%\bin comes back
+#   as the literal directory. Appending to that and writing it back freezes
+#   another program's variable at whatever it happened to point at.
+#
+#   Writing stores REG_SZ, while the user Path is REG_EXPAND_SZ. Every
+#   %VARIABLE% entry then stops expanding at all.
+#
+# Neither failure reports anything. The Inno installer already handles this
+# correctly (see the RegWriteExpandStringValue comment in nodepaper.iss); these
+# helpers bring the ZIP channel in line.
+$script:UserEnvironmentKey = 'HKCU:\Environment'
+
 function Get-PathValue {
     param([string]$Scope)
     if ($Scope -eq "Process") { return [Environment]::GetEnvironmentVariable("Path", "Process") }
-    return [Environment]::GetEnvironmentVariable("Path", "User")
+    return [string](Get-Item -LiteralPath $script:UserEnvironmentKey).GetValue(
+        "Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
 }
 
 function Set-PathValue {
@@ -99,7 +122,7 @@ function Set-PathValue {
         [Environment]::SetEnvironmentVariable("Path", $Value, "Process")
     }
     else {
-        [Environment]::SetEnvironmentVariable("Path", $Value, "User")
+        Set-ItemProperty -LiteralPath $script:UserEnvironmentKey -Name "Path" -Value $Value -Type ExpandString
     }
 }
 
@@ -114,6 +137,18 @@ function Add-PathEntry {
         catch { }
     }
     return (@($entries) + $Entry) -join ';'
+}
+
+function Remove-PathEntry {
+    param([string]$Current, [string]$Entry)
+    $wanted = Get-NormalizedPathEntry $Entry
+    $kept = @()
+    foreach ($candidate in @($Current -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+        $matched = $false
+        try { $matched = (Get-NormalizedPathEntry $candidate.Trim().Trim('"')) -eq $wanted } catch { }
+        if (-not $matched) { $kept += $candidate }
+    }
+    return $kept -join ';'
 }
 
 function Assert-Payload {
@@ -150,43 +185,70 @@ function Assert-Payload {
             throw "Payload hash mismatch: $relative"
         }
     }
-    $actualFiles = @(Get-ChildItem -LiteralPath $SourceRoot -Recurse -File | ForEach-Object {
-        $_.FullName.Substring($SourceRoot.TrimEnd('\').Length).TrimStart('\') -replace '\\', '/'
-    } | Where-Object { $_ -ne "payload-manifest.json" })
-    foreach ($relative in $actualFiles) {
-        if (-not $expectedFiles.Contains($relative)) { throw "Unverified extra file in payload: $relative" }
-    }
-    if ($actualFiles.Count -ne $expectedFiles.Count) { throw "Payload file list does not match its manifest." }
+    # Files outside the manifest are ignored on purpose. This directory is also
+    # a place people work: it ships examples/cumcm-single-file/ and the README
+    # invites readers to build it, which leaves .nodepaper/build/ behind. The
+    # previous rule rejected exactly that and refused to register a payload
+    # whose own example had been tried once.
+    #
+    # Nothing is weakened by allowing it. Every manifest file is still checked
+    # for presence and SHA-256, so a modified or deleted file still stops the
+    # run, and nothing is copied anywhere, so an added file has nowhere to go.
     return $manifest
 }
 
 $sourceRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $manifest = Assert-Payload $sourceRoot
-if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
-    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { throw "LOCALAPPDATA is unavailable." }
-    $InstallRoot = Join-Path $env:LOCALAPPDATA "Programs\NodePaper"
-}
-$InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\', '/')
-$sourceNormalized = Get-NormalizedPathEntry $sourceRoot
-$targetNormalized = Get-NormalizedPathEntry $InstallRoot
-if ($sourceNormalized -eq $targetNormalized -or $targetNormalized.StartsWith($sourceNormalized + '\')) {
-    throw "InstallRoot must be outside the extracted release payload: $InstallRoot"
+
+# NodePaper runs from where it was extracted. Nothing is copied.
+#
+# The previous behaviour copied the payload into %LOCALAPPDATA%\Programs\
+# NodePaper, which is also Setup's default directory, and replaced it by moving
+# the old directory aside and deleting it. Setup keeps its uninstaller in that
+# directory (UninstallFilesDir={app}), so installing from the ZIP over a Setup
+# installation deleted unins000.exe while its registry entry survived, leaving
+# an entry in Settings that could never be removed.
+#
+# Registering the extracted directory instead means the two channels never
+# share a location. The cost is that this directory is now load-bearing: it
+# must not be deleted or moved while registered. Move it and re-run this script
+# to change location.
+$RegistrationKey = 'HKCU:\Software\NodePaper'
+$RegistrationValue = 'PortablePath'
+
+function Get-RegisteredPath {
+    if (-not (Test-Path -LiteralPath $RegistrationKey)) { return "" }
+    $item = Get-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return "" }
+    return [string]$item.$RegistrationValue
 }
 
-$parent = Split-Path -Parent $InstallRoot
-New-Item -ItemType Directory -Force -Path $parent | Out-Null
-
-# Detect an existing installation and compare versions before touching it.
-# Upgrade and repair continue; downgrade must be confirmed interactively and is
-# rejected in non-interactive runs, matching the Setup's silent-mode default.
-$installedVersion = ""
-$installedManifestPath = Join-Path $InstallRoot "payload-manifest.json"
-if (Test-Path -LiteralPath $installedManifestPath -PathType Leaf) {
-    try {
-        $installedManifest = Get-Content -LiteralPath $installedManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $installedVersion = [string]$installedManifest.version
+function Set-RegisteredPath {
+    param([string]$Value)
+    if (-not (Test-Path -LiteralPath $RegistrationKey)) {
+        New-Item -Path $RegistrationKey -Force | Out-Null
     }
-    catch { $installedVersion = "" }
+    Set-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -Value $Value -Type String
+}
+
+if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
+    throw "-InstallRoot is no longer supported: NodePaper now runs from the directory it was extracted to. Move this folder where you want it and run this script again."
+}
+$InstallRoot = $sourceRoot
+
+# Compare against whichever directory is currently registered, so upgrading by
+# extracting a new ZIP next to the old one still reports the version change.
+$previousRoot = Get-RegisteredPath
+$installedVersion = ""
+if (-not [string]::IsNullOrWhiteSpace($previousRoot)) {
+    $previousManifest = Join-Path $previousRoot "payload-manifest.json"
+    if (Test-Path -LiteralPath $previousManifest -PathType Leaf) {
+        try {
+            $parsed = Get-Content -LiteralPath $previousManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+            $installedVersion = [string]$parsed.version
+        }
+        catch { $installedVersion = "" }
+    }
 }
 if ($installedVersion -ne "") {
     $versionComparison = Compare-NodePaperVersion ([string]$manifest.version) $installedVersion
@@ -214,56 +276,45 @@ if ($installedVersion -ne "") {
     }
 }
 
-$stage = Join-Path $parent (".nodepaper-install-" + [Guid]::NewGuid().ToString("N"))
-$backup = Join-Path $parent (".nodepaper-backup-" + [Guid]::NewGuid().ToString("N"))
 $oldPath = Get-PathValue $PathScope
 $oldProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
-$oldInstallMoved = $false
-$newInstallPublished = $false
+$pathChanged = $false
 
 try {
-    New-Item -ItemType Directory -Path $stage | Out-Null
-    Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $stage -Recurse -Force
+    # Drop the directory registered by a previous run before adding this one,
+    # so extracting a new ZIP beside the old one does not leave both on Path
+    # with the winner decided by ordering.
+    $newPath = $oldPath
+    if (-not [string]::IsNullOrWhiteSpace($previousRoot) -and
+        (Get-NormalizedPathEntry $previousRoot) -ne (Get-NormalizedPathEntry $InstallRoot)) {
+        $newPath = Remove-PathEntry $newPath $previousRoot
+        Write-Host "Removed the previously registered directory from Path: $previousRoot"
     }
-    # Verify the copied bytes before replacing a prior installation.
-    [void](Assert-Payload $stage)
+    $newPath = Add-PathEntry $newPath $InstallRoot
 
-    if (Test-Path -LiteralPath $InstallRoot) {
-        Move-Item -LiteralPath $InstallRoot -Destination $backup
-        $oldInstallMoved = $true
-    }
-    Move-Item -LiteralPath $stage -Destination $InstallRoot
-    $newInstallPublished = $true
-
-    $newPath = Add-PathEntry $oldPath $InstallRoot
     Set-PathValue $PathScope $newPath
+    $pathChanged = $true
     if ($PathScope -eq "User") {
-        [Environment]::SetEnvironmentVariable("Path", (Add-PathEntry $oldProcessPath $InstallRoot), "Process")
+        $newProcessPath = $oldProcessPath
+        if (-not [string]::IsNullOrWhiteSpace($previousRoot)) {
+            $newProcessPath = Remove-PathEntry $newProcessPath $previousRoot
+        }
+        [Environment]::SetEnvironmentVariable("Path", (Add-PathEntry $newProcessPath $InstallRoot), "Process")
     }
 
-    if ($oldInstallMoved -and (Test-Path -LiteralPath $backup)) {
-        Remove-Item -LiteralPath $backup -Recurse -Force
-        $oldInstallMoved = $false
-    }
+    Set-RegisteredPath $InstallRoot
 }
 catch {
-    try { Set-PathValue $PathScope $oldPath } catch { }
+    if ($pathChanged) { try { Set-PathValue $PathScope $oldPath } catch { } }
     try { [Environment]::SetEnvironmentVariable("Path", $oldProcessPath, "Process") } catch { }
-    if ($newInstallPublished -and (Test-Path -LiteralPath $InstallRoot)) {
-        Remove-Item -LiteralPath $InstallRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    if ($oldInstallMoved -and (Test-Path -LiteralPath $backup)) {
-        Move-Item -LiteralPath $backup -Destination $InstallRoot -ErrorAction SilentlyContinue
-    }
     throw
 }
 finally {
-    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
-    if (Test-Path -LiteralPath $backup) { Remove-Item -LiteralPath $backup -Recurse -Force -ErrorAction SilentlyContinue }
     Wait-CloseWindow
 }
 
-Write-Host "NodePaper $($manifest.version) installed for the current user."
+Write-Host "NodePaper $($manifest.version) registered for the current user."
 Write-Host "Location: $InstallRoot"
+Write-Host "Keep this folder where it is. Deleting or moving it removes the command;"
+Write-Host "to relocate, move the folder and run this script again from its new location."
 Write-Host "Open a new terminal and run: nodepaper"
