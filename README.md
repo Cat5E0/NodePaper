@@ -52,10 +52,53 @@ nodepaper doctor
 <details>
 <summary>便携版、下载校验与未签名说明</summary>
 
-**便携 ZIP**：解压 `nodepaper-<版本>-windows-x64.zip`，运行 `.\Install-NodePaper.ps1` 注册命令；也可以直接用解压目录里的 `nodepaper.exe`，不安装、不改 PATH。卸载用同目录的 `Uninstall-NodePaper.ps1`。
+**便携 ZIP**：把 `nodepaper-<版本>-windows-x64.zip` 解压到一个**你打算长期保留的位置**，然后运行 `.\Install-NodePaper.ps1`。
 
-> 注意：双击 `nodepaper.exe` 只会打开一个显示引导文字的窗口，**不会安装任何东西**，按回车关闭；安装请双击 Setup，或用 PowerShell 窗口运行 `Install-NodePaper.ps1`（脚本在独立窗口运行结束时会在显示结果后停留，提示按回车关闭）。
-> 版本行为：`Install-NodePaper.ps1` 会检测目标目录已安装的版本。升级或相同版本修复安装直接继续；若本包比已装版本更旧（降级），在独立控制台运行会要求确认，非交互（管道/CI）运行默认拒绝，需先卸载新版本或交互确认。
+**NodePaper 就在解压目录里运行，脚本不复制任何文件**——它只是把这个目录加入你的用户 PATH，让 `nodepaper` 在任意目录可用。因此：
+
+- **不要删除或移动这个目录**，删了 `nodepaper` 命令就失效；
+- 想换位置，把整个目录移过去再运行一次 `.\Install-NodePaper.ps1`，旧位置会自动从 PATH 移除；
+- 升级：把新版本解压到别处，运行那里的 `.\Install-NodePaper.ps1`，旧目录会自动从 PATH 摘掉，随后你可以删掉它；
+- 卸载用同目录的 `.\Uninstall-NodePaper.ps1`。它只摘除 PATH 条目，**目录本身保留**，需要的话你自己删。
+
+也可以完全不跑脚本，直接用解压目录里的 `nodepaper.exe`（输全路径），或按下面的说明手动配置 PATH。
+
+> 注意：双击 `nodepaper.exe` 只会打开一个显示引导文字的窗口，**不会安装任何东西**，按回车关闭。
+> 版本行为：`Install-NodePaper.ps1` 会与上次注册的目录比较版本。升级和相同版本重复注册直接继续；若本包比上次注册的更旧（降级），在独立控制台运行会要求确认，非交互（管道/CI）运行默认拒绝。
+
+<details>
+<summary>手动配置 PATH（不想跑脚本时）</summary>
+
+**方法一：图形界面**
+
+1. Win+R 输入 `sysdm.cpl` → 「高级」→「环境变量」
+2. 在**上半部分「用户变量」**里选中 `Path` → 编辑 → 新建
+3. 粘贴解压目录的完整路径，确定
+4. **打开一个新终端**，运行 `nodepaper`
+
+**方法二：命令行**
+
+```powershell
+# 换成你的解压目录
+$dir = 'D:\Tools\nodepaper-0.1.0-rc.9-windows-x64'
+
+$key = 'HKCU:\Environment'
+$old = [string](Get-Item $key).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+$has = @($old -split ';' | ForEach-Object { $_.Trim().Trim('"').TrimEnd('\') }) -contains $dir.TrimEnd('\')
+if (-not $has) {
+    $new = if ([string]::IsNullOrWhiteSpace($old)) { $dir } else { $old.TrimEnd(';') + ';' + $dir }
+    # 必须用 ExpandString：用户 Path 的默认类型是 REG_EXPAND_SZ，
+    # 写成 String 会让其他软件的 %VARIABLE% 条目失效。
+    Set-ItemProperty -Path $key -Name Path -Value $new -Type ExpandString
+    '已添加，请打开新终端'
+} else { '已存在，无需重复添加' }
+```
+
+两处不能省：用 `DoNotExpandEnvironmentNames` 读，否则会把别的软件的 `%变量%` 固化成当时的路径；读 `HKCU:\Environment` 而不是 `$env:PATH`，后者是用户+系统的合并值，写回会把系统 PATH 复制进用户 PATH。
+
+**卸载**：从同一个位置删掉那条路径即可，解压目录自己决定要不要删。
+
+</details>
 
 **校验下载**：每个版本附带 `release-manifest-<版本>.json`，内含两个渠道的文件大小与 SHA-256。
 

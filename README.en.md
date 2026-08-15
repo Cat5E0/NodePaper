@@ -49,10 +49,53 @@ It installs into your user profile without administrator rights. Uninstall from 
 <details>
 <summary>Portable build, download verification and the unsigned build</summary>
 
-**Portable ZIP**: extract `nodepaper-<version>-windows-x64.zip` and run `.\Install-NodePaper.ps1` to register the command, or just run `nodepaper.exe` from the extracted folder without installing or touching PATH. `Uninstall-NodePaper.ps1` sits next to it.
+**Portable ZIP**: extract `nodepaper-<version>-windows-x64.zip` **somewhere you intend to keep it**, then run `.\Install-NodePaper.ps1`.
 
-> Note: double-clicking `nodepaper.exe` only opens a window with guidance text and **installs nothing**; press Enter to close it. To install, double-click the Setup, or run `Install-NodePaper.ps1` from a PowerShell window (when it runs in its own window it stays open after showing the result and asks you to press Enter).
-> Version behaviour: `Install-NodePaper.ps1` detects the version already installed in the target directory. Upgrade and same-version repair continue directly; if this package is older than the installed version (downgrade), it asks for confirmation in an owned console and is rejected in non-interactive (piped/CI) runs, where you must uninstall the newer version first or confirm interactively.
+**NodePaper runs from the extracted folder; the script copies nothing.** It only adds that folder to your user PATH so `nodepaper` works from any directory. So:
+
+- **Do not delete or move the folder** — the command stops working if you do;
+- to relocate it, move the whole folder and run `.\Install-NodePaper.ps1` again from its new location; the old entry is removed from PATH automatically;
+- to upgrade, extract the new release elsewhere and run its `.\Install-NodePaper.ps1`; the old folder leaves PATH automatically and you can then delete it;
+- to uninstall, run `.\Uninstall-NodePaper.ps1` from the same folder. It removes the PATH entry only and **keeps the folder**; delete it yourself if you want it gone.
+
+You can also skip the script entirely: run `nodepaper.exe` from the extracted folder by full path, or add it to PATH yourself as shown below.
+
+> Note: double-clicking `nodepaper.exe` only opens a window with guidance text and **installs nothing**; press Enter to close it.
+> Version behaviour: `Install-NodePaper.ps1` compares against the folder registered last time. Upgrade and re-registering the same version continue directly; if this package is older than the registered one (downgrade), it asks for confirmation in an owned console and is rejected in non-interactive (piped/CI) runs.
+
+<details>
+<summary>Adding it to PATH by hand</summary>
+
+**With the GUI**
+
+1. Win+R, enter `sysdm.cpl` → Advanced → Environment Variables
+2. Under **User variables** (the upper half), select `Path` → Edit → New
+3. Paste the full path of the extracted folder and confirm
+4. **Open a new terminal** and run `nodepaper`
+
+**From PowerShell**
+
+```powershell
+# your extracted folder
+$dir = 'D:\Tools\nodepaper-0.1.0-rc.9-windows-x64'
+
+$key = 'HKCU:\Environment'
+$old = [string](Get-Item $key).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+$has = @($old -split ';' | ForEach-Object { $_.Trim().Trim('"').TrimEnd('\') }) -contains $dir.TrimEnd('\')
+if (-not $has) {
+    $new = if ([string]::IsNullOrWhiteSpace($old)) { $dir } else { $old.TrimEnd(';') + ';' + $dir }
+    # ExpandString is required: the user Path is REG_EXPAND_SZ by default, and
+    # writing String stops any %VARIABLE% entry of other software from expanding.
+    Set-ItemProperty -Path $key -Name Path -Value $new -Type ExpandString
+    'Added; open a new terminal'
+} else { 'Already present' }
+```
+
+Two details are not optional. Read with `DoNotExpandEnvironmentNames`, or another program's `%VARIABLE%` entries get frozen to whatever they pointed at. Read `HKCU:\Environment` rather than `$env:PATH`, which is the user and system values merged — writing that back copies the system PATH into your user PATH.
+
+**Uninstalling**: remove that entry from the same place; the folder is yours to keep or delete.
+
+</details>
 
 **Verify the download**: every version ships `release-manifest-<version>.json` with the size and SHA-256 of both channels.
 

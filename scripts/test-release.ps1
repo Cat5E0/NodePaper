@@ -318,6 +318,14 @@ try {
         foreach ($fragment in @("miktex.org/download", "tug.org/texlive", "140 MB", "6.3 GB")) {
             Assert-True ($readme.Value.Contains($fragment)) "$($readme.Name) prerequisite section lacks '$fragment'"
         }
+        # The hand-written PATH snippet is destructive if simplified. Reading
+        # $env:PATH instead of the registry copies the system PATH into the user
+        # one; reading without DoNotExpandEnvironmentNames freezes other
+        # software's %VARIABLE% entries; writing without ExpandString stops them
+        # expanding at all. Pin all three so a future edit cannot drop them.
+        foreach ($fragment in @("DoNotExpandEnvironmentNames", "ExpandString", "HKCU:\Environment")) {
+            Assert-True ($readme.Value.Contains($fragment)) "$($readme.Name) manual PATH instructions lack '$fragment'"
+        }
     }
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter ".nodepaper" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain .nodepaper directories"
     Assert-True (@(Get-ChildItem -LiteralPath $releaseDir -Recurse -Directory -Filter "dist" -ErrorAction SilentlyContinue).Count -eq 0) "package must not contain dist directories"
