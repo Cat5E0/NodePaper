@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -75,10 +76,91 @@ func Run(ctx context.Context, projectDir string) Result {
 		result.Diagnostics = append(result.Diagnostics, validateCitationsAndCrossrefs(p, files)...)
 		result.Diagnostics = append(result.Diagnostics, validateDeclaredFragmentInputs(files, cfg, validFragments)...)
 		result.Diagnostics = append(result.Diagnostics, validateRawLatex(files)...)
+		result.Diagnostics = append(result.Diagnostics, checkChineseFonts()...)
 	}
 
 	result.Success = !hasErrors(result.Diagnostics)
 	return result
+}
+
+// supplementalFonts are shipped by Windows as the optional "Chinese
+// (Simplified) Supplemental Fonts" feature, so a machine that never added
+// Chinese can be missing them while everything else works.
+var supplementalFonts = []struct {
+	Name string
+	File string
+	Role string
+}{
+	{Name: "SimHei", File: "simhei.ttf", Role: "bold"},
+	{Name: "KaiTi", File: "simkai.ttf", Role: "italic"},
+}
+
+// checkChineseFonts warns before the build rather than failing during it.
+// NodePaper falls back to synthesising the missing weights from SimSun, so the
+// paper still builds; the author only needs to know why emphasis looks softer
+// than the reference. Reported here because validate runs ahead of every build,
+// whereas doctor only runs when someone already suspects a problem.
+func checkChineseFonts() []diagnostic.Diagnostic {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+	var missing []string
+	for _, font := range supplementalFonts {
+		switch installedFontFile(font.File) {
+		case fontMissing:
+			missing = append(missing, fmt.Sprintf("%s (%s)", font.Name, font.Role))
+		case fontUnknown:
+			// A font directory we cannot read proves nothing. Staying quiet is
+			// deliberate: a warning users learn to ignore is worse than none.
+			return nil
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return []diagnostic.Diagnostic{{
+		Severity: diagnostic.SeverityWarning,
+		Code:     "NP2403",
+		Message: fmt.Sprintf("Chinese supplemental fonts are not installed: %s",
+			strings.Join(missing, ", ")),
+		Suggestion: "The build will still succeed; NodePaper synthesises these styles from SimSun, " +
+			"so emphasis looks softer than the reference. To install them, open " +
+			"Settings > System > Optional features > Add an optional feature and pick " +
+			"\"Chinese (Simplified) Supplemental Fonts\".",
+		Source: "font",
+	}}
+}
+
+type fontLookup int
+
+const (
+	fontPresent fontLookup = iota
+	fontMissing
+	fontUnknown
+)
+
+func installedFontFile(name string) fontLookup {
+	dirs := make([]string, 0, 2)
+	if windir := os.Getenv("WINDIR"); windir != "" {
+		dirs = append(dirs, filepath.Join(windir, "Fonts"))
+	}
+	if local := os.Getenv("LOCALAPPDATA"); local != "" {
+		dirs = append(dirs, filepath.Join(local, "Microsoft", "Windows", "Fonts"))
+	}
+	if len(dirs) == 0 {
+		return fontUnknown
+	}
+	for _, dir := range dirs {
+		switch _, err := os.Stat(filepath.Join(dir, name)); {
+		case err == nil:
+			return fontPresent
+		case os.IsNotExist(err):
+			continue
+		default:
+			return fontUnknown
+		}
+	}
+	return fontMissing
 }
 
 func appendCancellation(ctx context.Context, result *Result) bool {

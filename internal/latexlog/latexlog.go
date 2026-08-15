@@ -121,6 +121,73 @@ func Classify(data []byte, allowlist Allowlist) []Finding {
 	return findings
 }
 
+// FontFamily is one font family fontspec created, as reported in the log.
+// Options carries the raw bracket contents, which is where the roles live:
+// "Script={CJK},BoldFont={SimHei},ItalicFont={KaiTi}".
+type FontFamily struct {
+	Family  string `json:"family"`
+	Font    string `json:"font"`
+	Options string `json:"options,omitempty"`
+	Line    int    `json:"-"`
+}
+
+// fontspec prefixes every continuation line of a wrapped message, so a block
+// of consecutive prefixed lines is one logical message split at ~80 columns.
+const fontspecPrefix = "(fontspec)"
+
+var fontFamilyRE = regexp.MustCompile(
+	`Font family '([^']+)' created for font '([^']+)'(?: with options \[([^\]]*)\])?`)
+
+// Fonts reports every font family fontspec created, in log order.
+//
+// The LaTeX log is the only reliable source for this. A -recorder .fls file
+// cannot be used: XeTeX loads installed fonts through the platform font API
+// rather than kpathsea, so a real 53-page build recorded one font file while
+// the PDF embedded twenty-two.
+//
+// Families are deliberately not deduplicated by font name. When a fallback
+// binds several families to one font, the repeated SimSun(0)/SimSun(1)
+// entries are precisely the signal that the fallback took effect.
+func Fonts(data []byte) []FontFamily {
+	var families []FontFamily
+	var block strings.Builder
+	blockLine := 0
+
+	flush := func() {
+		if block.Len() > 0 {
+			for _, match := range fontFamilyRE.FindAllStringSubmatch(block.String(), -1) {
+				families = append(families, FontFamily{
+					Family:  match[1],
+					Font:    match[2],
+					Options: match[3],
+					Line:    blockLine,
+				})
+			}
+			block.Reset()
+		}
+		blockLine = 0
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	lineNumber := 0
+	for scanner.Scan() {
+		lineNumber++
+		rest, ok := strings.CutPrefix(scanner.Text(), fontspecPrefix)
+		if !ok {
+			flush()
+			continue
+		}
+		if block.Len() == 0 {
+			blockLine = lineNumber
+		} else {
+			block.WriteByte(' ')
+		}
+		block.WriteString(strings.TrimSpace(rest))
+	}
+	flush()
+	return families
+}
+
 func classifyLine(line string) Category {
 	for _, classifier := range classifiers {
 		for _, pattern := range classifier.patterns {

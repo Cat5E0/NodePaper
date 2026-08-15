@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/latexlog"
 	"nodepaper/internal/process"
 	"nodepaper/internal/profile"
 )
@@ -227,9 +228,30 @@ func checkXeLaTeXDriver(ctx context.Context, tc Toolchain) Check {
 	return Check{Name: "LaTeX driver", Status: StatusPass, Message: fmt.Sprintf("XeLaTeX driven directly; latexmk also available (%s)", version)}
 }
 
+// texDistributionHelp is the whole answer to "XeLaTeX not found", because the
+// one-line version of it was not actionable: NodePaper installs in seconds
+// while the TeX distribution behind it is the multi-gigabyte, multi-hour part,
+// and a user who is not told that has no way to plan for it. Sizes are from
+// 2026-08-15 (basic-miktex-25.12-x64.exe, texlive2026-20260301.iso); installed
+// footprint and duration are order-of-magnitude figures.
+const texDistributionHelp = `NodePaper does not bundle TeX; a TeX distribution is required.
+  MiKTeX     ~140 MB download, ~1 GB installed, 10-20 min
+             https://miktex.org/download
+  TeX Live   ~6.3 GB download, ~8-9 GB installed, 20-60 min with a local mirror
+             https://tug.org/texlive/windows.html
+Install to a path without spaces or non-ASCII characters. Then open a NEW terminal
+(PATH changes do not affect already-open windows), run ` + "`xelatex --version`" + `, and
+re-run ` + "`nodepaper doctor`" + `.
+NodePaper does not require latexmk or Perl.`
+
 func checkXeLaTeX(ctx context.Context, path string) Check {
 	if path == "" {
-		return missingTool("XeLaTeX", "Install TeX Live or MiKTeX and ensure xelatex is in PATH.")
+		return Check{
+			Name:       "XeLaTeX",
+			Status:     StatusFail,
+			Message:    "XeLaTeX not found",
+			Suggestion: texDistributionHelp,
+		}
 	}
 	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^XeTeX\s+\S+`))
 	if err != nil {
@@ -318,11 +340,74 @@ NodePaper 中文环境探针
 			Suggestion: "Inspect the TeX log and reinstall the ctex/XeLaTeX components.",
 		}
 	}
+	return chineseProbeResult(filepath.Join(dir, "probe.log"))
+}
+
+// chineseProbeResult turns the probe's own log into a per-font report. The
+// families are reported individually because they do not fail together: SimSun
+// is a core Windows font, while SimHei and KaiTi ship as the optional "Chinese
+// (Simplified) Supplemental Fonts" feature and are routinely absent on a
+// Windows install that never added Chinese. A single "Chinese fonts OK/not OK"
+// line cannot tell the user which of those situations they are in, and so
+// cannot tell them what to do about it.
+func chineseProbeResult(logPath string) Check {
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return Check{
+			Name:    "Chinese TeX probe",
+			Status:  StatusPass,
+			Message: "minimal ctex document compiled successfully",
+		}
+	}
+
+	families := latexlog.Fonts(data)
+	if len(families) == 0 {
+		return Check{
+			Name:    "Chinese TeX probe",
+			Status:  StatusPass,
+			Message: "minimal ctex document compiled successfully",
+		}
+	}
+
+	names := make([]string, 0, len(families))
+	synthesised := false
+	for _, family := range families {
+		names = append(names, family.Font)
+		if strings.Contains(family.Options, "AutoFake") {
+			synthesised = true
+		}
+	}
+	resolved := strings.Join(dedupeStrings(names), ", ")
+
+	if synthesised {
+		return Check{
+			Name:    "Chinese TeX probe",
+			Status:  StatusWarning,
+			Message: fmt.Sprintf("compiled successfully using %s, with styles synthesised", resolved),
+			Suggestion: "Builds still succeed and no characters are lost, but bold and italic are " +
+				"synthesised rather than real faces. To install the real ones, open Settings > " +
+				"System > Optional features > Add an optional feature and pick " +
+				"\"Chinese (Simplified) Supplemental Fonts\".",
+		}
+	}
 	return Check{
 		Name:    "Chinese TeX probe",
 		Status:  StatusPass,
-		Message: "minimal ctex document compiled successfully",
+		Message: fmt.Sprintf("minimal ctex document compiled successfully using %s", resolved),
 	}
+}
+
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func checkProjectResources(projectRoot string) []Check {

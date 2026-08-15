@@ -30,6 +30,10 @@ type Result struct {
 	ProjectRoot string
 	Artifacts   []Artifact
 	Diagnostics []diagnostic.Diagnostic
+	// FontsUsed names the font families the document resolved to. Names only,
+	// never paths, so it carries no machine-specific detail and is safe to
+	// record alongside the build.
+	FontsUsed []latexlog.FontFamily
 }
 
 // Artifact describes a produced file.
@@ -397,6 +401,9 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		return result
 	}
 
+	result.FontsUsed = inspectFonts(logger, latexLogPath)
+	result.Diagnostics = append(result.Diagnostics, synthesisedFontDiagnostics(result.FontsUsed, latexLogPath)...)
+
 	// 12. Atomic publish to the configured project-relative output path.
 	outputFile := cfg.Output.File
 	if outputFile == "" {
@@ -647,6 +654,62 @@ func hasError(diags []diagnostic.Diagnostic) bool {
 		}
 	}
 	return false
+}
+
+// inspectFonts records which font families the document actually resolved to.
+// Two machines that disagree about a PDF can be compared on this instead of on
+// guesswork; a missing log is not a build failure, only a missing record.
+func inspectFonts(logger *buildLogger, path string) []latexlog.FontFamily {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		logger.Printf("Font record skipped: %v", err)
+		return nil
+	}
+	families := latexlog.Fonts(data)
+	for _, family := range families {
+		logger.Printf("Font family: %s -> %s [%s]", family.Family, family.Font, family.Options)
+	}
+	return families
+}
+
+// synthesisedFontDiagnostics reports weights that fontspec had to fake. This is
+// a warning, not an error: the PDF is correct and complete, and the author
+// usually cannot do anything about it - the fonts are an optional Windows
+// feature. Blocking the build would leave them with no paper at all, which is
+// strictly worse than a paper whose emphasis is slightly softer.
+func synthesisedFontDiagnostics(families []latexlog.FontFamily, path string) []diagnostic.Diagnostic {
+	var synthesised []string
+	for _, family := range families {
+		if strings.Contains(family.Options, "AutoFakeBold") {
+			synthesised = append(synthesised, family.Font)
+		}
+	}
+	if len(synthesised) == 0 {
+		return nil
+	}
+	return []diagnostic.Diagnostic{{
+		Severity: diagnostic.SeverityWarning,
+		Code:     "NP6107",
+		Message: fmt.Sprintf("bold Chinese text was synthesised from %s because SimHei is not installed",
+			strings.Join(dedupe(synthesised), ", ")),
+		File: path,
+		Suggestion: "The PDF was published and no characters were lost. To get the real bold face, " +
+			"add \"Chinese (Simplified) Supplemental Fonts\" under Settings > System > Optional features.",
+		Source: "latex",
+	}}
+}
+
+func dedupe(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func inspectLatexLog(logger *buildLogger, path string, allowlist latexlog.Allowlist) []diagnostic.Diagnostic {

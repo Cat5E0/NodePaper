@@ -157,6 +157,33 @@ if ($mathFont -notin @("cm", "newtx")) {
 }
 $mathFontNewtx = if ($mathFont -eq "newtx") { "true" } else { "false" }
 
+# ctex binds its Chinese families while \documentclass runs, so whether SimHei
+# and KaiTi exist has to be settled before the .tex is written. Probing the two
+# font directories is deliberately cheap and conservative: an unreadable
+# directory counts as "present" so a probe failure never switches a working
+# machine onto the fallback.
+function Test-InstalledFontFile {
+    param([Parameter(Mandatory = $true)][string]$FileName)
+
+    foreach ($root in @($env:WINDIR, $env:LOCALAPPDATA)) {
+        if ([string]::IsNullOrWhiteSpace($root)) { continue }
+        $dir = if ($root -eq $env:WINDIR) {
+            Join-Path $root "Fonts"
+        } else {
+            Join-Path $root "Microsoft\Windows\Fonts"
+        }
+        if (Test-Path -LiteralPath (Join-Path $dir $FileName)) { return $true }
+    }
+    return $false
+}
+
+$supplementalFonts = @{ SimHei = "simhei.ttf"; KaiTi = "simkai.ttf" }
+$missingFonts = @()
+foreach ($name in ($supplementalFonts.Keys | Sort-Object)) {
+    if (-not (Test-InstalledFontFile $supplementalFonts[$name])) { $missingFonts += $name }
+}
+$fontFallback = if ($missingFonts.Count -gt 0) { "true" } else { "" }
+
 $references = Assert-FileUnderRoot (Join-Path $project "references.bib") $project "Bibliography"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($outputPath)) | Out-Null
@@ -205,6 +232,7 @@ $arguments += @(
     "--metadata", "nodepaper-abstract-linespread=$abstractLinespreadMetadata",
     "--metadata", "nodepaper-mathfont=$mathFont",
     "--metadata", "nodepaper-mathfont-newtx=$mathFontNewtx",
+    "--metadata", "nodepaper-font-fallback=$fontFallback",
     "--metadata", "link-citations=true",
     "--fail-if-warnings",
     "--resource-path", $resourcePath,
@@ -215,6 +243,11 @@ Write-Output "CUMCM Profile: $profile"
 Write-Output "CUMCM rules version: $($profileConfig.rulesVersion)"
 Write-Output "Pandoc version: $pandocVersionLine"
 Write-Output "pandoc-crossref version: $crossrefVersionLine"
+if ($missingFonts.Count -gt 0) {
+    Write-Output "Chinese fonts: $($missingFonts -join ', ') not installed; bold and italic will be synthesised from SimSun"
+} else {
+    Write-Output "Chinese fonts: SimHei and KaiTi installed"
+}
 Write-Output "Ordered Sources: $($resolvedSources -join ' | ')"
 Write-Output "LaTeX Fragments: $($resolvedFragments -join ' | ')"
 Write-Output "Appendix numbering: $appendixNumbering"

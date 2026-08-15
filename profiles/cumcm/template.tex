@@ -1,7 +1,36 @@
 % NodePaper CUMCM electronic-paper candidate profile.
 % Original implementation based on the official 2026 formatting facts listed
 % in SOURCES.md. It is not an official or competition-certified template.
+$if(nodepaper-font-fallback)$
+% SimHei and KaiTi ship as the optional "Chinese (Simplified) Supplemental
+% Fonts" feature, so a Windows install that never added Chinese can lack them.
+% ctex resolves its font families during \documentclass, well before any
+% preamble code runs, and a declared-but-absent BoldFont is a fontspec Error
+% that produces no PDF at all -- so the choice has to be made here, from
+% NodePaper's own font probe, not with \IfFontExistsTF further down.
+%
+% fontset=none stops ctex from binding anything, then every family is bound to
+% SimSun and the missing weights are synthesised. SimSun is kept as the single
+% source because its glyph coverage is what matters: switching to Fandol buys
+% real bold and hei faces but drops characters outright (verified: 劼 U+52BC and
+% 黃 U+9EC3 vanish from a real paper). A synthesised weight is a cosmetic
+% compromise; a missing character is a wrong document.
+%
+% ctex does not define \songti and friends under fontset=none, and the template
+% below uses \heiti, so those commands are restored here as well.
+\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}
+\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
+\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
+\setCJKfamilyfont{zhfs}{SimSun}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+$else$
 \documentclass[UTF8,zihao=-4,a4paper]{ctexart}
+$endif$
 \xeCJKsetup{AutoFakeSlant=true,AutoFakeBold=true}
 % Characters that Chinese papers use as text but that Latin fonts do not
 % cover: circled numbers, Greek letters and CJK punctuation blocks. Without
