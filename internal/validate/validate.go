@@ -467,7 +467,11 @@ func validateAbstract(path, rel string) []diagnostic.Diagnostic {
 // ---------- resources, citations and cross references -------------------
 
 var imageRE = regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
-var citationRE = regexp.MustCompile(`@([A-Za-z0-9_:.+/-]+)`)
+// A citation key follows a line start or a non-word character, the way Pandoc
+// reads them. Without that guard an ordinary email address in the prose --
+// foo@example -- is collected as the citation key "example" and fails the
+// build for a reference nobody ever wrote.
+var citationRE = regexp.MustCompile(`(?m)(?:^|[^A-Za-z0-9_.])@([A-Za-z0-9_:.+/-]+)`)
 var bibEntryRE = regexp.MustCompile(`(?m)@[A-Za-z]+\s*\{\s*([^,\s]+)\s*,`)
 var crossrefIDRE = regexp.MustCompile(`\{#((?:fig|tbl|eq|sec):[A-Za-z0-9_.-]+)(?:\s+[^}]*)?\}`)
 var crossrefUseRE = regexp.MustCompile(`@((?:fig|tbl|eq|sec):[A-Za-z0-9_.-]+)`)
@@ -557,7 +561,12 @@ func validateCitationsAndCrossrefs(p project.Project, files []sourceFile) []diag
 	usedCitations := map[string]string{}
 
 	for _, file := range files {
-		content := removeCodeBlocks(string(file.data))
+		// Math has to come out along with code. LaTeX inside a display equation
+		// uses @ for its own purposes -- amscd writes arrows as @VVgV and
+		// @>>> -- and reading those as citation keys blocks the build on valid
+		// markup. removeCodeAndMath is what the raw-LaTeX scan further down
+		// already uses for the same reason.
+		content := removeCodeAndMath(string(file.data))
 		for _, match := range crossrefIDRE.FindAllStringSubmatch(content, -1) {
 			id := match[1]
 			if previous, ok := defined[id]; ok {
