@@ -324,7 +324,11 @@ try {
     }
 
     $forbiddenPatterns = @(
-        '(?i)[a-z]:\\(users|onedrive|software|codex)\\'   # development-machine home paths
+        # Development-machine home paths. A drive letter is exactly one letter,
+        # so anchor on that: without the lookbehind, the registry root
+        # HKCU:\Software\... matched as if "U:" were a drive and blocked a
+        # payload whose only offence was naming a registry key.
+        '(?i)(?<![a-z])[a-z]:\\(users|onedrive|software|codex)\\'
         '(?i)^/mnt/'                                     # WSL mount paths
         '-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----'
         '(?i)ghp_[A-Za-z0-9]{20,}'
