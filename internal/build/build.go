@@ -34,6 +34,12 @@ type Result struct {
 	// never paths, so it carries no machine-specific detail and is safe to
 	// record alongside the build.
 	FontsUsed []latexlog.FontFamily
+	// Engine is the TeX engine that produced the PDF, for example
+	// "XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025)". NodePaper
+	// neither bundles nor pins TeX, so this is the part of the toolchain that
+	// legitimately differs between users; recording it makes that difference
+	// visible when two builds disagree.
+	Engine string
 }
 
 // Artifact describes a produced file.
@@ -402,6 +408,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	}
 
 	result.FontsUsed = inspectFonts(logger, latexLogPath)
+	result.Engine = inspectEngine(logger, latexLogPath)
 	result.Diagnostics = append(result.Diagnostics, synthesisedFontDiagnostics(result.FontsUsed, latexLogPath)...)
 
 	// 12. Atomic publish to the configured project-relative output path.
@@ -670,6 +677,21 @@ func inspectFonts(logger *buildLogger, path string) []latexlog.FontFamily {
 		logger.Printf("Font family: %s -> %s [%s]", family.Family, family.Font, family.Options)
 	}
 	return families
+}
+
+func inspectEngine(logger *buildLogger, path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		logger.Printf("Engine record skipped: %v", err)
+		return ""
+	}
+	engine := latexlog.Engine(data)
+	if engine == "" {
+		logger.Printf("Engine record skipped: the LaTeX log does not name an engine")
+		return ""
+	}
+	logger.Printf("Engine: %s", engine)
+	return engine
 }
 
 // synthesisedFontDiagnostics reports weights that fontspec had to fake. This is

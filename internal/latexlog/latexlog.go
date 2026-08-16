@@ -188,6 +188,30 @@ func Fonts(data []byte) []FontFamily {
 	return families
 }
 
+// XeTeX opens every log by naming itself and its distribution, for example:
+//
+//	This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded ...
+var engineRE = regexp.MustCompile(`^This is (XeTeX[^)]*\))`)
+
+// Engine reports the TeX engine that produced this log, or "" if the log does
+// not name one.
+//
+// TeX is the one dependency NodePaper neither bundles nor pins: distributions
+// release on their own schedule and rejecting anything but one version would
+// turn a working environment into an unsupported one. That makes it the most
+// likely reason two people get different PDFs from the same source, and until
+// now nothing recorded which one was used. Reading it from the log rather than
+// asking the PATH reports the engine that actually ran.
+func Engine(data []byte) string {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		if match := engineRE.FindStringSubmatch(scanner.Text()); match != nil {
+			return strings.TrimSpace(match[1])
+		}
+	}
+	return ""
+}
+
 func classifyLine(line string) Category {
 	for _, classifier := range classifiers {
 		for _, pattern := range classifier.patterns {

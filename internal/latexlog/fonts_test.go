@@ -77,3 +77,22 @@ func TestFontsOnLogWithoutFontspec(t *testing.T) {
 		t.Fatalf("families = %#v, want nil", families)
 	}
 }
+
+func TestEngineFromLogHeader(t *testing.T) {
+	log := "This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex 2025.4.17)  13 AUG 2026 17:45\nentering extended mode\n"
+	got := Engine([]byte(log))
+	want := "XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025)"
+	if got != want {
+		t.Fatalf("Engine = %q, want %q", got, want)
+	}
+}
+
+// A log that names no engine is not an error; the field is simply empty.
+func TestEngineAbsent(t *testing.T) {
+	if got := Engine([]byte("entering extended mode\nOutput written on paper.pdf.\n")); got != "" {
+		t.Fatalf("Engine = %q, want empty", got)
+	}
+	if got := Engine(nil); got != "" {
+		t.Fatalf("Engine = %q, want empty", got)
+	}
+}
