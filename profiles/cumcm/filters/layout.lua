@@ -14,6 +14,16 @@
 --     always starts on a fresh page.
 --   - The retained 附录 heading starts on a fresh page unless
 --     nodepaper-appendix-newpage is false (appendix.newPage: false).
+--
+-- Bibliography placement (nodepaper-bib-method):
+--   Unset on the main build route, where Citeproc fills the ::: {#refs} div in
+--   place and nothing here has to move. `nodepaper export` instead runs Pandoc
+--   with --natbib or --biblatex, which leave that div empty and hand the
+--   reference list to bibtex/biber -- a list that LaTeX only emits where
+--   \bibliography / \printbibliography appears. Putting that command in the
+--   export templates would drop it after $body$, i.e. behind the appendix, and
+--   leave the 参考文献 heading standing over a blank page. Emitting it here
+--   instead keeps the list directly under its own heading.
 
 local function stringify(value)
   if value == nil then
@@ -33,6 +43,36 @@ local function is_references_header(block, title)
     and block.level == 1
     and stringify(block.content) == title
 end
+
+-- Citeproc renders its list into the ::: {#refs} div, so that div is where the
+-- reference list belongs in every mode. It survives as an empty Div node here
+-- even under --natbib/--biblatex, because Citeproc runs after the Lua filters,
+-- and its identifier carries no language -- unlike the section title, which is
+-- 参考文献 only by default. The title match stays as a fallback for projects
+-- that write the heading without the div.
+local function is_references_div(block)
+  return block.t == "Div" and block.identifier == "refs"
+end
+
+-- Only the two modes `nodepaper export` can request. An unset or unknown value
+-- yields nil, which leaves every block below untouched.
+--
+-- Both packages draw a section heading of their own. When the list is placed
+-- under the document's own references heading that heading is a duplicate, so
+-- the anchored form suppresses it -- \bibsection is natbib's heading hook, and
+-- renewing it inside a group keeps the change from leaking. The trailing form
+-- is used when the document has no references heading at all, and there the
+-- package-drawn heading is the only one, so it is kept.
+local BIB_COMMANDS = {
+  natbib = {
+    anchored = "\\begingroup\\renewcommand{\\bibsection}{}\\bibliography{references}\\endgroup",
+    trailing = "\\bibliography{references}",
+  },
+  biblatex = {
+    anchored = "\\printbibliography[heading=none]",
+    trailing = "\\printbibliography",
+  },
+}
 
 local function add_unnumbered(header)
   if not header.classes:includes("unnumbered") then
@@ -107,8 +147,11 @@ function Pandoc(doc)
     appendix_new_page = doc.meta["nodepaper-appendix-newpage"] ~= false
   end
 
+  local bib_commands = BIB_COMMANDS[stringify(doc.meta["nodepaper-bib-method"])]
+
   local appendix_index = nil
   local references_index = nil
+  local references_div_index = nil
   for index, block in ipairs(doc.blocks) do
     if is_appendix_header(block) then
       appendix_index = index
@@ -116,9 +159,21 @@ function Pandoc(doc)
     if is_references_header(block, references_title) then
       references_index = index
     end
+    if is_references_div(block) then
+      references_div_index = index
+    end
   end
-  if appendix_index == nil and references_index == nil then
+  if bib_commands == nil and appendix_index == nil and references_index == nil then
     return doc
+  end
+
+  -- The div sits directly under the heading, so anchoring on it puts the list
+  -- exactly where Citeproc would have put it. A document with neither anchor
+  -- still gets its list, at the end, rather than silently losing it.
+  local bib_index = references_div_index or references_index
+  local bib_command = nil
+  if bib_commands ~= nil then
+    bib_command = bib_index ~= nil and bib_commands.anchored or bib_commands.trailing
   end
 
   local output = pandoc.List()
@@ -149,6 +204,12 @@ function Pandoc(doc)
     else
       output:insert(block)
     end
+    if bib_command ~= nil and index == bib_index then
+      output:insert(pandoc.RawBlock("latex", bib_command))
+    end
+  end
+  if bib_command ~= nil and bib_index == nil then
+    output:insert(pandoc.RawBlock("latex", bib_command))
   end
   doc.blocks = output
   return doc

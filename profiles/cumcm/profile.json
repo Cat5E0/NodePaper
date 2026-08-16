@@ -1,10 +1,12 @@
 {
   "schemaVersion": 1,
   "name": "cumcm",
-  "version": "0.1.0-candidate.7",
+  "version": "0.1.0-candidate.8",
   "rulesVersion": "2026",
   "outputMode": "electronic-paper",
   "template": "template.tex",
+  "bibtexTemplate": "template-bibtex.tex",
+  "biblatexTemplate": "template-biblatex.tex",
   "crossrefMetadata": "crossref.yaml",
   "abstractFilter": "filters/extract-abstract.lua",
   "layoutFilter": "filters/layout.lua",

@@ -17,6 +17,9 @@ param(
 
     [string]$BuildDirectory = ".\build",
 
+    [ValidateSet("citeproc", "natbib", "biblatex")]
+    [string]$CiteMethod = "citeproc",
+
     [switch]$AllowSystemPandoc,
 
     [switch]$SkipPdf,
@@ -197,6 +200,11 @@ if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
         Output = $outputPath
         BuildDirectory = $buildDir
     }
+    # Only forwarded when it differs from the Convert script's own default, so
+    # the citeproc build command line stays exactly what it has always been.
+    if ($CiteMethod -ne "citeproc") {
+        $convertParams.CiteMethod = $CiteMethod
+    }
     if ($AllowSystemPandoc) {
         $convertParams.AllowSystemPandoc = $true
     }
@@ -204,6 +212,9 @@ if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
 else {
     if ([string]::IsNullOrWhiteSpace($MarkdownPath)) {
         throw "MarkdownPath is required for the legacy conversion mode."
+    }
+    if ($CiteMethod -ne "citeproc") {
+        throw "CiteMethod $CiteMethod requires the CUMCM Profile route (SourceManifest); the legacy SCAU conversion only supports citeproc."
     }
     $convertScript = Join-Path $PSScriptRoot "Convert-MarkdownToScauLatex.ps1"
     $convertParams = @{

@@ -1,0 +1,225 @@
+% NodePaper CUMCM electronic-paper candidate profile -- biblatex export variant.
+% Original implementation based on the official 2026 formatting facts listed
+% in SOURCES.md. It is not an official or competition-certified template.
+%
+% This file is template.tex with the bibliography handling swapped: Pandoc runs
+% with --biblatex instead of --citeproc, so the citations arrive as \autocite
+% and the reference list is produced by biber + biblatex-gb7714-2015 rather than
+% by Citeproc. Page setup, fonts and every layout decision are identical to
+% template.tex on purpose -- only the bibliography differs.
+$if(nodepaper-font-fallback)$
+% SimHei and KaiTi ship as the optional "Chinese (Simplified) Supplemental
+% Fonts" feature, so a Windows install that never added Chinese can lack them.
+% ctex resolves its font families during \documentclass, well before any
+% preamble code runs, and a declared-but-absent BoldFont is a fontspec Error
+% that produces no PDF at all -- so the choice has to be made here, from
+% NodePaper's own font probe, not with \IfFontExistsTF further down.
+%
+% fontset=none stops ctex from binding anything, then every family is bound to
+% SimSun and the missing weights are synthesised. SimSun is kept as the single
+% source because its glyph coverage is what matters: switching to Fandol buys
+% real bold and hei faces but drops characters outright (verified: 劼 U+52BC and
+% 黃 U+9EC3 vanish from a real paper). A synthesised weight is a cosmetic
+% compromise; a missing character is a wrong document.
+%
+% ctex does not define \songti and friends under fontset=none, and the template
+% below uses \heiti, so those commands are restored here as well.
+\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}
+\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
+\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
+\setCJKfamilyfont{zhfs}{SimSun}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+$else$
+\documentclass[UTF8,zihao=-4,a4paper]{ctexart}
+$endif$
+\xeCJKsetup{AutoFakeSlant=true,AutoFakeBold=true}
+% Characters that Chinese papers use as text but that Latin fonts do not
+% cover: circled numbers, Greek letters and CJK punctuation blocks. Without
+% this the glyphs silently disappear from the PDF.
+\xeCJKDeclareSubCJKBlock{NodePaperGreek}{"0370 -> "03FF}
+\xeCJKDeclareSubCJKBlock{NodePaperEnclosed}{"2460 -> "24FF}
+\xeCJKDeclareSubCJKBlock{NodePaperCJKSymbol}{"3000 -> "303F, "FF00 -> "FFEF}
+
+\usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+$if(nodepaper-mathfont-newtx)$
+% Times-style route: TeX Gyre Termes X text + newtxmath symbols and math fonts.
+\usepackage{newtxmath}
+\setmainfont{TeXGyreTermesX}
+$endif$
+\usepackage{graphicx}
+\usepackage{longtable,booktabs,array,multirow,tabularx}
+\usepackage{calc}
+\usepackage{float}
+\usepackage{fvextra}
+\usepackage{mdframed}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{xurl}
+\PassOptionsToPackage{unicode=true,bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,bookmarksdepth=3,pdfpagemode=UseOutlines}{hyperref}
+\usepackage{hyperref}
+\usepackage{cleveref}
+% biblatex has to see hyperref, so it is loaded after it. There is no
+% \bibliographystyle anywhere in this template: biblatex owns the style through
+% its own option, and the bibtex-era command has no meaning here.
+\usepackage[backend=biber,style=gb7714-2015]{biblatex}
+% references.bib sits next to this file in the exported project.
+\addbibresource{references.bib}
+\usepackage{caption}
+% 图题/表题使用空格分隔（如“表 2 位置结果”），不用冒号；
+% 半角冒号的视觉中线与汉字/数字不对齐，空格更稳。
+\captionsetup{labelsep=space}
+
+\hypersetup{hidelinks,pdfcreator={NodePaper 0.1 CUMCM candidate profile}}
+\urlstyle{same}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+$if(nodepaper-linespread)$
+\linespread{$nodepaper-linespread$}
+$else$
+\linespread{1.25}
+$endif$
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{0}
+\newcounter{none}
+\setlength{\emergencystretch}{3em}
+\pagestyle{plain}
+
+\crefname{figure}{图}{图}
+\crefname{table}{表}{表}
+\crefname{equation}{式}{式}
+\crefname{section}{节}{节}
+
+\makeatletter
+\def\fps@figure{htbp}
+\newcommand{\maxwidth}{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\newcommand{\maxheight}{\ifdim\Gin@nat@height>0.8\textheight 0.8\textheight\else\Gin@nat@height\fi}
+% Center every table on the page. Pandoc emits longtable for every Markdown
+% table; the longtable package centers when both \LTleft and \LTright are
+% \fill. The standard table float also gets \centering so controlled LaTeX
+% Fragments keep the same default look. Column alignment inside a table is
+% independent and stays controlled by the Markdown |:----|, |:----:|, |----:|
+% markers or the Fragment's own preamble.
+\setlength{\LTleft}{\fill}
+\setlength{\LTright}{\fill}
+\g@addto@macro\table{\centering}
+\makeatother
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\pandocbounded}[1]{%
+  \begingroup
+  \setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}%
+  #1%
+  \endgroup}
+\providecommand{\real}[1]{#1}
+
+$if(highlighting-macros)$
+$highlighting-macros$
+\RecustomVerbatimEnvironment{Highlighting}{Verbatim}{%
+  commandchars=\\\{\},breaklines=true,breakanywhere=true,%
+  breaknonspaceingroup=true,fontsize=\small}
+\definecolor{nodepapercodebackground}{RGB}{248,248,248}
+\definecolor{nodepapercodeframe}{RGB}{205,205,205}
+\renewenvironment{Shaded}{%
+  \begin{mdframed}[
+    linecolor=nodepapercodeframe,
+    backgroundcolor=nodepapercodebackground,
+    linewidth=0.4pt,
+    innerleftmargin=5pt,
+    innerrightmargin=5pt,
+    innertopmargin=3pt,
+    innerbottommargin=3pt,
+    skipabove=0.6\baselineskip,
+    skipbelow=0.6\baselineskip,
+    splittopskip=\topskip,
+    splitbottomskip=0pt]
+}{\end{mdframed}}
+% CJK fonts in the baseline TeX environments may not provide italic faces.
+% Keep comments readable without triggering font substitution warnings.
+\renewcommand{\CommentTok}[1]{\textcolor[rgb]{0.35,0.35,0.35}{#1}}
+\renewcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.35,0.35,0.35}{#1}}
+\renewcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{#1}}
+$endif$
+
+% Appendix contract used by filters/layout.lua. The retained “附录” heading is
+% separate from automatically generated appendix child numbering.
+\makeatletter
+\newcommand{\nodepaperAppendixAlpha}{%
+  \appendix
+  \def\toclevel@section{2}%
+  \def\toclevel@subsection{3}%
+  \def\toclevel@subsubsection{4}%
+  \renewcommand{\thesection}{附录~\Alph{section}}%
+  \counterwithin{figure}{section}%
+  \counterwithin{table}{section}%
+  \counterwithin{equation}{section}%
+  \renewcommand{\thefigure}{\Alph{section}.\arabic{figure}}%
+  \renewcommand{\thetable}{\Alph{section}.\arabic{table}}%
+  \renewcommand{\theequation}{\Alph{section}.\arabic{equation}}}
+\makeatother
+\newcommand{\nodepaperAppendixNone}{}
+
+% The Citeproc interface block from template.tex (\citeproc, CSLReferences and
+% friends) is deliberately absent: --biblatex never emits those commands, and
+% its \def\@biblabel#1{} and \@cite redefinitions would fight biblatex's own
+% citation formatting.
+
+$if(header-includes)$
+$for(header-includes)$
+$header-includes$
+$endfor$
+$endif$
+
+\begin{document}
+\setcounter{page}{1}
+\thispagestyle{plain}
+
+$if(title)$
+\begin{center}
+  {\heiti\zihao{3} $title$\par}
+\end{center}
+\vspace{0.8em}
+$endif$
+
+$if(abstract)$
+\pdfbookmark[1]{摘要}{nodepaper.abstract}
+\begin{center}
+  {\heiti\zihao{3} 摘要\par}
+\end{center}
+% center 是 trivlist，\end{center} 会触发 \@doendpe 往 \everypar 里装
+% {\setbox\z@\lastbox}，把紧随其后那一段的缩进盒子吞掉——摘要正文首段因此
+% 丢失 2em 中文首行缩进，而后续段落正常。ctexart 的 indentfirst 只覆盖
+% \@afterheading 那条路径，救不了这里；\@endpefalse 也无效，因为真正生效的
+% 是 \everypar 钩子而不是 @endpe 标志。这里清空 \everypar 即可，且不改动
+% center 自身的垂直间距，版面除首行缩进外保持不变。
+\everypar{}
+\vspace{0.5em}
+$if(nodepaper-abstract-linespread)$
+{\linespread{$nodepaper-abstract-linespread$}\selectfont
+$abstract$
+\par}
+$else$
+$abstract$
+$endif$
+$endif$
+
+$if(keywords)$
+\vspace{0.8em}
+\noindent{\heiti 关键词：}$for(keywords)$$keywords$$sep$；$endfor$
+$endif$
+
+\newpage
+$body$
+
+% There is no \printbibliography here on purpose. filters/layout.lua emits it
+% inside the body, right under the references heading, so the list lands where
+% Citeproc would have put it instead of behind the appendix. \addbibresource
+% above stays in the preamble, which is the only place biblatex accepts it.
+
+\end{document}

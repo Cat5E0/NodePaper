@@ -22,6 +22,8 @@ type Definition struct {
 	RulesVersion          string `json:"rulesVersion"`
 	OutputMode            string `json:"outputMode"`
 	Template              string `json:"template"`
+	BibtexTemplate        string `json:"bibtexTemplate"`
+	BiblatexTemplate      string `json:"biblatexTemplate"`
 	CrossrefMetadata      string `json:"crossrefMetadata"`
 	AbstractFilter        string `json:"abstractFilter"`
 	LayoutFilter          string `json:"layoutFilter"`
@@ -45,6 +47,8 @@ type Loaded struct {
 	Dir              string
 	Definition       Definition
 	Template         string
+	BibtexTemplate   string
+	BiblatexTemplate string
 	CrossrefMetadata string
 	AbstractFilter   string
 	LayoutFilter     string
@@ -112,6 +116,8 @@ func Load(dir string) (Loaded, error) {
 		dest  *string
 	}{
 		{"template", definition.Template, &loaded.Template},
+		{"BibTeX export template", definition.BibtexTemplate, &loaded.BibtexTemplate},
+		{"biblatex export template", definition.BiblatexTemplate, &loaded.BiblatexTemplate},
 		{"crossref metadata", definition.CrossrefMetadata, &loaded.CrossrefMetadata},
 		{"abstract filter", definition.AbstractFilter, &loaded.AbstractFilter},
 		{"layout filter", definition.LayoutFilter, &loaded.LayoutFilter},

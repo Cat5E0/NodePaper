@@ -14,6 +14,13 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$BuildDirectory,
 
+    # citeproc is the main build route and must stay the default: Pandoc
+    # resolves every citation before the .tex exists, so LaTeX never needs a
+    # bibtex/biber stage. natbib and biblatex exist for `nodepaper export`,
+    # which hands the user an editable project with a live references.bib.
+    [ValidateSet("citeproc", "natbib", "biblatex")]
+    [string]$CiteMethod = "citeproc",
+
     [switch]$AllowSystemPandoc
 )
 
@@ -81,7 +88,16 @@ if ($profileConfig.schemaVersion -ne 1 -or $profileConfig.name -ne "cumcm") {
     throw "Unsupported CUMCM Profile metadata: $profileConfigPath"
 }
 
-$template = Join-Path $profile ([string]$profileConfig.template)
+$templateKey = switch ($CiteMethod) {
+    "natbib"   { "bibtexTemplate" }
+    "biblatex" { "biblatexTemplate" }
+    default    { "template" }
+}
+$templateValue = [string]$profileConfig.$templateKey
+if ([string]::IsNullOrWhiteSpace($templateValue)) {
+    throw "CUMCM Profile declares no '$templateKey' for -CiteMethod $CiteMethod : $profileConfigPath"
+}
+$template = Join-Path $profile $templateValue
 $crossrefMetadata = Join-Path $profile ([string]$profileConfig.crossrefMetadata)
 $abstractFilter = Join-Path $profile ([string]$profileConfig.abstractFilter)
 $layoutFilter = Join-Path $profile ([string]$profileConfig.layoutFilter)
@@ -221,10 +237,28 @@ $arguments += @(
     "--metadata-file", $crossrefMetadata,
     "--lua-filter", $abstractFilter,
     "--lua-filter", $layoutFilter,
-    "--filter", $crossref,
-    "--citeproc",
-    "--bibliography", $references,
-    "--csl", $csl,
+    "--filter", $crossref
+)
+# --csl is a Citeproc option. Passing it alongside --natbib/--biblatex makes
+# Pandoc warn that the option is unused, and --fail-if-warnings turns that
+# warning into a failed conversion, so the two branches are exclusive.
+#
+# nodepaper-bib-method tells filters/layout.lua to emit \bibliography /
+# \printbibliography under the references heading. It is deliberately not sent
+# on the citeproc route, where Citeproc fills the ::: {#refs} div itself and any
+# extra metadata would change the generated .tex.
+switch ($CiteMethod) {
+    "natbib" {
+        $arguments += @("--natbib", "--bibliography", $references, "--metadata", "nodepaper-bib-method=natbib")
+    }
+    "biblatex" {
+        $arguments += @("--biblatex", "--bibliography", $references, "--metadata", "nodepaper-bib-method=biblatex")
+    }
+    default {
+        $arguments += @("--citeproc", "--bibliography", $references, "--csl", $csl)
+    }
+}
+$arguments += @(
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
     "--metadata", "nodepaper-appendix-newpage=$appendixNewPageMetadata",
@@ -241,6 +275,12 @@ $arguments += @(
 
 Write-Output "CUMCM Profile: $profile"
 Write-Output "CUMCM rules version: $($profileConfig.rulesVersion)"
+# The default citeproc route keeps its output stream unchanged so build logs
+# stay comparable across versions; the export routes announce themselves.
+if ($CiteMethod -ne "citeproc") {
+    Write-Output "Citation method: $CiteMethod"
+    Write-Output "Citation template: $template"
+}
 Write-Output "Pandoc version: $pandocVersionLine"
 Write-Output "pandoc-crossref version: $crossrefVersionLine"
 if ($missingFonts.Count -gt 0) {
