@@ -79,29 +79,53 @@ function Get-FileList {
 function Test-UserInstallation {
     param([string]$ReleaseRoot, [string]$WorkRoot, [string]$ExpectedVersion)
 
-    $installRoot = Join-Path $WorkRoot "用户 安装\NodePaper"
+    # The ZIP channel registers the extracted folder rather than copying it, so
+    # the folder under test is the release root itself.
+    $installRoot = $ReleaseRoot
     $installer = Join-Path $ReleaseRoot "Install-NodePaper.ps1"
     $originalProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
+    $script:RegistrationKey = 'HKCU:\Software\NodePaper'
+    $script:RegistrationValue = 'PortablePath'
+    $savedRegistration = ""
+    if (Test-Path -LiteralPath $script:RegistrationKey) {
+        $existing = Get-ItemProperty -LiteralPath $script:RegistrationKey -Name $script:RegistrationValue -ErrorAction SilentlyContinue
+        if ($null -ne $existing) { $savedRegistration = [string]$existing.$script:RegistrationValue }
+    }
     try {
-        Write-Host "Testing user-level installation, rollback and repeat install..."
-        & $installer -InstallRoot $installRoot -PathScope Process
+        Write-Host "Testing user-level registration, tamper rejection and re-registration..."
+        & $installer -PathScope Process
         if ($LASTEXITCODE -ne 0) { throw "FAIL: Install-NodePaper.ps1 failed with exit code $LASTEXITCODE" }
 
-        # A tampered payload must fail before replacing the known-good install.
-        $unexpected = Join-Path $ReleaseRoot "unexpected-install-test.tmp"
-        Set-Content -LiteralPath $unexpected -Value "must be rejected" -Encoding ASCII
+        # A modified payload file must be refused. Adding an unlisted file is
+        # deliberately allowed -- the folder is also a workspace, and building
+        # the bundled example leaves output in it -- so tamper detection rests
+        # on the per-file hashes instead.
+        $tampered = Join-Path $ReleaseRoot "README.md"
+        $original = Get-Content -LiteralPath $tampered -Raw -Encoding UTF8
         $rejected = $false
-        try { & $installer -InstallRoot $installRoot -PathScope Process }
-        catch { $rejected = $_.Exception.Message -match "Unverified extra file" }
-        finally { Remove-Item -LiteralPath $unexpected -Force -ErrorAction SilentlyContinue }
-        Assert-True $rejected "installer did not reject an unverified extra payload file"
-        Assert-True (Test-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe") -PathType Leaf) "failed upgrade did not preserve the previous installation"
+        try {
+            Add-Content -LiteralPath $tampered -Value "`ntampered" -Encoding UTF8
+            try { & $installer -PathScope Process }
+            catch { $rejected = $_.Exception.Message -match "Payload hash mismatch" }
+        }
+        finally { Set-Content -LiteralPath $tampered -Value $original -Encoding UTF8 -NoNewline }
+        Assert-True $rejected "installer did not reject a modified payload file"
 
-        & $installer -InstallRoot $installRoot -PathScope Process
-        if ($LASTEXITCODE -ne 0) { throw "FAIL: repeated Install-NodePaper.ps1 failed with exit code $LASTEXITCODE" }
+        # Output left by building the bundled example must not block anything:
+        # this is what the README asks readers to do first.
+        $exampleBuild = Join-Path $ReleaseRoot "examples\cumcm-single-file\.nodepaper\build"
+        New-Item -ItemType Directory -Force -Path $exampleBuild | Out-Null
+        Set-Content -LiteralPath (Join-Path $exampleBuild "paper.aux") -Value "stray" -Encoding ASCII
+        try {
+            & $installer -PathScope Process
+            if ($LASTEXITCODE -ne 0) { throw "FAIL: build output in the bundled example blocked registration" }
+        }
+        finally {
+            Remove-Item -LiteralPath (Join-Path $ReleaseRoot "examples\cumcm-single-file\.nodepaper") -Recurse -Force -ErrorAction SilentlyContinue
+        }
 
         $command = Get-Command nodepaper -CommandType Application -ErrorAction Stop
-        Assert-True ((Resolve-Path -LiteralPath $command.Source).Path -eq (Resolve-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe")).Path) "global nodepaper command did not resolve to the installed payload"
+        Assert-True ((Resolve-Path -LiteralPath $command.Source).Path -eq (Resolve-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe")).Path) "global nodepaper command did not resolve to the registered payload"
 
         $arbitraryDir = Join-Path $WorkRoot "任意 工作目录"
         New-Item -ItemType Directory -Force -Path $arbitraryDir | Out-Null
@@ -122,17 +146,29 @@ function Test-UserInstallation {
         $uninstaller = Join-Path $installRoot "Uninstall-NodePaper.ps1"
         & $uninstaller -InstallRoot $installRoot -PathScope Process
         if ($LASTEXITCODE -ne 0) { throw "FAIL: Uninstall-NodePaper.ps1 failed with exit code $LASTEXITCODE" }
-        Assert-True (-not (Test-Path -LiteralPath $installRoot)) "uninstall left the installation directory"
+        # The folder must survive: it is where the user chose to keep the
+        # release, and unregistering does not make it ours to delete.
+        Assert-True (Test-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe") -PathType Leaf) "unregistration deleted the extracted folder"
         $normalizedInstall = [System.IO.Path]::GetFullPath($installRoot).TrimEnd('\').ToLowerInvariant()
         $remaining = @([Environment]::GetEnvironmentVariable("Path", "Process") -split ';' | ForEach-Object {
             try { [System.IO.Path]::GetFullPath($_.Trim().Trim('"')).TrimEnd('\').ToLowerInvariant() } catch { "" }
         })
-        Assert-True (-not ($remaining -contains $normalizedInstall)) "uninstall left the NodePaper Path entry"
-        Write-Host "User-level install, rollback, global command, repeat install and uninstall passed."
+        Assert-True (-not ($remaining -contains $normalizedInstall)) "unregistration left the NodePaper Path entry"
+        Write-Host "User-level registration, tamper rejection, global command and unregistration passed."
     }
     finally {
         [Environment]::SetEnvironmentVariable("Path", $originalProcessPath, "Process")
-        if (Test-Path -LiteralPath $installRoot) { Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue }
+        # PathScope Process keeps the real user Path out of this, but the
+        # registration under HKCU is real and has to be put back as it was.
+        if ([string]::IsNullOrWhiteSpace($savedRegistration)) {
+            if (Test-Path -LiteralPath $script:RegistrationKey) {
+                Remove-ItemProperty -LiteralPath $script:RegistrationKey -Name $script:RegistrationValue -ErrorAction SilentlyContinue
+            }
+        }
+        else {
+            if (-not (Test-Path -LiteralPath $script:RegistrationKey)) { New-Item -Path $script:RegistrationKey -Force | Out-Null }
+            Set-ItemProperty -LiteralPath $script:RegistrationKey -Name $script:RegistrationValue -Value $savedRegistration -Type String
+        }
     }
 }
 
