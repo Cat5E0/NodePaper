@@ -40,7 +40,10 @@ func TestRunNoArgsShowsReadOnlyOnboardingOutsideProject(t *testing.T) {
 		t.Fatalf("run() exit code = %d, want 0", code)
 	}
 	for _, want := range []string{
-		"No NodePaper Project", "nodepaper.yaml", "nodepaper init", "nodepaper doctor", "nodepaper --help",
+		"No NodePaper Project", "nodepaper.yaml", "nodepaper init", "nodepaper doctor",
+		// Someone unsure whether the install took effect needs this here, not
+		// buried one level down in --help.
+		"nodepaper --version", "nodepaper --help",
 		// First-run users need to learn about the TeX prerequisite here rather
 		// than partway through their first build.
 		"TeX Live or MiKTeX", "xelatex",

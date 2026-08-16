@@ -115,7 +115,13 @@ Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#NodePaperName}"; Filename: "{cmd}"; Parameters: "/K """"{app}\nodepaper.exe"""""; WorkingDir: "{userdocs}"; IconFilename: "{app}\nodepaper.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{cmd}"; Parameters: "/K """"{app}\nodepaper.exe"""""; WorkingDir: "{userdocs}"; Description: "{cm:LaunchNodePaper}"; Flags: postinstall nowait skipifsilent
+; This window is a child of Setup, so it inherited the environment Setup
+; started with -- the one from before the install directory was added to Path.
+; Running nodepaper.exe by full path worked, but typing "nodepaper" in the
+; window Setup had just opened to try it did not, which is the opposite of what
+; the window is for. Setting Path for this shell makes it behave like the fresh
+; terminal the user would otherwise have to open.
+Filename: "{cmd}"; Parameters: "/K ""set PATH={app};%PATH% && ""{app}\nodepaper.exe"""""; WorkingDir: "{userdocs}"; Description: "{cm:LaunchNodePaper}"; Flags: postinstall nowait skipifsilent
 
 [Code]
 const

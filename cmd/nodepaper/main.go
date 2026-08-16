@@ -147,6 +147,10 @@ func writeOnboarding(w io.Writer, workingDir string) {
 	fmt.Fprintln(w, "Next:")
 	fmt.Fprintln(w, `  nodepaper init <project-directory>`)
 	fmt.Fprintln(w, "  nodepaper doctor")
+	// Worth listing even though --help covers it: someone who has just
+	// installed, or who had an older copy already, reaches this screen while
+	// trying to work out which version they are actually running.
+	fmt.Fprintln(w, "  nodepaper --version")
 	fmt.Fprintln(w, "  nodepaper --help")
 	// Most people reach this branch on their first run. NodePaper installs in
 	// seconds, which makes it easy to assume the setup is finished, while the
