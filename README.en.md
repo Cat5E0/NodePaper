@@ -214,13 +214,20 @@ nodepaper validate [project-directory]
 nodepaper build [project-directory]
 nodepaper clean [project-directory]
 nodepaper clean [project-directory] --all
+nodepaper export [project-directory] --to <dir> [--bib bibtex|biblatex|inline] [--verify] [--force]
 nodepaper --help
 nodepaper --version
 ```
 
 - `clean` removes intermediate build files;
 - `clean --all` also removes `dist/`;
-- running `nodepaper` without arguments suggests the next step for the current location.
+- running `nodepaper` without arguments suggests the next step for the current location;
+- `export` produces an editable LaTeX project (`.tex` + `.bib` + images + Fragments + `README.txt`) in the `--to` directory — not a PDF;
+- `--bib` selects how references are handled: `bibtex` (default, `\cite{}` + `gbt7714`, compile chain `xelatex → bibtex → xelatex ×2`, broadest compatibility), `biblatex` (`\autocite{}` + `biblatex-gb7714-2015`, compile chain `xelatex → biber → xelatex ×2`, requires biber), `inline` (references already rendered as plain text, no extra dependencies);
+- `--verify` is off by default; when enabled, the exported project is compiled once end-to-end to confirm it works, but a successful local compile does not guarantee the same on a recipient's machine;
+- if `--to` points at a non-empty directory, `--force` is required;
+- export is one-way: edits made to the LaTeX project do not flow back into the Markdown project;
+- `nodepaper doctor` also reports whether the packages used by export are available, for reference when needed — it does not affect ordinary builds.
 
 Machine-readable output:
 

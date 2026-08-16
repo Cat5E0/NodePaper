@@ -8,6 +8,7 @@ import (
 	"nodepaper/internal/build"
 	"nodepaper/internal/diagnostic"
 	"nodepaper/internal/doctor"
+	"nodepaper/internal/export"
 	"nodepaper/internal/project"
 	"nodepaper/internal/validate"
 )
@@ -88,6 +89,38 @@ func (a *appImpl) Build(ctx context.Context, req BuildRequest) (BuildResult, err
 		ProjectRoot: br.ProjectRoot,
 		Artifacts:   artifacts,
 		Diagnostics: br.Diagnostics,
+	}, nil
+}
+
+func (a *appImpl) Export(ctx context.Context, req ExportRequest) (ExportResult, error) {
+	mode := export.BibMode(req.Bib)
+	if req.Bib != "" {
+		parsed, err := export.ParseBibMode(req.Bib)
+		if err != nil {
+			return ExportResult{}, err
+		}
+		mode = parsed
+	}
+	er := export.Run(ctx, export.Options{
+		ProjectDir: req.ProjectDir,
+		ToDir:      req.ToDir,
+		Bib:        mode,
+		Verify:     req.Verify,
+		Force:      req.Force,
+	})
+	var artifacts []Artifact
+	for _, art := range er.Artifacts {
+		artifacts = append(artifacts, Artifact{Kind: art.Kind, Path: art.Path})
+	}
+	return ExportResult{
+		Success:         er.Success,
+		ProjectRoot:     er.ProjectRoot,
+		ExportDir:       er.ExportDir,
+		BibMode:         er.BibMode,
+		Verified:        er.Verified,
+		CompileCommands: er.CompileCommands,
+		Artifacts:       artifacts,
+		Diagnostics:     er.Diagnostics,
 	}, nil
 }
 

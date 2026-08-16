@@ -16,6 +16,7 @@ type App interface {
 	Doctor(context.Context, DoctorRequest) (DoctorResult, error)
 	Validate(context.Context, ValidateRequest) (ValidateResult, error)
 	Build(context.Context, BuildRequest) (BuildResult, error)
+	Export(context.Context, ExportRequest) (ExportResult, error)
 	Clean(context.Context, CleanRequest) (CleanResult, error)
 }
 
@@ -39,6 +40,16 @@ type ValidateRequest struct {
 
 type BuildRequest struct {
 	ProjectDir string
+}
+
+// ExportRequest asks for an editable LaTeX project. Bib is "bibtex",
+// "biblatex" or "inline"; an empty value means the default.
+type ExportRequest struct {
+	ProjectDir string
+	ToDir      string
+	Bib        string
+	Verify     bool
+	Force      bool
 }
 
 type CleanRequest struct {
@@ -80,6 +91,22 @@ type BuildResult struct {
 	ProjectRoot string       `json:"projectRoot"`
 	Artifacts   []Artifact   `json:"artifacts"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+type ExportResult struct {
+	Success     bool   `json:"success"`
+	ProjectRoot string `json:"projectRoot"`
+	ExportDir   string `json:"exportDir"`
+	BibMode     string `json:"bibMode"`
+	// Verified is true only when --verify ran the compile chain and it
+	// succeeded. It is false both when verification was not requested and
+	// when it could not run, so it never implies more than it proves.
+	Verified bool `json:"verified"`
+	// CompileCommands is the command chain the recipient of the export has to
+	// run, in order.
+	CompileCommands []string     `json:"compileCommands"`
+	Artifacts       []Artifact   `json:"artifacts"`
+	Diagnostics     []Diagnostic `json:"diagnostics"`
 }
 
 type CleanResult struct {

@@ -454,6 +454,16 @@ func nodepaperVersion() string {
 	return "devel"
 }
 
+// DefaultBuildScriptPath and DefaultProfileDir expose the resource lookup the
+// build uses. `nodepaper export` has to reach the same Build-Paper.ps1 and the
+// same installed Profile as `nodepaper build`; going through these keeps a
+// single definition of "which script" and "which Profile" instead of a second
+// copy that could drift.
+func DefaultBuildScriptPath() string { return defaultBuildScriptPath() }
+
+// DefaultProfileDir returns the installed CUMCM Profile directory.
+func DefaultProfileDir() string { return defaultProfileDir() }
+
 func defaultBuildScriptPath() string {
 	if override := os.Getenv("NODEPAPER_BUILD_SCRIPT"); override != "" {
 		return override

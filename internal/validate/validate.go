@@ -467,6 +467,7 @@ func validateAbstract(path, rel string) []diagnostic.Diagnostic {
 // ---------- resources, citations and cross references -------------------
 
 var imageRE = regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
+
 // A citation key follows a line start or a non-word character, the way Pandoc
 // reads them. Without that guard an ordinary email address in the prose --
 // foo@example -- is collected as the citation key "example" and fails the
@@ -475,6 +476,27 @@ var citationRE = regexp.MustCompile(`(?m)(?:^|[^A-Za-z0-9_.])@([A-Za-z0-9_:.+/-]
 var bibEntryRE = regexp.MustCompile(`(?m)@[A-Za-z]+\s*\{\s*([^,\s]+)\s*,`)
 var crossrefIDRE = regexp.MustCompile(`\{#((?:fig|tbl|eq|sec):[A-Za-z0-9_.-]+)(?:\s+[^}]*)?\}`)
 var crossrefUseRE = regexp.MustCompile(`@((?:fig|tbl|eq|sec):[A-Za-z0-9_.-]+)`)
+
+// ImageReferences returns the project-rooted image paths a Markdown document
+// refers to, in order of appearance and still in Markdown (forward-slash) form.
+// Remote references are skipped because nothing local corresponds to them.
+//
+// It is exported so that every part of NodePaper that has to answer "which
+// images does this document actually use" - validation and `nodepaper export`
+// alike - reads them with one regular expression rather than several
+// almost-identical ones that could disagree about what counts as a reference.
+func ImageReferences(data []byte) []string {
+	matches := imageRE.FindAllStringSubmatch(string(data), -1)
+	references := make([]string, 0, len(matches))
+	for _, match := range matches {
+		imagePath := strings.Trim(strings.TrimSpace(match[1]), "<>")
+		if strings.Contains(imagePath, "://") {
+			continue
+		}
+		references = append(references, imagePath)
+	}
+	return references
+}
 
 func validateResources(p project.Project, files []sourceFile) []diagnostic.Diagnostic {
 	var diags []diagnostic.Diagnostic
@@ -495,12 +517,7 @@ func validateResources(p project.Project, files []sourceFile) []diagnostic.Diagn
 	}
 
 	for _, file := range files {
-		matches := imageRE.FindAllStringSubmatch(string(file.data), -1)
-		for _, match := range matches {
-			imagePath := strings.Trim(strings.TrimSpace(match[1]), "<>")
-			if strings.Contains(imagePath, "://") {
-				continue
-			}
+		for _, imagePath := range ImageReferences(file.data) {
 			// Product paths are rooted at Project Root, including image paths
 			// referenced by Markdown files in sections/ subdirectories.
 			resolved, resolveErr := p.Resolve(filepath.FromSlash(imagePath))

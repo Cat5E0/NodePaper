@@ -24,6 +24,10 @@ func (contractStub) Build(context.Context, BuildRequest) (BuildResult, error) {
 	return BuildResult{}, nil
 }
 
+func (contractStub) Export(context.Context, ExportRequest) (ExportResult, error) {
+	return ExportResult{}, nil
+}
+
 func (contractStub) Clean(context.Context, CleanRequest) (CleanResult, error) {
 	return CleanResult{}, nil
 }
@@ -37,6 +41,7 @@ func TestRequestsExposeProjectDir(t *testing.T) {
 		DoctorRequest{ProjectDir: want},
 		ValidateRequest{ProjectDir: want},
 		BuildRequest{ProjectDir: want},
+		ExportRequest{ProjectDir: want},
 		CleanRequest{ProjectDir: want},
 	}
 

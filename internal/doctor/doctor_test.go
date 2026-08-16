@@ -56,6 +56,90 @@ func TestRunSuccessMatchesFailingChecks(t *testing.T) {
 	}
 }
 
+func TestLatexExportPackagesResultAlwaysPasses(t *testing.T) {
+	cases := []struct {
+		name                       string
+		gbt7714, biblatexGB, biber bool
+	}{
+		{name: "all present", gbt7714: true, biblatexGB: true, biber: true},
+		{name: "all absent", gbt7714: false, biblatexGB: false, biber: false},
+		{name: "partially present", gbt7714: true, biblatexGB: false, biber: true},
+	}
+
+	forbidden := []string{"missing", "required", "not found", "unsupported", "invalid", "must install"}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			check := latexExportPackagesResult(tc.gbt7714, tc.biblatexGB, tc.biber)
+			if check.Status != StatusPass {
+				t.Fatalf("Status = %v, want StatusPass", check.Status)
+			}
+			if check.Name != latexExportPackagesCheckName {
+				t.Fatalf("Name = %q, want %q", check.Name, latexExportPackagesCheckName)
+			}
+			for _, word := range forbidden {
+				if strings.Contains(check.Message, word) {
+					t.Fatalf("Message contains judgmental word %q: %q", word, check.Message)
+				}
+				if strings.Contains(check.Suggestion, word) {
+					t.Fatalf("Suggestion contains judgmental word %q: %q", word, check.Suggestion)
+				}
+			}
+			allPresent := tc.gbt7714 && tc.biblatexGB && tc.biber
+			if allPresent && check.Suggestion != "" {
+				t.Fatalf("Suggestion should be empty when everything is present, got %q", check.Suggestion)
+			}
+			if !allPresent {
+				if check.Suggestion == "" {
+					t.Fatalf("Suggestion should be non-empty when something is absent")
+				}
+				// The wording must stay conditional ("if you would like to
+				// ... you can optionally"), never an instruction. Most users
+				// never export, so their absence is a normal state.
+				if !strings.Contains(check.Suggestion, "If you would like to export") ||
+					!strings.Contains(check.Suggestion, "optionally install") {
+					t.Fatalf("Suggestion is not phrased as conditional: %q", check.Suggestion)
+				}
+				if !strings.Contains(check.Suggestion, "tlmgr install") || !strings.Contains(check.Suggestion, "miktex packages install") {
+					t.Fatalf("Suggestion missing install commands: %q", check.Suggestion)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckLaTeXExportPackagesAlwaysPasses(t *testing.T) {
+	// Regardless of what is actually installed on the machine running the
+	// test, this check must never be anything other than StatusPass.
+	check := checkLaTeXExportPackages(context.Background())
+	if check.Status != StatusPass {
+		t.Fatalf("Status = %v, want StatusPass; check = %#v", check.Status, check)
+	}
+	if check.Name != latexExportPackagesCheckName {
+		t.Fatalf("Name = %q, want %q", check.Name, latexExportPackagesCheckName)
+	}
+	if check.Message == "" {
+		t.Fatalf("Message should not be empty")
+	}
+}
+
+func TestCheckLaTeXExportPackagesWithoutKpsewhich(t *testing.T) {
+	// With PATH pointing only at an empty directory, kpsewhich cannot be
+	// found at all. The check must still pass and must not blame the
+	// missing TeX installation - that is the XeLaTeX check's job.
+	t.Setenv("PATH", t.TempDir())
+
+	check := checkLaTeXExportPackages(context.Background())
+	if check.Status != StatusPass {
+		t.Fatalf("Status = %v, want StatusPass; check = %#v", check.Status, check)
+	}
+	for _, word := range []string{"missing", "required", "not found", "unsupported", "invalid", "must install"} {
+		if strings.Contains(check.Message, word) {
+			t.Fatalf("Message contains judgmental word %q: %q", word, check.Message)
+		}
+	}
+}
+
 func TestFormatChecks(t *testing.T) {
 	checks := []Check{
 		{Name: "pandoc", Status: StatusPass, Message: "ok"},

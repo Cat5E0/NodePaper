@@ -217,13 +217,20 @@ nodepaper validate [project-directory]
 nodepaper build [project-directory]
 nodepaper clean [project-directory]
 nodepaper clean [project-directory] --all
+nodepaper export [project-directory] --to <dir> [--bib bibtex|biblatex|inline] [--verify] [--force]
 nodepaper --help
 nodepaper --version
 ```
 
 - `clean` 删除中间构建文件；
 - `clean --all` 额外删除 `dist/`；
-- `nodepaper` 无参数运行时会根据当前位置提示下一步。
+- `nodepaper` 无参数运行时会根据当前位置提示下一步；
+- `export` 把项目导出成一份可编辑的 LaTeX 工程（`.tex` + `.bib` + 图片 + Fragment + `README.txt`）到 `--to` 指定的目录，而不是 PDF；
+- `--bib` 决定导出的文献处理方式：`bibtex`（默认，`\cite{}` + `gbt7714`，编译链 `xelatex → bibtex → xelatex ×2`，兼容性最好）、`biblatex`（`\autocite{}` + `biblatex-gb7714-2015`，编译链 `xelatex → biber → xelatex ×2`，需要 biber）、`inline`（文献已渲染成文本，零依赖）；
+- `--verify` 默认关闭；开启后会在导出完成后完整编译一遍确认可用，但本机编译成功不代表收件人机器上也一定能编译；
+- `--to` 指定的目录非空时需要加 `--force` 才会导出；
+- 导出是单向的：在 LaTeX 工程里做的修改不会回流到 Markdown 项目；
+- `nodepaper doctor` 会附带检查导出用到的几个宏包是否可用，供需要时参考，不影响日常构建。
 
 机器可读输出：
 

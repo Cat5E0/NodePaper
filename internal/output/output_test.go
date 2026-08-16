@@ -146,6 +146,71 @@ func TestTextWriterBuild(t *testing.T) {
 	}
 }
 
+func TestTextWriterExportPrintsTheChainForTheChosenMode(t *testing.T) {
+	for bibMode, want := range map[string][]string{
+		"bibtex":   {"xelatex paper.tex", "bibtex paper", "xelatex paper.tex"},
+		"biblatex": {"xelatex paper.tex", "biber paper", "xelatex paper.tex"},
+		"inline":   {"xelatex paper.tex", "xelatex paper.tex"},
+	} {
+		var buf bytes.Buffer
+		tw := &TextWriter{W: &buf}
+		tw.Export(app.ExportResult{
+			Success:         true,
+			ProjectRoot:     `D:\papers\a`,
+			ExportDir:       `D:\out\latex`,
+			BibMode:         bibMode,
+			CompileCommands: want,
+			Artifacts:       []app.Artifact{{Kind: "tex", Path: `D:\out\latex\paper.tex`}},
+		})
+		out := buf.String()
+		if !strings.Contains(out, "Export: D:\\out\\latex") {
+			t.Errorf("%s: missing export directory: %s", bibMode, out)
+		}
+		if !strings.Contains(out, "Next:\n") {
+			t.Errorf("%s: missing indented next-step list: %s", bibMode, out)
+		}
+		for _, command := range want {
+			if !strings.Contains(out, "  "+command+"\n") {
+				t.Errorf("%s: missing command %q: %s", bibMode, command, out)
+			}
+		}
+		if bibMode != "bibtex" && strings.Contains(out, "bibtex paper") {
+			t.Errorf("%s: printed the bibtex step: %s", bibMode, out)
+		}
+		if bibMode != "biblatex" && strings.Contains(out, "biber paper") {
+			t.Errorf("%s: printed the biber step: %s", bibMode, out)
+		}
+	}
+}
+
+func TestTextWriterExportQualifiesVerification(t *testing.T) {
+	var buf bytes.Buffer
+	tw := &TextWriter{W: &buf}
+	tw.Export(app.ExportResult{
+		Success:         true,
+		ProjectRoot:     `D:\papers\a`,
+		ExportDir:       `D:\out\latex`,
+		BibMode:         "bibtex",
+		Verified:        true,
+		CompileCommands: []string{"xelatex paper.tex"},
+	})
+	out := buf.String()
+	if !strings.Contains(out, "Verified:") {
+		t.Fatalf("missing verification line: %s", out)
+	}
+	// A local compile says nothing about the recipient's machine, and the
+	// output has to say so or people will read it as a guarantee.
+	if !strings.Contains(out, "does not guarantee") {
+		t.Fatalf("verification is not qualified: %s", out)
+	}
+
+	buf.Reset()
+	tw.Export(app.ExportResult{Success: true, ExportDir: `D:\out\latex`, BibMode: "bibtex"})
+	if strings.Contains(buf.String(), "Verified:") {
+		t.Fatalf("unverified export claims verification: %s", buf.String())
+	}
+}
+
 func TestTextWriterClean(t *testing.T) {
 	var buf bytes.Buffer
 	tw := &TextWriter{W: &buf}
@@ -265,6 +330,44 @@ func TestJSONWriterBuild(t *testing.T) {
 	}
 	if v, ok := envelope["buildId"].(string); !ok || v != "build-001" {
 		t.Fatalf("buildId = %v, want build-001", envelope["buildId"])
+	}
+}
+
+func TestJSONWriterExport(t *testing.T) {
+	var buf bytes.Buffer
+	jw := &JSONWriter{W: &buf}
+
+	err := jw.Export(app.ExportResult{
+		Success:         true,
+		ProjectRoot:     `D:\papers\a`,
+		ExportDir:       `D:\out\latex`,
+		BibMode:         "bibtex",
+		Verified:        true,
+		CompileCommands: []string{"xelatex paper.tex", "bibtex paper", "xelatex paper.tex", "xelatex paper.tex"},
+		Artifacts:       []app.Artifact{{Kind: "tex", Path: `D:\out\latex\paper.tex`}},
+	})
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if v, ok := envelope["schemaVersion"].(float64); !ok || int(v) != schemaVersion {
+		t.Fatalf("schemaVersion = %v, want %d", envelope["schemaVersion"], schemaVersion)
+	}
+	for key, want := range map[string]any{
+		"exportDir": `D:\out\latex`,
+		"bibMode":   "bibtex",
+		"verified":  true,
+	} {
+		if envelope[key] != want {
+			t.Errorf("%s = %v, want %v", key, envelope[key], want)
+		}
+	}
+	commands, ok := envelope["compileCommands"].([]any)
+	if !ok || len(commands) != 4 || commands[1] != "bibtex paper" {
+		t.Fatalf("compileCommands = %v, want the four-step bibtex chain", envelope["compileCommands"])
 	}
 }
 

@@ -277,6 +277,15 @@ func runText(ctx context.Context, application app.App, inv cli.Invocation, stdou
 		tw.Build(result)
 		return resultExitCode(ctx, result.Diagnostics, result.Success)
 
+	case cli.CommandExport:
+		result, err := application.Export(ctx, exportRequest(inv))
+		if err != nil {
+			fmt.Fprintf(stderr, "nodepaper: %v\n", err)
+			return 1
+		}
+		tw.Export(result)
+		return resultExitCode(ctx, result.Diagnostics, result.Success)
+
 	case cli.CommandClean:
 		result, err := application.Clean(ctx, app.CleanRequest{ProjectDir: inv.ProjectDir, All: inv.CleanAll})
 		if err != nil {
@@ -330,6 +339,14 @@ func runJSON(ctx context.Context, application app.App, inv cli.Invocation, stdou
 			err = jw.Build(result)
 			terminalSuccess = output.IsTerminalSuccess(result.Diagnostics, result.Success)
 		}
+	case cli.CommandExport:
+		result, appErr := application.Export(ctx, exportRequest(inv))
+		if appErr != nil {
+			err = appErr
+		} else {
+			err = jw.Export(result)
+			terminalSuccess = output.IsTerminalSuccess(result.Diagnostics, result.Success)
+		}
 	case cli.CommandClean:
 		result, appErr := application.Clean(ctx, app.CleanRequest{ProjectDir: inv.ProjectDir, All: inv.CleanAll})
 		if appErr != nil {
@@ -357,6 +374,18 @@ func runJSON(ctx context.Context, application app.App, inv cli.Invocation, stdou
 		return 1
 	}
 	return 0
+}
+
+// exportRequest keeps the text and JSON paths building the same request, so
+// the two renderers can never be driven by different options.
+func exportRequest(inv cli.Invocation) app.ExportRequest {
+	return app.ExportRequest{
+		ProjectDir: inv.ProjectDir,
+		ToDir:      inv.ToDir,
+		Bib:        inv.Bib,
+		Verify:     inv.Verify,
+		Force:      inv.Force,
+	}
 }
 
 func resultExitCode(ctx context.Context, diagnostics []app.Diagnostic, success bool) int {

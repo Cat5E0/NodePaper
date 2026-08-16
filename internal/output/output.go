@@ -98,6 +98,39 @@ func (tw *TextWriter) Build(result app.BuildResult) {
 	}
 }
 
+// Export renders an ExportResult.
+func (tw *TextWriter) Export(result app.ExportResult) {
+	tw.writeProjectRoot(result.ProjectRoot)
+	if result.ExportDir != "" {
+		fmt.Fprintf(tw.W, "Export: %s\n", result.ExportDir)
+	}
+	if result.BibMode != "" {
+		fmt.Fprintf(tw.W, "Bibliography: %s\n", result.BibMode)
+	}
+	tw.writeSuccess(result.Success)
+	tw.writeArtifacts(result.Artifacts)
+	tw.writeDiagnostics(result.Diagnostics)
+	if !IsTerminalSuccess(result.Diagnostics, result.Success) {
+		return
+	}
+	if result.Verified {
+		fmt.Fprintln(tw.W, "Verified: the compile chain below succeeded on this machine.")
+		// Said every time, because a green local compile is the exact result
+		// people over-read: the recipient's TeX distribution and fonts are a
+		// different environment and this proves nothing about it.
+		fmt.Fprintln(tw.W, "This does not guarantee it compiles on the recipient's machine; their")
+		fmt.Fprintln(tw.W, "TeX packages and fonts still decide that.")
+	}
+	fmt.Fprintln(tw.W, "Next:")
+	fmt.Fprintf(tw.W, "  cd \"%s\"\n", result.ExportDir)
+	// The chain comes from the result rather than from a copy kept here, so
+	// the terminal, README.txt and --verify always name the same commands.
+	for _, command := range result.CompileCommands {
+		fmt.Fprintf(tw.W, "  %s\n", command)
+	}
+	fmt.Fprintln(tw.W, "  open README.txt for the required packages and notes")
+}
+
 // Clean renders a CleanResult.
 func (tw *TextWriter) Clean(result app.CleanResult) {
 	tw.writeProjectRoot(result.ProjectRoot)
@@ -182,6 +215,11 @@ func (jw *JSONWriter) Validate(result app.ValidateResult) error {
 
 // Build renders a BuildResult as JSON.
 func (jw *JSONWriter) Build(result app.BuildResult) error {
+	return jw.writeEnvelope(result)
+}
+
+// Export renders an ExportResult as JSON.
+func (jw *JSONWriter) Export(result app.ExportResult) error {
 	return jw.writeEnvelope(result)
 }
 

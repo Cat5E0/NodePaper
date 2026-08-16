@@ -13,6 +13,7 @@ const Usage = `Usage:
   nodepaper doctor [project-directory] [--format text|json]
   nodepaper validate [project-directory] [--format text|json]
   nodepaper build [project-directory] [--format text|json]
+  nodepaper export [project-directory] --to <directory> [--bib bibtex|biblatex|inline] [--verify] [--force] [--format text|json]
   nodepaper clean [project-directory] [--all] [--format text|json]
   nodepaper --version
   nodepaper --help
@@ -32,8 +33,14 @@ const (
 	CommandDoctor   Command = "doctor"
 	CommandValidate Command = "validate"
 	CommandBuild    Command = "build"
+	CommandExport   Command = "export"
 	CommandClean    Command = "clean"
 )
+
+// DefaultBibMode is the --bib value used when the flag is omitted. BibTeX is
+// the default because bibtex ships with every TeX distribution and its
+// citation marks match the PDF `nodepaper build` produces.
+const DefaultBibMode = "bibtex"
 
 type Invocation struct {
 	Command        Command
@@ -45,6 +52,11 @@ type Invocation struct {
 	Onboarding     bool
 	Version        bool
 	Help           bool
+	// ToDir, Bib, Verify and Force belong to export.
+	ToDir  string
+	Bib    string
+	Verify bool
+	Force  bool
 }
 
 // UsageError is a syntax error with a focused next step. The CLI prints the
@@ -78,6 +90,34 @@ func Parse(args []string) (Invocation, error) {
 			invocation.AIGuide = true
 		case argument == "--non-interactive":
 			invocation.NonInteractive = true
+		case argument == "--verify":
+			invocation.Verify = true
+		case argument == "--force":
+			invocation.Force = true
+		case argument == "--to":
+			index++
+			if index >= len(args) {
+				return Invocation{}, usageError("--to requires a directory", "Try: nodepaper export --to <directory>")
+			}
+			invocation.ToDir = args[index]
+		case strings.HasPrefix(argument, "--to="):
+			invocation.ToDir = strings.TrimPrefix(argument, "--to=")
+		case argument == "--bib":
+			index++
+			if index >= len(args) {
+				return Invocation{}, usageError("--bib requires bibtex, biblatex or inline", "Try: nodepaper export --to <directory> --bib bibtex")
+			}
+			bib, err := parseBib(args[index])
+			if err != nil {
+				return Invocation{}, err
+			}
+			invocation.Bib = bib
+		case strings.HasPrefix(argument, "--bib="):
+			bib, err := parseBib(strings.TrimPrefix(argument, "--bib="))
+			if err != nil {
+				return Invocation{}, err
+			}
+			invocation.Bib = bib
 		case argument == "--format":
 			index++
 			if index >= len(args) {
@@ -110,7 +150,8 @@ func Parse(args []string) (Invocation, error) {
 	}
 
 	if invocation.Version {
-		if invocation.Command != "" || invocation.ProjectDir != "" || invocation.CleanAll || invocation.AIGuide || invocation.NonInteractive || invocation.Help || invocation.Format != FormatText {
+		if invocation.Command != "" || invocation.ProjectDir != "" || invocation.CleanAll || invocation.AIGuide || invocation.NonInteractive || invocation.Help || invocation.Format != FormatText ||
+			invocation.ToDir != "" || invocation.Bib != "" || invocation.Verify || invocation.Force {
 			return Invocation{}, usageError("--version cannot be combined with a command or other options", "Try: nodepaper --version")
 		}
 		return invocation, nil
@@ -130,6 +171,31 @@ func Parse(args []string) (Invocation, error) {
 	if invocation.NonInteractive && invocation.Command != CommandInit {
 		return Invocation{}, usageError("--non-interactive is only valid with init", "Try: nodepaper init <project-directory> --non-interactive")
 	}
+	for _, restricted := range []struct {
+		used bool
+		flag string
+	}{
+		{invocation.ToDir != "", "--to"},
+		{invocation.Bib != "", "--bib"},
+		{invocation.Verify, "--verify"},
+		{invocation.Force, "--force"},
+	} {
+		if restricted.used && invocation.Command != CommandExport {
+			return Invocation{}, usageError(
+				fmt.Sprintf("%s is only valid with export", restricted.flag),
+				"Try: nodepaper export [project-directory] --to <directory>")
+		}
+	}
+	// --help is answered with the usage text, so it must not be blocked by the
+	// options the command would otherwise require.
+	if invocation.Command == CommandExport && !invocation.Help {
+		if invocation.ToDir == "" {
+			return Invocation{}, usageError("export requires a destination directory", "Try: nodepaper export [project-directory] --to <directory>")
+		}
+		if invocation.Bib == "" {
+			invocation.Bib = DefaultBibMode
+		}
+	}
 
 	return invocation, nil
 }
@@ -143,7 +209,7 @@ func InitDirectoryRequiredError() error {
 func parseCommand(value string) (Command, error) {
 	command := Command(value)
 	switch command {
-	case CommandInit, CommandDoctor, CommandValidate, CommandBuild, CommandClean:
+	case CommandInit, CommandDoctor, CommandValidate, CommandBuild, CommandExport, CommandClean:
 		return command, nil
 	default:
 		suggestion := "Try: nodepaper --help"
@@ -155,7 +221,7 @@ func parseCommand(value string) (Command, error) {
 }
 
 func nearestCommand(value string) Command {
-	for _, command := range []Command{CommandInit, CommandDoctor, CommandValidate, CommandBuild, CommandClean} {
+	for _, command := range []Command{CommandInit, CommandDoctor, CommandValidate, CommandBuild, CommandExport, CommandClean} {
 		if editDistance(strings.ToLower(value), string(command)) <= 2 {
 			return command
 		}
@@ -181,6 +247,17 @@ func editDistance(a, b string) int {
 		previous = current
 	}
 	return previous[len(b)]
+}
+
+func parseBib(value string) (string, error) {
+	switch value {
+	case "bibtex", "biblatex", "inline":
+		return value, nil
+	default:
+		return "", usageError(
+			fmt.Sprintf("unsupported bibliography mode %q; use bibtex, biblatex or inline", value),
+			"Try: nodepaper export --to <directory> --bib bibtex")
+	}
 }
 
 func parseFormat(value string) (Format, error) {

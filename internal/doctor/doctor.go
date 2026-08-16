@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"nodepaper/internal/diagnostic"
 	"nodepaper/internal/latexlog"
@@ -75,6 +76,7 @@ func Run(ctx context.Context, projectRoot string, resourceRoot string) Result {
 		checkXeLaTeX(ctx, tc.XeLaTeX),
 	)
 	checks = append(checks, checkChineseProbe(ctx, tc))
+	checks = append(checks, checkLaTeXExportPackages(ctx))
 
 	if projectRoot != "" {
 		checks = append(checks, checkProjectResources(projectRoot)...)
@@ -258,6 +260,80 @@ func checkXeLaTeX(ctx context.Context, path string) Check {
 		return failedVersionCheck("XeLaTeX", err)
 	}
 	return Check{Name: "XeLaTeX", Status: StatusPass, Message: fmt.Sprintf("%s (%s)", path, version)}
+}
+
+// latexExportPackagesCheckName is the fixed Name for the check below. It is
+// suffixed "(optional)" so the label itself signals, before Message or
+// Suggestion are read, that this is not part of the core build path.
+const latexExportPackagesCheckName = "LaTeX export packages (optional)"
+
+// checkLaTeXExportPackages probes for the packages used only by
+// `nodepaper export` (gbt7714, biblatex-gb7714-2015, biber). The core build
+// path (`nodepaper build`) never touches them, and most users never run
+// export, so this check always reports StatusPass regardless of what it
+// finds: their absence is a normal, unremarkable state, not a warning. See
+// checkToDiag (only Warning/Fail become diagnostics) - Pass here is what
+// keeps this check out of the Warning count.
+func checkLaTeXExportPackages(ctx context.Context) Check {
+	kpsewhichPath, err := exec.LookPath("kpsewhich")
+	if err != nil {
+		return Check{
+			Name:   latexExportPackagesCheckName,
+			Status: StatusPass,
+			Message: "kpsewhich is unavailable, so gbt7714 / biblatex-gb7714-2015 / biber " +
+				"were not probed; these are used only by nodepaper export and never by nodepaper build",
+		}
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	gbt7714 := kpsewhichHasFile(probeCtx, kpsewhichPath, "gbt7714.sty")
+	biblatexGB := kpsewhichHasFile(probeCtx, kpsewhichPath, "gb7714-2015.bbx")
+	_, err = exec.LookPath("biber")
+	biber := err == nil
+
+	return latexExportPackagesResult(gbt7714, biblatexGB, biber)
+}
+
+// latexExportPackagesResult renders the probe outcome into a Check. It is
+// kept separate from checkLaTeXExportPackages so the three combinations
+// (all present / all absent / partially present) can be exercised directly
+// in tests without shelling out.
+func latexExportPackagesResult(gbt7714, biblatexGB, biber bool) Check {
+	state := func(found bool) string {
+		if found {
+			return "available"
+		}
+		return "not detected"
+	}
+
+	message := fmt.Sprintf(
+		"gbt7714 %s; biblatex-gb7714-2015 %s; biber %s (used only by the optional nodepaper export)",
+		state(gbt7714), state(biblatexGB), state(biber),
+	)
+
+	check := Check{Name: latexExportPackagesCheckName, Status: StatusPass, Message: message}
+	if gbt7714 && biblatexGB && biber {
+		return check
+	}
+
+	check.Suggestion = "If you would like to export a LaTeX project with nodepaper export, " +
+		"you can optionally install these:\n" +
+		"  tlmgr install gbt7714 biblatex-gb7714-2015 biber\n" +
+		"  miktex packages install gbt7714 biblatex-gb7714-2015 biber"
+	return check
+}
+
+// kpsewhichHasFile reports whether kpsewhich resolves filename to a path. A
+// non-zero exit status or empty output both mean "not found" and are treated
+// the same way: as a plain false, never surfaced as an error.
+func kpsewhichHasFile(ctx context.Context, kpsewhichPath, filename string) bool {
+	output, err := exec.CommandContext(ctx, kpsewhichPath, filename).Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(output)) != ""
 }
 
 func missingTool(name, suggestion string) Check {
