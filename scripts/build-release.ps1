@@ -205,6 +205,25 @@ try {
     New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
 
     $go = Get-NodePaperGo
+
+    # go.mod pins the toolchain, but GOTOOLCHAIN=local would silently ignore
+    # that and build with whatever is installed. release-manifest only records
+    # the version it was handed, so a mismatch would ship as a fact rather than
+    # as a failure -- which is how rc.3 through rc.7 were built on a different
+    # toolchain from rc.2 and rc.8 without anyone noticing.
+    $expectedToolchain = ""
+    foreach ($line in (Get-Content -LiteralPath (Join-Path $worktree "go.mod") -Encoding UTF8)) {
+        if ($line -match '^\s*toolchain\s+(go\S+)\s*$') { $expectedToolchain = $Matches[1]; break }
+    }
+    if ([string]::IsNullOrWhiteSpace($expectedToolchain)) {
+        throw "go.mod declares no toolchain directive; the release toolchain must be pinned."
+    }
+    $actualToolchain = (((& $go version) -join " ") -split '\s+')[2]
+    if ($actualToolchain -ne $expectedToolchain) {
+        throw "Go toolchain mismatch: go.mod pins $expectedToolchain but the build would use $actualToolchain. Check GOTOOLCHAIN (currently '$((& $go env GOTOOLCHAIN))')."
+    }
+    Write-Host "Go toolchain verified: $actualToolchain (pinned by go.mod)"
+
     Push-Location $worktree
     try {
         $previousGoos = $env:GOOS
