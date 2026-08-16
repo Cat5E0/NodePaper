@@ -63,8 +63,8 @@ Package fontspec Info:
 // falls back to the plain success message rather than inventing a problem.
 func TestChineseProbeFallsBackWithoutFontRecords(t *testing.T) {
 	for name, path := range map[string]string{
-		"missing log":  filepath.Join(t.TempDir(), "absent.log"),
-		"no fontspec":  writeProbeLog(t, "This is XeTeX, Version 3.141592653\nOutput written on probe.pdf.\n"),
+		"missing log": filepath.Join(t.TempDir(), "absent.log"),
+		"no fontspec": writeProbeLog(t, "This is XeTeX, Version 3.141592653\nOutput written on probe.pdf.\n"),
 	} {
 		got := chineseProbeResult(path)
 		if got.Status != StatusPass {
