@@ -77,7 +77,7 @@ func TestRunNoArgsShowsProjectCommandsFromSubdirectory(t *testing.T) {
 	if code := runWithIO(context.Background(), nil, strings.NewReader(""), &stdout, &stderr, false, subdir); code != 0 {
 		t.Fatalf("run() exit code = %d, want 0", code)
 	}
-	for _, want := range []string{"Project found", root, "nodepaper validate", "nodepaper build", "nodepaper clean"} {
+	for _, want := range []string{"Project found", root, "nodepaper validate", "nodepaper build", "nodepaper export", "nodepaper clean"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("stdout missing %q: %s", want, stdout.String())
 		}
@@ -430,6 +430,62 @@ func TestRunBuild(t *testing.T) {
 	code = run([]string{"build", projectDir}, &stdout, &stderr)
 	// Build may succeed or fail depending on toolchain; just verify it doesn't panic.
 	t.Logf("build exit code: %d, stdout: %s, stderr: %s", code, stdout.String(), stderr.String())
+}
+
+// TestSlowCommandsAnnounceWorkBeforeDoingIt guards the visibility fix. Every
+// text-mode command used to print its first character only after the work had
+// finished, so a build that takes seconds - and an `export --verify` that takes
+// about a minute - was indistinguishable from a hung process. The notice has to
+// be the very first line of stdout, which is the only way to prove it was
+// written before the work started, and it must never reach JSON mode: there
+// stdout stays a single JSON object and stderr stays empty.
+//
+// A project with unparsable YAML is used deliberately: it fails in the
+// application layer without needing Pandoc or TeX, so the ordering is tested on
+// any machine.
+func TestSlowCommandsAnnounceWorkBeforeDoingIt(t *testing.T) {
+	projectDir := filepath.Join(t.TempDir(), "invalid-project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "nodepaper.yaml"), []byte("version: [\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exportDir := filepath.Join(t.TempDir(), "export")
+
+	for _, testCase := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "build", args: []string{"build", projectDir}, want: "Building the PDF"},
+		{name: "export", args: []string{"export", projectDir, "--to", exportDir}, want: "Exporting the LaTeX project"},
+		{name: "export --verify", args: []string{"export", projectDir, "--to", exportDir, "--verify"}, want: "compiling it to verify"},
+		{name: "doctor", args: []string{"doctor", projectDir}, want: "Checking the toolchain"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			run(testCase.args, &stdout, &stderr)
+			firstLine, _, _ := strings.Cut(stdout.String(), "\n")
+			if !strings.Contains(firstLine, testCase.want) {
+				t.Fatalf("first stdout line = %q, want it to contain %q", firstLine, testCase.want)
+			}
+
+			stdout.Reset()
+			stderr.Reset()
+			run(append(testCase.args, "--format", "json"), &stdout, &stderr)
+			if strings.Contains(stdout.String(), testCase.want) {
+				t.Fatalf("progress notice leaked into JSON output: %s", stdout.String())
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("stderr = %q, want empty in JSON mode", stderr.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+				t.Fatalf("stdout is not one JSON object: %v\n%s", err, stdout.String())
+			}
+		})
+	}
 }
 
 func TestRunClean(t *testing.T) {

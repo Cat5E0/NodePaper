@@ -12,6 +12,8 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完，但它**不自带 TeX**——PDF 排版由你机器上的 TeX 发行版完成，安装 TeX 是整个流程中耗时最长的一步。
 
+TeX 是 `nodepaper build` 的前置，不是全部命令的前置：`nodepaper export`（导出可编辑的 LaTeX 工程）只用发布包里自带的 pandoc，没装 TeX 也能用，编译留给拿到工程的人。
+
 | 方案 | 下载 | 装完占盘 | 耗时 | 适用 |
 |---|---|---|---|---|
 | **MiKTeX**（推荐先试） | 约 140 MB | 约 1 GB | 约 10～20 分钟 | 磁盘空间有限。首次构建时会自动下载所缺宏包，需联网 |
@@ -352,7 +354,7 @@ latexFragments:
 ## 当前限制
 
 - 仅正式面向 Windows 10/11 x64；
-- 需要外部 TeX Live 或 MiKTeX 提供 XeLaTeX；不需要 latexmk 或 Perl；
+- `build` 需要外部 TeX Live 或 MiKTeX 提供 XeLaTeX；不需要 latexmk 或 Perl。`export` 例外，它只跑发布包内置的 pandoc，无 TeX 也能导出；
 - 当前 CUMCM Profile 仍是候选版本；
 - Setup 尚未进行 Authenticode 代码签名；
 - 不提供 GUI、HTTP 服务、DOCX 或 Typst 输出；

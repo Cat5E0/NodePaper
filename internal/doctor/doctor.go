@@ -237,6 +237,10 @@ func checkXeLaTeXDriver(ctx context.Context, tc Toolchain) Check {
 // and a user who is not told that has no way to plan for it. Sizes are from
 // 2026-08-15 (basic-miktex-25.12-x64.exe, texlive2026-20260301.iso); installed
 // footprint and duration are order-of-magnitude figures.
+//
+// The closing line names export because a bare FAIL here reads as "NodePaper
+// cannot do anything on this machine", which is not true: export runs the
+// packaged Pandoc only and needs no TeX at all.
 const texDistributionHelp = `NodePaper does not bundle TeX; a TeX distribution is required.
   MiKTeX     ~140 MB download, ~1 GB installed, 10-20 min
              https://miktex.org/download
@@ -245,7 +249,9 @@ const texDistributionHelp = `NodePaper does not bundle TeX; a TeX distribution i
 Install to a path without spaces or non-ASCII characters. Then open a NEW terminal
 (PATH changes do not affect already-open windows), run ` + "`xelatex --version`" + `, and
 re-run ` + "`nodepaper doctor`" + `.
-NodePaper does not require latexmk or Perl.`
+NodePaper does not require latexmk or Perl.
+Only the PDF stage needs TeX: ` + "`nodepaper export`" + ` still works here, and writes a
+LaTeX project that compiles on a machine that has one.`
 
 // xelatexVersionLine matches the line on which a XeLaTeX binary states its
 // identity. It looks for XeTeX *anywhere* on the line rather than at the start,

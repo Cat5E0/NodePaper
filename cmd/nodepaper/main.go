@@ -138,6 +138,11 @@ func writeOnboarding(w io.Writer, workingDir string) {
 		fmt.Fprintln(w, "Next:")
 		fmt.Fprintln(w, "  nodepaper validate")
 		fmt.Fprintln(w, "  nodepaper build")
+		// Listed because this screen, not --help, is where people look for what
+		// they can do with the Project they already have; export was a
+		// capability NodePaper had and never named here. --to is part of the
+		// line because export refuses to run without it.
+		fmt.Fprintln(w, "  nodepaper export --to <directory>")
 		fmt.Fprintln(w, "  nodepaper clean")
 		fmt.Fprintln(w, "  nodepaper --help")
 		return
@@ -237,6 +242,26 @@ func isTerminal(file *os.File) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
+// writeProgress announces the work a slow command is about to start. Every
+// command used to print its first character only after it had finished, so a
+// build that takes seconds - and an `export --verify` that takes about a minute
+// - was indistinguishable from a hung process. The line is deliberately one
+// line of intent, not a relay of the build log: the PowerShell and LaTeX output
+// belongs in .nodepaper/logs/ and would be noise here.
+//
+// Text mode only, and never called from runJSON: `--format json` must keep
+// stdout at exactly one JSON object and stderr empty.
+func writeProgress(w io.Writer, message string) {
+	fmt.Fprintln(w, message)
+	// os.Stdout is unbuffered, so this is insurance rather than a fix: it keeps
+	// the notice immediate if stdout is ever wrapped in a buffered writer, which
+	// would otherwise hold the line back until the command ends and reintroduce
+	// the exact silence this notice exists to remove.
+	if flusher, ok := w.(interface{ Flush() error }); ok {
+		_ = flusher.Flush()
+	}
+}
+
 func runText(ctx context.Context, application app.App, inv cli.Invocation, stdout, stderr io.Writer) int {
 	tw := &output.TextWriter{W: stdout}
 
@@ -251,6 +276,11 @@ func runText(ctx context.Context, application app.App, inv cli.Invocation, stdou
 		return resultExitCode(ctx, result.Diagnostics, result.Success)
 
 	case cli.CommandDoctor:
+		// Measured at ~4 s on a warm machine, all of it before the first line of
+		// output: the checks probe every tool and compile a minimal ctex document.
+		// `validate` is left silent on purpose - it finishes in well under a
+		// second, so a notice would only flicker past.
+		writeProgress(stdout, "Checking the toolchain... (this compiles a small LaTeX test document)")
 		result, err := application.Doctor(ctx, app.DoctorRequest{ProjectDir: inv.ProjectDir})
 		if err != nil {
 			fmt.Fprintf(stderr, "nodepaper: %v\n", err)
@@ -269,6 +299,7 @@ func runText(ctx context.Context, application app.App, inv cli.Invocation, stdou
 		return resultExitCode(ctx, result.Diagnostics, result.Success)
 
 	case cli.CommandBuild:
+		writeProgress(stdout, "Building the PDF... (Pandoc, then XeLaTeX; usually a few seconds)")
 		result, err := application.Build(ctx, app.BuildRequest{ProjectDir: inv.ProjectDir})
 		if err != nil {
 			fmt.Fprintf(stderr, "nodepaper: %v\n", err)
@@ -278,6 +309,13 @@ func runText(ctx context.Context, application app.App, inv cli.Invocation, stdou
 		return resultExitCode(ctx, result.Diagnostics, result.Success)
 
 	case cli.CommandExport:
+		// --verify is the case that needs saying out loud: the export itself is
+		// a Pandoc run, but verification adds the whole compile chain after it.
+		if inv.Verify {
+			writeProgress(stdout, "Exporting the LaTeX project, then compiling it to verify... (this can take a minute)")
+		} else {
+			writeProgress(stdout, "Exporting the LaTeX project... (usually a few seconds)")
+		}
 		result, err := application.Export(ctx, exportRequest(inv))
 		if err != nil {
 			fmt.Fprintf(stderr, "nodepaper: %v\n", err)

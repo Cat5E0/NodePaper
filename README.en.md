@@ -12,6 +12,8 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds, but NodePaper **does not bundle TeX** — typesetting is done by a TeX distribution on your machine, and installing it is the longest step of the whole process.
 
+TeX is a prerequisite for `nodepaper build`, not for every command: `nodepaper export`, which writes out an editable LaTeX project, only uses the pandoc shipped inside the release package. It works with no TeX installed, leaving the compile to whoever receives the project.
+
 | Option | Download | Installed | Time | Suits |
 |---|---|---|---|---|
 | **MiKTeX** (try this first) | ~140 MB | ~1 GB | 10–20 min | Limited disk space. Missing packages are downloaded on demand during the first build, so it needs a network connection |
@@ -349,7 +351,7 @@ latexFragments:
 ## Current limitations
 
 - officially targets Windows 10/11 x64 only;
-- requires an external TeX Live or MiKTeX installation providing XeLaTeX; latexmk and Perl are not required;
+- `build` requires an external TeX Live or MiKTeX installation providing XeLaTeX; latexmk and Perl are not required. `export` is the exception: it only runs the bundled pandoc and works without TeX;
 - the current CUMCM Profile is still a candidate;
 - the Setup is not Authenticode signed yet;
 - no GUI, HTTP service, DOCX, or Typst output;

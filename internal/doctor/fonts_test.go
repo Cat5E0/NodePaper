@@ -247,6 +247,9 @@ func TestXeLaTeXHelpIsActionable(t *testing.T) {
 		"~6.3 GB",
 		"NEW terminal",
 		"does not require latexmk or Perl",
+		// Without this line the failure reads as "nothing works here"; export
+		// needs no TeX and is the one thing that still does work.
+		"nodepaper export",
 	} {
 		if !strings.Contains(got.Suggestion, want) {
 			t.Fatalf("Suggestion is missing %q:\n%s", want, got.Suggestion)
