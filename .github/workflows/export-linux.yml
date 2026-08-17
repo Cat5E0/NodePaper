@@ -1,0 +1,157 @@
+# Compiles an exported LaTeX project on Linux, which is the only place the
+# Profile's third font arm is ever reached.
+#
+# profiles/cumcm/template*.tex pick a CJK font at compile time, in four arms:
+# SimHei present -> the Windows families; only SimSun -> synthesised weights;
+# Noto Serif CJK SC -> the Noto families; nothing -> a hard error. Arms one and
+# two are covered by test-e2e.ps1 and miktex-e2e.yml. Arm three is what an
+# Overleaf user gets, and no Windows runner can execute it: XeTeX there resolves
+# fonts through the Windows font API, so SimSun always wins.
+#
+# It also proves, in CI rather than by assertion, that `nodepaper export` needs
+# no TeX: the export job installs none.
+#
+# Two jobs because NodePaper is a Windows binary and the target is Linux. The
+# export is produced on Windows and handed to Linux as an artifact.
+
+name: export-linux
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    name: Export on Windows (no TeX installed)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+      - name: Bootstrap pinned Pandoc tools
+        run: .\Bootstrap-Tools.ps1
+      - name: Build nodepaper.exe
+        run: go build -o nodepaper.exe ./cmd/nodepaper
+      - name: Confirm this runner has no XeLaTeX
+        shell: pwsh
+        run: |
+          # The point of the job below is that export does not need TeX. If a
+          # future runner image ships one, say so rather than quietly proving
+          # a weaker claim.
+          $xelatex = Get-Command xelatex -ErrorAction SilentlyContinue
+          if ($xelatex) { Write-Host "note: this runner has xelatex at $($xelatex.Source); export still must not use it" }
+          else { Write-Host "no xelatex on this runner, as expected" }
+      - name: Export the fixture in every bibliography mode
+        shell: pwsh
+        run: |
+          $env:NODEPAPER_PROFILE_DIR = Join-Path $PWD "profiles\cumcm"
+          $env:NODEPAPER_BUILD_SCRIPT = Join-Path $PWD "Build-Paper.ps1"
+          $env:PATH = (Join-Path $PWD "tools\windows-x64\pandoc") + ";" +
+                      (Join-Path $PWD "tools\windows-x64\pandoc-crossref") + ";" + $env:PATH
+          $fixture = Join-Path $PWD "nodepaper-test-fixtures\tests\fixtures\complete-single-file"
+          foreach ($mode in @("inline", "bibtex", "biblatex")) {
+            $project = Join-Path $env:RUNNER_TEMP "project-$mode"
+            Copy-Item -Path $fixture -Destination $project -Recurse -Force
+            & .\nodepaper.exe export $project --to (Join-Path $PWD "export-$mode") --bib $mode
+            if ($LASTEXITCODE -ne 0) { throw "export --bib $mode failed with exit code $LASTEXITCODE" }
+          }
+          # The cascade must be in every mode's output, or the Linux job would
+          # be testing a document that never reaches arm three.
+          foreach ($mode in @("inline", "bibtex", "biblatex")) {
+            $tex = Get-Content -LiteralPath (Join-Path $PWD "export-$mode\paper.tex") -Raw -Encoding UTF8
+            foreach ($needle in @("fontset=none", "IfFontExistsTF", "Noto Serif CJK SC", "tracinglostchars=3")) {
+              if (-not $tex.Contains($needle)) { throw "export --bib $mode is missing '$needle'" }
+            }
+          }
+      - name: Upload the exported projects
+        uses: actions/upload-artifact@v4
+        with:
+          name: exports
+          path: export-*/
+          retention-days: 1
+
+  compile:
+    name: Compile on Linux with Noto CJK
+    needs: export
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the exported projects
+        uses: actions/download-artifact@v4
+        with:
+          name: exports
+      - name: Install XeLaTeX, ctex and Noto CJK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-xetex texlive-lang-chinese texlive-latex-recommended \
+            texlive-latex-extra texlive-bibtex-extra biber fonts-noto-cjk poppler-utils
+      - name: Record what the runner has
+        run: |
+          # Arm three is only meaningful if the earlier arms cannot be taken.
+          # SimHei/SimSun are Windows fonts; assert their absence so a pass here
+          # cannot be a disguised arm-one pass.
+          for font in SimHei SimSun "Noto Serif CJK SC" "Noto Sans CJK SC"; do
+            if fc-list | grep -qF "$font"; then echo "$font -> present"; else echo "$font -> absent"; fi
+          done
+          if fc-list | grep -qF SimSun; then
+            echo "::error::SimSun is present on this Linux runner; arm three would not be exercised"
+            exit 1
+          fi
+      - name: Compile the inline export
+        working-directory: export-inline
+        run: |
+          # inline first: it needs no bibliography tool, so a failure here is
+          # about fonts and nothing else. This is the blocking assertion.
+          xelatex -interaction=nonstopmode -halt-on-error -file-line-error paper.tex
+          xelatex -interaction=nonstopmode -halt-on-error -file-line-error paper.tex
+          test -f paper.pdf || { echo "::error::no PDF produced"; exit 1; }
+          echo "--- fonts actually instantiated ---"
+          grep -oE "Noto (Serif|Sans) CJK SC" paper.log | sort -u || true
+          if ! grep -qF "Noto" paper.log; then
+            echo "::error::no Noto font was instantiated; the cascade did not reach arm three"
+            exit 1
+          fi
+          # \tracinglostchars=3 turns a dropped glyph into a non-zero exit, so
+          # reaching this line already means none were lost. Check the log too,
+          # because that option is the thing under test.
+          if grep -qF "Missing character" paper.log; then
+            echo "::error::characters were dropped:"
+            grep -F "Missing character" paper.log | sort -u
+            exit 1
+          fi
+          echo "inline export compiled on Linux with no missing characters"
+      - name: Compile the bibtex export
+        working-directory: export-bibtex
+        run: |
+          # gbt7714 may or may not be in Debian's TeX; Overleaf has it. Report
+          # rather than fail, so a packaging difference is not read as a
+          # NodePaper defect.
+          if ! kpsewhich gbt7714.sty > /dev/null; then
+            echo "::warning::gbt7714.sty is not in this apt TeX set; skipping the bibtex chain"
+            exit 0
+          fi
+          xelatex -interaction=nonstopmode -halt-on-error -file-line-error paper.tex
+          bibtex paper || true
+          xelatex -interaction=nonstopmode -halt-on-error -file-line-error paper.tex
+          xelatex -interaction=nonstopmode -halt-on-error -file-line-error paper.tex
+          test -f paper.pdf || { echo "::error::no PDF produced"; exit 1; }
+          if grep -qF "Missing character" paper.log; then
+            echo "::error::characters were dropped:"
+            grep -F "Missing character" paper.log | sort -u
+            exit 1
+          fi
+          pdftotext -enc UTF-8 paper.pdf - | grep -c . > /dev/null
+          echo "bibtex export compiled on Linux with no missing characters"
+      - name: Upload the Linux logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-logs
+          path: export-*/paper.log
+          retention-days: 3
