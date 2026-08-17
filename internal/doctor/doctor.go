@@ -495,10 +495,14 @@ func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
 		if runErr != nil {
 			message = fmt.Sprintf("minimal Chinese document failed: %v", runErr)
 		}
-		// An exit code alone leaves the reader guessing. The log names the
-		// actual cause -- a missing .sty, an unresolvable font, a broken
-		// installation -- and those demand different fixes, so quote it.
-		if reason := firstLaTeXError(filepath.Join(dir, "probe.log")); reason != "" {
+		// An exit code alone leaves the reader guessing: a missing .sty, an
+		// unresolvable font and a broken installation all look identical and
+		// need different fixes. XeLaTeX prints the error to stdout as well as
+		// to the log, and the captured stream is there whether or not the log
+		// was ever written -- on miktex-e2e run 31994564628 the log yielded
+		// nothing while the process had failed with a real error. Read the
+		// streams first and fall back to the log.
+		if reason := firstLaTeXError(processResult.Stdout, processResult.Stderr, readFileString(filepath.Join(dir, "probe.log"))); reason != "" {
 			message = fmt.Sprintf("%s: %s", message, reason)
 		}
 		return Check{
@@ -662,23 +666,32 @@ func FormatChecks(checks []Check) string {
 	return sb.String()
 }
 
-// firstLaTeXError returns the first error line from a TeX log, or "" when the
-// log is unreadable or holds no error. TeX writes errors either as "! message"
-// or, under -file-line-error, as "file:line: message"; both forms are reduced
-// to the message so the caller can put it on one line.
-func firstLaTeXError(logPath string) string {
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "! ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "!"))
-		}
-		if index := strings.Index(line, ": ! "); index > 0 {
-			return strings.TrimSpace(line[index+3:])
+// firstLaTeXError returns the first error line found across the given sources,
+// or "" when none carries one. TeX writes errors either as "! message" or,
+// under -file-line-error, as "file:line: ! message"; both forms are reduced to
+// the message so the caller can put it on one line. Sources are searched in
+// order, so pass the most reliable one first.
+func firstLaTeXError(sources ...string) string {
+	for _, source := range sources {
+		for _, line := range strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "! ") {
+				return strings.TrimSpace(strings.TrimPrefix(line, "!"))
+			}
+			if index := strings.Index(line, ": ! "); index > 0 {
+				return strings.TrimSpace(line[index+3:])
+			}
 		}
 	}
 	return ""
+}
+
+// readFileString returns a file's contents, or "" when it cannot be read. The
+// caller treats an unreadable file as simply having nothing to contribute.
+func readFileString(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }

@@ -182,3 +182,25 @@ jobs:
           exit $probeExit
       - name: M3 E2E suite
         run: .\scripts\test-e2e.ps1
+      - name: On failure, compile the probe by hand for a readable log
+        if: failure()
+        shell: pwsh
+        run: |
+          # doctor deletes its probe directory, so a failure there leaves the
+          # log unavailable. Recreating the same document by hand and printing
+          # the log gives the next reader the actual TeX error instead of an
+          # exit code. Diagnostic only: it must never change the job outcome.
+          $dir = Join-Path $env:RUNNER_TEMP ("doctor-probe-repro-" + [Guid]::NewGuid().ToString("N"))
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $lines = @(
+            '\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}',
+            '\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]',
+            '\begin{document}',
+            'NodePaper 中文环境探针',
+            '\end{document}'
+          )
+          Set-Content -LiteralPath (Join-Path $dir "probe.tex") -Value $lines -Encoding UTF8
+          & xelatex -interaction=nonstopmode -halt-on-error -file-line-error "-output-directory=$dir" (Join-Path $dir "probe.tex") 2>&1 |
+            Select-Object -Last 40 | Write-Host
+          Write-Host "hand-run exit: $LASTEXITCODE"
+          exit 0
