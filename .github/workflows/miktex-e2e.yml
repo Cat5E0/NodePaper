@@ -107,22 +107,26 @@ jobs:
           # that can check it. A failure now is a real NodePaper defect.
           $probeDir = Join-Path $env:RUNNER_TEMP ("miktex-probe-" + [Guid]::NewGuid().ToString("N"))
           New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
-          $probeText = @'
-\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}
-\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
-\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
-\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
-\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
-\setCJKfamilyfont{zhfs}{SimSun}
-\providecommand{\songti}{\CJKfamily{zhsong}}
-\providecommand{\heiti}{\CJKfamily{zhhei}}
-\providecommand{\kaishu}{\CJKfamily{zhkai}}
-\providecommand{\fangsong}{\CJKfamily{zhfs}}
-\begin{document}
-NodePaper 中文环境探针：宋体 {\heiti 黑体} {\kaishu 楷书} \textbf{粗体} \emph{斜体}
-\end{document}
-'@
-          Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeText -Encoding UTF8
+          # Written as an indented array rather than a here-string: a YAML
+          # block scalar ends at the first line indented less than the block,
+          # and a PowerShell here-string must close with '@ in column 1, so the
+          # two cannot coexist. Single quotes keep every backslash literal.
+          $probeLines = @(
+            '\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}',
+            '\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]',
+            '\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]',
+            '\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]',
+            '\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]',
+            '\setCJKfamilyfont{zhfs}{SimSun}',
+            '\providecommand{\songti}{\CJKfamily{zhsong}}',
+            '\providecommand{\heiti}{\CJKfamily{zhhei}}',
+            '\providecommand{\kaishu}{\CJKfamily{zhkai}}',
+            '\providecommand{\fangsong}{\CJKfamily{zhfs}}',
+            '\begin{document}',
+            'NodePaper 中文环境探针：宋体 {\heiti 黑体} {\kaishu 楷书} \textbf{粗体} \emph{斜体}',
+            '\end{document}'
+          )
+          Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeLines -Encoding UTF8
           & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error "-outdir=$probeDir" (Join-Path $probeDir "probe.tex")
           $probeExit = $LASTEXITCODE
           Write-Host "probe exit: $probeExit"
