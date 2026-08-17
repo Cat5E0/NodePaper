@@ -30,6 +30,9 @@ type validateEnvelope struct {
 	ProjectRoot   string `json:"projectRoot"`
 	Diagnostics   []struct {
 		Code string `json:"code"`
+		// Source separates what is wrong with the Project from what is
+		// merely true of this machine. See the filter below.
+		Source string `json:"source"`
 	} `json:"diagnostics"`
 }
 
@@ -84,8 +87,18 @@ func TestFixtureJSONContracts(t *testing.T) {
 				t.Fatalf("projectRoot = %q, want %q", envelope.ProjectRoot, projectDir)
 			}
 
+			// Fixture contracts describe the Project, so they must hold on
+			// any machine. Diagnostics sourced from "font" describe the host
+			// instead (NP2403 fires wherever the Chinese supplemental fonts
+			// are absent, which is every CI runner), and pinning them either
+			// way would make this test pass on one class of machine and fail
+			// on the other. Mirrors the same filter in
+			// internal/validate/fixture_test.go.
 			gotCodes := make([]string, 0, len(envelope.Diagnostics))
 			for _, diag := range envelope.Diagnostics {
+				if diag.Source == "font" {
+					continue
+				}
 				gotCodes = append(gotCodes, diag.Code)
 			}
 			sort.Strings(gotCodes)
