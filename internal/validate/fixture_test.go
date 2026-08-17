@@ -50,8 +50,17 @@ func TestValidateFixtureContracts(t *testing.T) {
 				t.Fatalf("Run().Success = %v, want %v; diagnostics = %#v", result.Success, contract.ExpectedSuccess, result.Diagnostics)
 			}
 
+			// Fixture contracts describe what is wrong with the Project, so
+			// they must hold on any machine. Diagnostics sourced from "font"
+			// describe the host instead (NP2403 fires wherever the Chinese
+			// supplemental fonts are absent, which is every CI runner), and
+			// pinning them either way would make this test pass on one class
+			// of machine and fail on the other.
 			gotCodes := make([]string, 0, len(result.Diagnostics))
 			for _, diag := range result.Diagnostics {
+				if diag.Source == "font" {
+					continue
+				}
 				gotCodes = append(gotCodes, diag.Code)
 			}
 			sort.Strings(gotCodes)
