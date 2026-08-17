@@ -10,6 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$inspectDir = ""
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
     foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
@@ -280,6 +281,19 @@ try {
     if (-not $pdfInfo -or -not $pdfToText -or -not $pdfToHtml -or -not $pdfFonts) {
         throw "pdfinfo.exe, pdftotext.exe, pdftohtml.exe and pdffonts.exe are required for PDF structure checks"
     }
+
+    # The project deliberately lives under a path containing Chinese, because
+    # NodePaper has to cope with one. The poppler tools do not: they take file
+    # names in the console code page, so on a runner whose locale is not
+    # Chinese the name arrives as "nodepaper e2e ??..." and the file cannot be
+    # opened. That is a limitation of the inspection tools, not of what is
+    # being inspected -- the build itself succeeds on exactly that path. So the
+    # artefact is copied to an ASCII-only location and poppler reads the copy,
+    # leaving the Chinese path still covered by everything upstream.
+    $inspectDir = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-pdf-inspect-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $inspectDir | Out-Null
+    $pdf = Join-Path $inspectDir "paper.pdf"
+    Copy-Item -LiteralPath (Join-Path $projectDir "dist\paper.pdf") -Destination $pdf -Force
     $infoOutput = & $pdfInfo.Source -box $pdf 2>&1
     if ($LASTEXITCODE -ne 0 -or -not ($infoOutput -match '^Pages:\s+[1-9][0-9]*')) {
         throw "PDF parser did not report a positive page count:`n$($infoOutput -join [Environment]::NewLine)"
@@ -463,6 +477,12 @@ try {
     Write-Host "E2E passed: $Fixture"
 }
 finally {
+    # The ASCII-only copy poppler reads is scratch either way: it holds nothing
+    # that is not already in the work directory, so it goes even when the run
+    # failed and the work directory is kept for inspection.
+    if ($inspectDir -and (Test-Path -LiteralPath $inspectDir)) {
+        Remove-Item -LiteralPath $inspectDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
     if ($passed -and -not $KeepWorkDirectory) {
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
