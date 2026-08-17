@@ -6,7 +6,13 @@ param(
     [string]$HighlightStyle = "",
     [string]$ReviewOutput = "",
     [string]$ProfileOverride = "",
-    [switch]$KeepWorkDirectory
+    [switch]$KeepWorkDirectory,
+    # Builds under an ASCII path containing "~" instead of the usual Unicode
+    # one. Guards the M4-13 defect where XeLaTeX read the file name on its
+    # command line as TeX tokens, making "~" the active character and
+    # truncating the path. Windows gives any account name longer than eight
+    # characters such an 8.3 alias, so this is an ordinary user's path.
+    [switch]$TildeWorkRoot
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +21,10 @@ if ([string]::IsNullOrWhiteSpace($Fixture)) {
     foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
+    # One extra pass over the smallest fixture, under a path containing "~".
+    # The full matrix is not repeated: the defect is in how the path reaches
+    # XeLaTeX, which is identical for every fixture.
+    & $PSCommandPath -Fixture "minimal-valid" -HighlightStyle $HighlightStyle -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory -TildeWorkRoot
     Write-Host "M3 E2E suite passed."
     return
 }
@@ -30,7 +40,18 @@ if (-not (Test-Path -LiteralPath $fixtureRoot -PathType Container)) {
 # PowerShell transition boundary is continuously checked for path quoting.
 # Character codes avoid Windows PowerShell 5.1 misreading a BOM-less script.
 $unicodePathPart = ([string][char]0x4E2D) + ([char]0x6587)
-$workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper e2e $unicodePathPart " + [Guid]::NewGuid().ToString("N"))
+if ($TildeWorkRoot) {
+    # Deliberately ASCII. A path combining Chinese, a space and a tilde fails
+    # for an unrelated reason -- XeLaTeX cannot put such a value in
+    # TEXMF_OUTPUT_DIRECTORY, and the mojibake swallows the tilde -- which
+    # would make this scenario report the wrong defect. Chinese alone, and
+    # Chinese with a tilde, both build; the ordinary scenarios already cover
+    # them.
+    $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-e2e-tilde~1-" + [Guid]::NewGuid().ToString("N"))
+}
+else {
+    $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper e2e $unicodePathPart " + [Guid]::NewGuid().ToString("N"))
+}
 $projectDir = Join-Path $workRoot "project"
 $exePath = Join-Path $workRoot "nodepaper.exe"
 $passed = $false
