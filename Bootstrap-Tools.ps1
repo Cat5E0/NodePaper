@@ -8,18 +8,47 @@ param(
     [string]$PandocCrossrefExecutableSHA256 = "6393ed0b495416bfce08a94f6a40d30791aedcb07067d04eba2920d47a4ec280",
     [string]$PandocCrossrefSourceSHA256 = "ea9e06e5f95dee428d48005a4776bffa4d02c4936097aff269cafe81ec39105b",
     [switch]$Force,
-    [switch]$KeepDownloads
+    [switch]$KeepDownloads,
+    # Skips the corresponding-source archives. They exist for the release
+    # package's licence compliance; a CI job that only needs to run pandoc does
+    # not, and every extra download is another chance to be rate limited.
+    [switch]$SkipSources
 )
 
 $ErrorActionPreference = "Stop"
 
 function Invoke-Download {
+    <#
+    .SYNOPSIS
+    Downloads a file, retrying transient failures.
+
+    .DESCRIPTION
+    codeload.github.com answers 429 Too Many Requests when a repository has
+    dispatched several workflows in quick succession, which took down an
+    otherwise healthy run on 2026-08-17 after three of four downloads had
+    already succeeded. A rate limit is not a build failure, so back off and try
+    again rather than making the operator re-dispatch and hope.
+    #>
     param(
         [string]$Uri,
-        [string]$OutFile
+        [string]$OutFile,
+        [int]$Attempts = 4
     )
-    Write-Host "Downloading $Uri"
-    Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        if ($attempt -eq 1) { Write-Host "Downloading $Uri" }
+        else { Write-Host "Downloading $Uri (attempt $attempt of $Attempts)" }
+        try {
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            return
+        }
+        catch {
+            if ($attempt -eq $Attempts) { throw }
+            $wait = [Math]::Pow(2, $attempt) * 5
+            Write-Host "  failed: $($_.Exception.Message)"
+            Write-Host "  retrying in $wait seconds"
+            Start-Sleep -Seconds $wait
+        }
+    }
 }
 
 function Assert-FileSHA256 {
@@ -123,14 +152,21 @@ else {
 Assert-FileSHA256 $crossrefTarget $PandocCrossrefExecutableSHA256
 
 New-Item -ItemType Directory -Force -Path $sourcesRoot | Out-Null
-if ($Force -or -not (Test-Path -LiteralPath $pandocSourceTarget -PathType Leaf)) {
-    Invoke-Download $pandocSourceUrl $pandocSourceTarget
+if ($SkipSources) {
+    # Never on the release path: scripts/build-release.ps1 bundles these and
+    # would fail the payload manifest without them.
+    Write-Host "Skipping the corresponding-source archives (-SkipSources)."
 }
-Assert-FileSHA256 $pandocSourceTarget $PandocSourceSHA256
-if ($Force -or -not (Test-Path -LiteralPath $crossrefSourceTarget -PathType Leaf)) {
-    Invoke-Download $crossrefSourceUrl $crossrefSourceTarget
+else {
+    if ($Force -or -not (Test-Path -LiteralPath $pandocSourceTarget -PathType Leaf)) {
+        Invoke-Download $pandocSourceUrl $pandocSourceTarget
+    }
+    Assert-FileSHA256 $pandocSourceTarget $PandocSourceSHA256
+    if ($Force -or -not (Test-Path -LiteralPath $crossrefSourceTarget -PathType Leaf)) {
+        Invoke-Download $crossrefSourceUrl $crossrefSourceTarget
+    }
+    Assert-FileSHA256 $crossrefSourceTarget $PandocCrossrefSourceSHA256
 }
-Assert-FileSHA256 $crossrefSourceTarget $PandocCrossrefSourceSHA256
 
 $versions = [ordered]@{
     platform = "windows-x64"

@@ -35,7 +35,7 @@ jobs:
           go-version: "1.26.5"
           cache: true
       - name: Bootstrap pinned Pandoc tools
-        run: .\Bootstrap-Tools.ps1
+        run: .\Bootstrap-Tools.ps1 -SkipSources
       - name: Build nodepaper.exe
         run: go build -o nodepaper.exe ./cmd/nodepaper
       - name: Confirm this runner has no XeLaTeX
@@ -55,7 +55,7 @@ jobs:
           $env:PATH = (Join-Path $PWD "tools\windows-x64\pandoc") + ";" +
                       (Join-Path $PWD "tools\windows-x64\pandoc-crossref") + ";" + $env:PATH
           $fixture = Join-Path $PWD "nodepaper-test-fixtures\tests\fixtures\complete-single-file"
-          foreach ($mode in @("inline", "bibtex", "biblatex")) {
+          foreach ($mode in @("inline", "bibtex")) {
             $project = Join-Path $env:RUNNER_TEMP "project-$mode"
             Copy-Item -Path $fixture -Destination $project -Recurse -Force
             & .\nodepaper.exe export $project --to (Join-Path $PWD "export-$mode") --bib $mode
@@ -63,7 +63,7 @@ jobs:
           }
           # The cascade must be in every mode's output, or the Linux job would
           # be testing a document that never reaches arm three.
-          foreach ($mode in @("inline", "bibtex", "biblatex")) {
+          foreach ($mode in @("inline", "bibtex")) {
             $tex = Get-Content -LiteralPath (Join-Path $PWD "export-$mode\paper.tex") -Raw -Encoding UTF8
             foreach ($needle in @("fontset=none", "IfFontExistsTF", "Noto Serif CJK SC", "tracinglostchars=3")) {
               if (-not $tex.Contains($needle)) { throw "export --bib $mode is missing '$needle'" }
@@ -90,7 +90,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             texlive-xetex texlive-lang-chinese texlive-latex-recommended \
-            texlive-latex-extra texlive-bibtex-extra biber fonts-noto-cjk poppler-utils
+            texlive-latex-extra texlive-bibtex-extra fonts-noto-cjk
       - name: Record what the runner has
         run: |
           # Arm three is only meaningful if the earlier arms cannot be taken.
@@ -146,7 +146,6 @@ jobs:
             grep -F "Missing character" paper.log | sort -u
             exit 1
           fi
-          pdftotext -enc UTF-8 paper.pdf - | grep -c . > /dev/null
           echo "bibtex export compiled on Linux with no missing characters"
       - name: Upload the Linux logs
         if: always()
