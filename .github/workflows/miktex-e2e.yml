@@ -75,6 +75,15 @@ jobs:
           Write-Host "Using MiKTeX bin: $miktexBin"
           & (Join-Path $miktexBin "initexmf.exe") --set-config-value "[MPM]AutoInstall=1" 2>&1 | Out-String | Write-Host
           if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
+          # The runner shell is elevated ("xelatex: security risk: running with
+          # elevated privileges"), and an elevated MiKTeX reads the system-wide
+          # configuration, where the setting above -- written per user -- does
+          # not apply. Auto-install fired on run 31991013261 and then not on
+          # 31993318613 or 31993685955; setting both scopes removes one
+          # explanation for that. It stays a backstop either way, since the
+          # packages this suite needs are installed explicitly below.
+          & (Join-Path $miktexBin "initexmf.exe") --admin --set-config-value "[MPM]AutoInstall=1" 2>&1 | Out-String | Write-Host
+          if ($LASTEXITCODE -ne 0) { Write-Host "note: could not set AutoInstall for the system scope (exit $LASTEXITCODE)" }
           & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
       - name: Install ctex explicitly rather than relying on auto-install
@@ -87,10 +96,21 @@ jobs:
           # environment is indistinguishable from a NodePaper regression when
           # reading a red run, so the packages this suite needs are installed
           # up front and auto-install is left only as a backstop.
-          & miktex packages install ctex 2>&1 | Out-String | Write-Host
-          if ($LASTEXITCODE -ne 0) { throw "installing ctex failed with exit code $LASTEXITCODE" }
-          & kpsewhich ctexart.cls 2>&1 | Out-String | Write-Host
-          if ($LASTEXITCODE -ne 0) { throw "ctexart.cls is still unresolvable after installing ctex" }
+          # `miktex packages install ctex` does not pull dependencies, so the
+          # chain is listed out. Names are installed one at a time and a
+          # failure is only reported: MiKTeX package names drift between
+          # releases, and one renamed entry should not mask the outcome that
+          # actually matters, which is whether the files resolve.
+          foreach ($p in @("ctex", "xecjk", "zhnumber", "fandol", "realscripts", "fontspec", "l3packages", "l3kernel", "xcolor")) {
+            & miktex packages install $p 2>&1 | Out-String | Write-Host
+            if ($LASTEXITCODE -ne 0) { Write-Host "note: could not install $p (exit $LASTEXITCODE)" }
+          }
+          $missing = @()
+          foreach ($f in @("ctexart.cls", "xeCJK.sty", "zhnumber.sty", "fontspec.sty")) {
+            & kpsewhich $f 2>&1 | Out-String | Write-Host
+            if ($LASTEXITCODE -ne 0) { $missing += $f }
+          }
+          if ($missing) { throw "still unresolvable after installation: $($missing -join ', ')" }
       - name: Report how MiKTeX identifies its xelatex
         shell: pwsh
         run: |
