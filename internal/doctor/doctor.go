@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/fonts"
 	"nodepaper/internal/latexlog"
 	"nodepaper/internal/process"
 	"nodepaper/internal/profile"
@@ -246,6 +247,35 @@ Install to a path without spaces or non-ASCII characters. Then open a NEW termin
 re-run ` + "`nodepaper doctor`" + `.
 NodePaper does not require latexmk or Perl.`
 
+// xelatexVersionLine matches the line on which a XeLaTeX binary states its
+// identity. It looks for XeTeX *anywhere* on the line rather than at the start,
+// because only TeX Live opens with a bare
+//
+//	XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)
+//
+// MiKTeX prefixes its own name instead, so an anchored `^XeTeX` pattern matched
+// no line at all there and doctor reported "cannot identify xelatex.exe version
+// output" - a hard failure on the very distribution NodePaper recommends
+// (~140 MB against TeX Live's ~6.3 GB). This check only has to confirm that
+// xelatex runs and names itself; parsing one distribution's exact layout is not
+// its job.
+//
+// The trailing digit is what keeps the relaxation honest. TeX Live's own
+// --version output repeats "XeTeX" in later prose lines ("covered by the terms
+// of both the XeTeX copyright and", "Primary author of XeTeX: Jonathan Kew."),
+// and none of those carry a number, so requiring a digit after the name selects
+// version lines over prose. commandVersion returns the first matching line and
+// every known distribution states its identity on line 1, so this is a
+// second line of defence rather than the load-bearing part.
+//
+// NOT YET CONFIRMED ON A REAL MiKTeX. The MiKTeX forms this pattern was written
+// against - "MiKTeX-XeTeX 4.10 (MiKTeX 23.5)" and the older "This is XeTeX,
+// Version 3.141592653-2.6-0.999993 (MiKTeX 21.6.28)" - come from public bug
+// reports, not from a machine we ran. The miktex-e2e workflow now prints
+// `xelatex --version` verbatim; check its first line against this pattern when
+// that output arrives and tighten or loosen accordingly.
+var xelatexVersionLine = regexp.MustCompile(`XeTeX\b[^0-9]*\d`)
+
 func checkXeLaTeX(ctx context.Context, path string) Check {
 	if path == "" {
 		return Check{
@@ -255,7 +285,7 @@ func checkXeLaTeX(ctx context.Context, path string) Check {
 			Suggestion: texDistributionHelp,
 		}
 	}
-	version, err := commandVersion(ctx, path, []string{"--version"}, regexp.MustCompile(`^XeTeX\s+\S+`))
+	version, err := commandVersion(ctx, path, []string{"--version"}, xelatexVersionLine)
 	if err != nil {
 		return failedVersionCheck("XeLaTeX", err)
 	}
@@ -359,6 +389,75 @@ func commandVersion(ctx context.Context, path string, args []string, linePattern
 	return "", fmt.Errorf("cannot identify %s version output", filepath.Base(path))
 }
 
+// chineseProbeStandard is what NodePaper builds when SimHei and KaiTi are
+// installed: a bare ctexart, whose default fontset=windows binds
+// SimSun/SimHei/KaiTi by itself.
+const chineseProbeStandard = `\documentclass[UTF8]{ctexart}
+\begin{document}
+NodePaper 中文环境探针
+\end{document}
+`
+
+// chineseProbeFallback is what NodePaper builds when either supplemental font
+// is absent. Its preamble is the fallback branch of profiles/cumcm/template.tex
+// (the $if(nodepaper-font-fallback)$ arm) reproduced line for line, minus the
+// zihao/a4paper options that only affect page layout: fontset=none so ctex
+// binds nothing, every family bound to SimSun, the missing weights synthesised,
+// and the \songti-family commands restored because fontset=none does not define
+// them.
+//
+// Keeping these in step with the profile is the whole point of the check. A
+// probe that compiles something the build never compiles can only produce two
+// wrong answers, and doctor had been giving the worse one: on a machine without
+// SimHei the bare ctexart above fails while `nodepaper build` succeeds through
+// exactly this fallback, so doctor condemned an environment that works.
+const chineseProbeFallback = `\documentclass[UTF8,fontset=none]{ctexart}
+\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
+\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
+\setCJKfamilyfont{zhfs}{SimSun}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+\begin{document}
+NodePaper 中文环境探针
+\end{document}
+`
+
+// chineseProbeDocument picks the probe source the way the build picks its
+// preamble, and reports whether that was the fallback.
+//
+// Anything short of "both fonts positively found" selects the fallback,
+// undetermined included. That is the build's rule as well: the font probe in
+// Convert-CumcmProjectToLatex.ps1 sets nodepaper-font-fallback whenever
+// Test-Path fails to find the file, for whatever reason. The asymmetry is
+// deliberate - the fallback preamble also compiles on a machine that does have
+// SimHei and KaiTi, whereas the bare ctexart does not compile without them.
+func chineseProbeDocument(availability fonts.Availability) (document string, usedFallback bool) {
+	if availability.AllPresent() {
+		return chineseProbeStandard, false
+	}
+	return chineseProbeFallback, true
+}
+
+// chineseProbeFailureSuggestion explains a failed probe in terms of the
+// document that actually failed. Under the fallback the old advice pointed at
+// the wrong thing: the optional fonts are already known to be absent and are
+// not what the probe used, so what remains is SimSun itself or an incomplete
+// ctex/xeCJK installation.
+func chineseProbeFailureSuggestion(usedFallback bool) string {
+	if !usedFallback {
+		return "Inspect the TeX installation, ctex package and configured Chinese fonts."
+	}
+	return "SimHei and KaiTi are not installed, so this probe compiled NodePaper's " +
+		"SimSun-only fallback preamble - the same one a build uses. The optional fonts " +
+		"are therefore not the cause. Check that SimSun (simsun.ttc) is present in the " +
+		"Windows font directory and that ctex and xeCJK are fully installed " +
+		"(miktex packages install ctex xecjk, or tlmgr install ctex xecjk)."
+}
+
 func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
 	if tc.XeLaTeX == "" {
 		return Check{
@@ -375,11 +474,7 @@ func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
 	}
 	defer os.RemoveAll(dir)
 
-	const document = `\documentclass[UTF8]{ctexart}
-\begin{document}
-NodePaper 中文环境探针
-\end{document}
-`
+	document, usedFallback := chineseProbeDocument(fonts.ProbeSupplemental())
 	texPath := filepath.Join(dir, "probe.tex")
 	if err := os.WriteFile(texPath, []byte(document), 0o644); err != nil {
 		return Check{Name: "Chinese TeX probe", Status: StatusFail, Message: fmt.Sprintf("cannot write probe: %v", err)}
@@ -402,7 +497,7 @@ NodePaper 中文环境探针
 			Name:       "Chinese TeX probe",
 			Status:     StatusFail,
 			Message:    message,
-			Suggestion: "Inspect the TeX installation, ctex package and configured Chinese fonts.",
+			Suggestion: chineseProbeFailureSuggestion(usedFallback),
 		}
 	}
 

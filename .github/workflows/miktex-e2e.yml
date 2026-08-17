@@ -77,6 +77,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
           & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
+      - name: Report how MiKTeX identifies its xelatex
+        shell: pwsh
+        run: |
+          # doctor scans this output for a line identifying XeTeX. TeX Live
+          # prints "XeTeX 3.14... (TeX Live 2025)"; MiKTeX prints something
+          # else, which made doctor fail with NP402 "cannot identify
+          # xelatex.exe version output" on 2026-08-17. Printing it verbatim
+          # keeps the matcher honest instead of guessing at the format.
+          Write-Host "===== xelatex --version ====="
+          & xelatex --version 2>&1 | Select-Object -First 6
       - name: Report which Chinese fonts this runner has
         shell: pwsh
         run: |

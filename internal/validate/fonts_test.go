@@ -94,22 +94,6 @@ func TestChineseFontsUndeterminedStaysSilent(t *testing.T) {
 	}
 }
 
-func TestInstalledFontFileClassifies(t *testing.T) {
-	requireWindows(t)
-	dir := t.TempDir()
-	writeFontFile(t, dir, "simhei.ttf")
-	pointFontDirsAt(t, dir)
-
-	if got := installedFontFile("simhei.ttf"); got != fontPresent {
-		t.Fatalf("installedFontFile(present) = %v, want fontPresent", got)
-	}
-	if got := installedFontFile("simkai.ttf"); got != fontMissing {
-		t.Fatalf("installedFontFile(absent) = %v, want fontMissing", got)
-	}
-
-	t.Setenv("WINDIR", "")
-	t.Setenv("LOCALAPPDATA", "")
-	if got := installedFontFile("simhei.ttf"); got != fontUnknown {
-		t.Fatalf("installedFontFile(no dirs) = %v, want fontUnknown", got)
-	}
-}
+// The classification of a single font file now lives in internal/fonts and is
+// covered by that package's own tests; what validate still owns is the
+// diagnostic built on top of it, above.

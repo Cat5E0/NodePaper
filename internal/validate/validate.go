@@ -18,6 +18,7 @@ import (
 
 	"nodepaper/internal/config"
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/fonts"
 	"nodepaper/internal/fragment"
 	"nodepaper/internal/project"
 )
@@ -83,37 +84,26 @@ func Run(ctx context.Context, projectDir string) Result {
 	return result
 }
 
-// supplementalFonts are shipped by Windows as the optional "Chinese
-// (Simplified) Supplemental Fonts" feature, so a machine that never added
-// Chinese can be missing them while everything else works.
-var supplementalFonts = []struct {
-	Name string
-	File string
-	Role string
-}{
-	{Name: "SimHei", File: "simhei.ttf", Role: "bold"},
-	{Name: "KaiTi", File: "simkai.ttf", Role: "italic"},
-}
-
 // checkChineseFonts warns before the build rather than failing during it.
 // NodePaper falls back to synthesising the missing weights from SimSun, so the
 // paper still builds; the author only needs to know why emphasis looks softer
 // than the reference. Reported here because validate runs ahead of every build,
-// whereas doctor only runs when someone already suspects a problem.
+// whereas doctor only runs when someone already suspects a problem. The probe
+// itself lives in internal/fonts so that doctor's Chinese probe decides on the
+// same evidence and the two commands cannot contradict each other.
 func checkChineseFonts() []diagnostic.Diagnostic {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
-	var missing []string
-	for _, font := range supplementalFonts {
-		switch installedFontFile(font.File) {
-		case fontMissing:
-			missing = append(missing, fmt.Sprintf("%s (%s)", font.Name, font.Role))
-		case fontUnknown:
-			// A font directory we cannot read proves nothing. Staying quiet is
-			// deliberate: a warning users learn to ignore is worse than none.
-			return nil
-		}
+	availability := fonts.ProbeSupplemental()
+	if availability.Undetermined {
+		// A font directory we cannot read proves nothing. Staying quiet is
+		// deliberate: a warning users learn to ignore is worse than none.
+		return nil
+	}
+	missing := make([]string, 0, len(availability.Missing))
+	for _, font := range availability.Missing {
+		missing = append(missing, fmt.Sprintf("%s (%s)", font.Name, font.Role))
 	}
 	if len(missing) == 0 {
 		return nil
@@ -129,38 +119,6 @@ func checkChineseFonts() []diagnostic.Diagnostic {
 			"\"Chinese (Simplified) Supplemental Fonts\".",
 		Source: "font",
 	}}
-}
-
-type fontLookup int
-
-const (
-	fontPresent fontLookup = iota
-	fontMissing
-	fontUnknown
-)
-
-func installedFontFile(name string) fontLookup {
-	dirs := make([]string, 0, 2)
-	if windir := os.Getenv("WINDIR"); windir != "" {
-		dirs = append(dirs, filepath.Join(windir, "Fonts"))
-	}
-	if local := os.Getenv("LOCALAPPDATA"); local != "" {
-		dirs = append(dirs, filepath.Join(local, "Microsoft", "Windows", "Fonts"))
-	}
-	if len(dirs) == 0 {
-		return fontUnknown
-	}
-	for _, dir := range dirs {
-		switch _, err := os.Stat(filepath.Join(dir, name)); {
-		case err == nil:
-			return fontPresent
-		case os.IsNotExist(err):
-			continue
-		default:
-			return fontUnknown
-		}
-	}
-	return fontMissing
 }
 
 func appendCancellation(ctx context.Context, result *Result) bool {
