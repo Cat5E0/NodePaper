@@ -37,7 +37,139 @@ $if(nodepaper-font-fallback)$
 \providecommand{\kaishu}{\CJKfamily{zhkai}}
 \providecommand{\fangsong}{\CJKfamily{zhfs}}
 $else$
+$if(nodepaper-export)$
+% `nodepaper export` hands the .tex to a machine NodePaper never saw. The build
+% route above settles the fonts before Pandoc runs, from a probe of the local
+% font directories; an export cannot, and both ways of guessing are wrong:
+%
+%   * A bare \documentclass{ctexart} lets ctex choose by platform. On Linux
+%     that is Fandol, and Fandol has no glyph for characters real papers
+%     contain -- 劼 U+52BC, 黃 U+9EC3, 內 U+5167 all vanish -- while XeLaTeX
+%     still exits 0. A wrong document that looks finished.
+%   * fontset=none with a hard \setCJKmainfont{SimSun} is a fontspec Error
+%     anywhere SimSun is absent (Overleaf, any Linux box), and that Error
+%     produces no PDF at all.
+%
+% So the decision moves into the document: fontset=none stops ctex from
+% binding anything and \IfFontExistsTF picks the first set that is really
+% installed, on the machine that compiles. This is late enough to work because
+% the bindings are ours -- ctex's own fontsets are resolved during
+% \documentclass, before any preamble test could run, but nothing is resolved
+% here until the lines below execute (verified: the first arm is taken when its
+% font exists, the next one when it does not).
+%
+% The arms are ordered by fidelity, best first, and every one of them binds the
+% main, sans and mono CJK faces plus zhsong/zhhei/zhkai/zhfs and the four
+% \songti-style commands. fontset=none leaves all of those unset, and an
+% unbound sans or mono family turns any CJK character inside \texttt{} into
+% "Package xeCJK Warning: Unknown CJK family `\CJKttdefault' is being ignored".
+\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}
+% (1) Windows with the "Chinese (Simplified) Supplemental Fonts" optional
+% feature. These lines are the unicode-engine branch of ctex's own
+% ctex-fontset-windows.def, reproduced, so an export compiled on such a machine
+% keeps exactly the faces it gets today: real SimHei, real KaiTi, FangSong for
+% the monospaced CJK family, nothing synthesised. Anything less would be a
+% fidelity regression for the majority of users.
+%
+% SimHei is the probe for all four supplemental faces because SimHei, KaiTi and
+% FangSong ship together in that single optional feature; SimSun and Microsoft
+% YaHei are part of every Windows installation.
+\newcommand{\nodepaperCJKWindows}{%
+\setCJKmainfont{SimSun}[BoldFont=SimHei, ItalicFont=KaiTi]
+\setCJKsansfont{Microsoft YaHei}[BoldFont=* Bold]
+\setCJKmonofont{FangSong}
+\setCJKfamilyfont{zhsong}{SimSun}
+\setCJKfamilyfont{zhhei}{SimHei}
+\setCJKfamilyfont{zhkai}{KaiTi}
+\setCJKfamilyfont{zhfs}{FangSong}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+}
+% (2) SimSun but no SimHei: a Windows install that never added Chinese. Same
+% synthesised-weight compromise the build's own fallback makes, and these are
+% that fallback's lines verbatim -- SimSun everywhere, missing weights faked.
+% Its glyph coverage is the reason it is preferred over Fandol here too.
+\newcommand{\nodepaperCJKSimSun}{%
+\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKsansfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKmonofont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
+\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
+\setCJKfamilyfont{zhfs}{SimSun}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+}
+% (3) Linux and Overleaf. The family split follows ctex's own
+% ctex-fontset-ubuntu.def: Noto Serif CJK SC is the serif/宋 face and therefore
+% main, zhsong and -- ctex's choice, not ours -- the monospaced CJK family as
+% well; Noto Sans CJK SC is the sans/黑 face. Noto CJK has no Kai and no
+% FangSong, and ctex reaches for AR PL KaitiM GB there, which is a separate
+% Debian package that is not on Overleaf; zhkai and zhfs therefore stay on the
+% serif face, with a slanted Kai substitute rather than a missing font.
+%
+% Bold is left to fontspec's automatic face detection, exactly as
+% ctex-fontset-ubuntu.def leaves it: Noto Serif CJK SC and Noto Sans CJK SC
+% ship their Bold weights in the same package as the Regular ones. Naming the
+% bold files explicitly would turn a naming difference into a fontspec Error
+% and no PDF, while automatic detection degrades to a warning at worst.
+%
+% Probing "Noto Serif CJK SC" covers Noto Sans CJK SC as well: Debian and
+% Ubuntu ship both from fonts-noto-cjk. This is the arm the maintainer compiled
+% on Overleaf, where 劼 黃 內 體 臺 灣 all render.
+\newcommand{\nodepaperCJKNoto}{%
+\setCJKmainfont{Noto Serif CJK SC}[AutoFakeSlant=true]
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Serif CJK SC}
+\setCJKfamilyfont{zhsong}{Noto Serif CJK SC}
+\setCJKfamilyfont{zhhei}{Noto Sans CJK SC}
+\setCJKfamilyfont{zhkai}{Noto Serif CJK SC}[AutoFakeSlant=true]
+\setCJKfamilyfont{zhfs}{Noto Serif CJK SC}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+}
+% (4) Nothing usable. Stopping here is the point: every remaining option either
+% produces no PDF a few hundred lines later, with a fontspec Error that names a
+% font instead of a fix, or produces a PDF whose Chinese is missing. One error
+% that says what to install is better than either.
+\newcommand{\nodepaperCJKNone}{%
+\PackageError{nodepaper}{No usable Chinese font found on this machine}{%
+This exported LaTeX project needs one of these font sets.\MessageBreak
+(1) SimSun with SimHei, KaiTi and FangSong: on Windows, Settings > Apps >
+\MessageBreak Optional features > "Chinese (Simplified) Supplemental Fonts".
+\MessageBreak
+(2) SimSun on its own: present on every Windows installation.\MessageBreak
+(3) Noto Serif CJK SC with Noto Sans CJK SC: on Debian or Ubuntu install
+\MessageBreak fonts-noto-cjk. Overleaf already has them.\MessageBreak
+Install one set, then compile again. NodePaper stops here on purpose: with no
+\MessageBreak Chinese font this document would either fail further down with a
+\MessageBreak fontspec Error naming a font instead of a fix, or produce a PDF
+\MessageBreak with the Chinese silently missing.%
+}%
+}
+\IfFontExistsTF{SimHei}{\nodepaperCJKWindows}{%
+  \IfFontExistsTF{SimSun}{\nodepaperCJKSimSun}{%
+    \IfFontExistsTF{Noto Serif CJK SC}{\nodepaperCJKNoto}{\nodepaperCJKNone}}}
+% A font can be present and still lack a glyph, and TeX's default for that is a
+% log line nobody reads: "Missing character: There is no 劼 in font ...", exit
+% code 0, a PDF with a hole in it. Level 3 makes it an error instead, so a
+% recipient compiling this by hand finds out the same way NodePaper's own build
+% does. It does not prevent a dropped glyph; it refuses to hide one.
+%
+% This is deliberately export-only. On the build route internal/latexlog
+% already reads "Missing character:" out of the log and reports it as NP6102 at
+% Error severity, so the build has failed on it for a long time and setting
+% this there would change nothing.
+\tracinglostchars=3
+$else$
 \documentclass[UTF8,zihao=-4,a4paper]{ctexart}
+$endif$
 $endif$
 \xeCJKsetup{AutoFakeSlant=true,AutoFakeBold=true}
 % Characters that Chinese papers use as text but that Latin fonts do not

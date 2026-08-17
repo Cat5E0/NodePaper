@@ -435,6 +435,13 @@ func runConversion(ctx context.Context, executor commandExecutor, logger *logWri
 		"-BuildDirectory", req.workDir,
 		"-LogDirectory", req.logDir,
 		"-CiteMethod", req.citeMethod,
+		// The export is compiled somewhere NodePaper cannot see. -ExportMode
+		// makes the Profile emit a preamble that picks its Chinese fonts with
+		// \IfFontExistsTF at compile time and sets \tracinglostchars=3, so the
+		// same .tex produces the right glyphs on a Windows machine, on a Linux
+		// machine and on Overleaf, and refuses to hide the ones it cannot.
+		// `nodepaper build` never passes this: its .tex is compiled here.
+		"-ExportMode",
 		"-SkipPdf",
 	}
 	logger.Printf("Command: %s", process.LogFriendlyCommand("powershell.exe", args))

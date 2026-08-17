@@ -198,6 +198,12 @@ func TestExportPassesSkipPdfAndTheMappedCiteMethod(t *testing.T) {
 			if got := argumentValue(args, "-CiteMethod"); got != citeMethod {
 				t.Errorf("-CiteMethod = %q, want %q", got, citeMethod)
 			}
+			// Every --bib mode needs it, including inline: inline uses the same
+			// template.tex the build uses, so without this flag that route
+			// would ship the platform-guessing preamble again.
+			if !hasArgument(args, "-ExportMode") {
+				t.Errorf("-ExportMode missing; the export would ship a preamble that guesses fonts: %#v", args)
+			}
 			// inline renders the references into the .tex, so shipping a .bib
 			// would be a file nothing reads.
 			_, err := os.Stat(filepath.Join(target, "references.bib"))
@@ -539,6 +545,34 @@ func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 				t.Errorf("%s README.txt does not mention %q", mode, needle)
 			}
 		}
+	}
+}
+
+// Overleaf is where an export is most likely to be compiled by someone who did
+// not produce it, and it is the one target with a setting that must be changed
+// by hand: it defaults to pdfLaTeX, whose failure names fontspec internals and
+// never mentions the compiler.
+func TestReadmeExplainsOverleaf(t *testing.T) {
+	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
+		text := readme(mode)
+		for _, needle := range []string{
+			"Compiling on Overleaf",
+			"Upload Project",
+			"Compiler > XeLaTeX",
+			"defaults to pdfLaTeX",
+			"Noto Serif CJK SC",
+			"No usable Chinese font found",
+			"fonts-noto-cjk",
+		} {
+			if !strings.Contains(text, needle) {
+				t.Errorf("%s README.txt does not mention %q", mode, needle)
+			}
+		}
+	}
+	// The zip layout is the other thing people get wrong; Overleaf cannot find
+	// paper.tex when the archive wraps it in a folder.
+	if !strings.Contains(readme(BibInline), "not the enclosing folder") {
+		t.Error("README.txt does not say to zip the contents rather than the folder")
 	}
 }
 

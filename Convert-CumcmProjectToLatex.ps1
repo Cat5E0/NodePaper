@@ -21,6 +21,14 @@ param(
     [ValidateSet("citeproc", "natbib", "biblatex")]
     [string]$CiteMethod = "citeproc",
 
+    # Set by `nodepaper export` and by nothing else. The exported .tex is
+    # compiled on a machine this script cannot probe, so it asks the template
+    # for a preamble that chooses its Chinese fonts at compile time. `nodepaper
+    # build` must never pass this: its .tex is compiled here, where the probe
+    # below is the better answer, and its output has to stay byte-for-byte what
+    # it has always been.
+    [switch]$ExportMode,
+
     [switch]$AllowSystemPandoc
 )
 
@@ -199,6 +207,12 @@ foreach ($name in ($supplementalFonts.Keys | Sort-Object)) {
     if (-not (Test-InstalledFontFile $supplementalFonts[$name])) { $missingFonts += $name }
 }
 $fontFallback = if ($missingFonts.Count -gt 0) { "true" } else { "" }
+# The two font branches are mutually exclusive by construction. Under
+# -ExportMode this machine's fonts say nothing about the machine that will
+# compile the export, and the template's four-step \IfFontExistsTF cascade
+# already contains this fallback as its second step, verbatim. Clearing the
+# metadata is what selects the cascade instead of a decision made here.
+if ($ExportMode) { $fontFallback = "" }
 
 $references = Assert-FileUnderRoot (Join-Path $project "references.bib") $project "Bibliography"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
@@ -258,6 +272,14 @@ switch ($CiteMethod) {
         $arguments += @("--citeproc", "--bibliography", $references, "--csl", $csl)
     }
 }
+# nodepaper-export switches the template onto the compile-time font cascade and
+# asks for \tracinglostchars=3 so a dropped glyph stops the recipient's own
+# compile instead of leaving a hole in the PDF. Like -CiteMethod above it is
+# only added when asked for, so the build keeps the Pandoc command line it has
+# always had.
+if ($ExportMode) {
+    $arguments += @("--metadata", "nodepaper-export=true")
+}
 $arguments += @(
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
@@ -283,7 +305,11 @@ if ($CiteMethod -ne "citeproc") {
 }
 Write-Output "Pandoc version: $pandocVersionLine"
 Write-Output "pandoc-crossref version: $crossrefVersionLine"
-if ($missingFonts.Count -gt 0) {
+if ($ExportMode) {
+    # Naming this machine's fonts would be a lie about the export: the .tex
+    # carries the cascade and decides wherever it is compiled.
+    Write-Output "Chinese fonts: chosen at compile time by the exported preamble (SimSun with SimHei/KaiTi, SimSun alone, or Noto CJK)"
+} elseif ($missingFonts.Count -gt 0) {
     Write-Output "Chinese fonts: $($missingFonts -join ', ') not installed; bold and italic will be synthesised from SimSun"
 } else {
     Write-Output "Chinese fonts: SimHei and KaiTi installed"

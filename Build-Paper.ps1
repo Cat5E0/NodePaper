@@ -20,6 +20,10 @@ param(
     [ValidateSet("citeproc", "natbib", "biblatex")]
     [string]$CiteMethod = "citeproc",
 
+    # Forwarded to Convert-CumcmProjectToLatex.ps1 for `nodepaper export` only.
+    # See that script for what it changes; `nodepaper build` never passes it.
+    [switch]$ExportMode,
+
     [switch]$AllowSystemPandoc,
 
     [switch]$SkipPdf,
@@ -205,6 +209,11 @@ if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
     if ($CiteMethod -ne "citeproc") {
         $convertParams.CiteMethod = $CiteMethod
     }
+    # Same rule as -CiteMethod: only present when asked for, so the build's
+    # conversion call stays exactly the one it has always made.
+    if ($ExportMode) {
+        $convertParams.ExportMode = $true
+    }
     if ($AllowSystemPandoc) {
         $convertParams.AllowSystemPandoc = $true
     }
@@ -215,6 +224,9 @@ else {
     }
     if ($CiteMethod -ne "citeproc") {
         throw "CiteMethod $CiteMethod requires the CUMCM Profile route (SourceManifest); the legacy SCAU conversion only supports citeproc."
+    }
+    if ($ExportMode) {
+        throw "ExportMode requires the CUMCM Profile route (SourceManifest); the legacy SCAU templates have no compile-time font cascade."
     }
     $convertScript = Join-Path $PSScriptRoot "Convert-MarkdownToScauLatex.ps1"
     $convertParams = @{

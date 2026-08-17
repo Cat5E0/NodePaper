@@ -174,6 +174,15 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 	if output := argumentValue(call.args, "-Output"); !samePath(output, filepath.Join(projectDir, ".nodepaper", "build", "paper.tex")) {
 		t.Fatalf("Output = %q", output)
 	}
+	// -ExportMode belongs to `nodepaper export`: it switches the Profile onto a
+	// compile-time \IfFontExistsTF font cascade and sets \tracinglostchars=3.
+	// The build compiles its own .tex here, where the font probe is the better
+	// answer, and its paper.tex has to stay byte-for-byte what it was.
+	for _, arg := range call.args {
+		if arg == "-ExportMode" {
+			t.Fatalf("build passed -ExportMode; that flag is export-only: %#v", call.args)
+		}
+	}
 }
 
 func TestBuildRejectsProfileMutation(t *testing.T) {
