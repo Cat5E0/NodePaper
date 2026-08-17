@@ -312,7 +312,10 @@ try {
         }
     }
 
-    $textPath = Join-Path $workRoot "paper.txt"
+    # Poppler writes its output through the same code-page-bound path
+    # handling it uses for input, so these land beside the PDF copy
+    # rather than in the Chinese work directory.
+    $textPath = Join-Path $inspectDir "paper.txt"
     & $pdfToText.Source -enc UTF-8 $pdf $textPath
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $textPath -PathType Leaf)) {
         throw "pdftotext failed"
@@ -322,7 +325,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($pdfText) -or -not $pdfText.Contains($abstractHeading)) {
         throw "PDF text is empty or missing the abstract heading"
     }
-    $firstPagePath = Join-Path $workRoot "paper-first-page.txt"
+    $firstPagePath = Join-Path $inspectDir "paper-first-page.txt"
     & $pdfToText.Source -f 1 -l 1 -enc UTF-8 $pdf $firstPagePath
     if ($LASTEXITCODE -ne 0) {
         throw "pdftotext failed to extract the first page"
