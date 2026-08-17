@@ -1,9 +1,20 @@
 # Non-blocking MiKTeX real-build E2E (PLAN.md M4-01 CI architecture decision).
 #
 # This workflow installs MiKTeX on the GitHub Windows runner and runs the
-# full Pandoc/LaTeX E2E suite. The runner environment (Windows Server + Fandol
-# fonts) differs from the canonical release gate (Windows 11/10 + TeX Live /
-# MiKTeX with auto-install off), so this is purely a compatibility smoke test.
+# full Pandoc/LaTeX E2E suite. The runner environment differs from the
+# canonical release gate (Windows 11/10 + TeX Live / MiKTeX with auto-install
+# off), so this is purely a compatibility smoke test.
+#
+# It does carry one check nothing else can: the runner ships SimSun but not
+# SimHei or KaiTi, which is exactly the case M4-08's font fallback exists for.
+# Developer and release machines have the supplemental fonts installed, so this
+# is the only environment where the fallback is ever executed.
+#
+# An earlier revision tried to sidestep the missing fonts by writing a
+# ctexopts.cfg that forced fontset=fandol. It never took effect -- the failing
+# logs still show ctex-fontset-windows.def -- and it contradicted M4-08, which
+# rejected Fandol after verifying it drops characters outright (劼 U+52BC and
+# 黃 U+9EC3 vanish from a real paper). It has been removed rather than fixed.
 #
 # Triggered manually only. Not a required check — the
 # authoritative E2E results are always the local Windows 11 + TeX Live 2025
@@ -65,31 +76,61 @@ jobs:
           & (Join-Path $miktexBin "initexmf.exe") --set-config-value "[MPM]AutoInstall=1" 2>&1 | Out-String | Write-Host
           if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
           & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
-          # The runner (Windows Server) has no SimSun/SimHei, so ctex's default
-          # fontset=windows cannot load. Force fontset=fandol via ctexopts.cfg;
-          # fandol ships with ctex on every distribution and auto-installs here.
-          $cfgDir = Join-Path $env:APPDATA "MiKTeX\tex\latex\ctex\config"
-          $cfg = Join-Path $cfgDir "ctexopts.cfg"
-          New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
-          Set-Content -LiteralPath $cfg -Value '\keys_set:nn { ctex / option } { fontset = fandol }' -Encoding UTF8
-          Write-Host "ctexopts.cfg: $((Get-Content -LiteralPath $cfg -Raw -Encoding UTF8))"
-          & (Join-Path $miktexBin "initexmf.exe") --register-root="$cfgDir" 2>&1 | Out-String | Write-Host
-          & (Join-Path $miktexBin "initexmf.exe") --update-fndb 2>&1 | Out-String | Write-Host
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
-      - name: MiKTeX Chinese probe (surface real compile errors)
+      - name: Report which Chinese fonts this runner has
         shell: pwsh
         run: |
+          # M4-08's fallback keys off exactly these files, so record what the
+          # runner actually has before anything compiles. This is the one
+          # environment that exercises the fallback: developer machines have
+          # the supplemental fonts and therefore never reach it.
+          foreach ($f in @("simsun.ttc", "simhei.ttf", "simkai.ttf")) {
+            $found = @(
+              (Join-Path $env:WINDIR "Fonts\$f"),
+              (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts\$f")
+            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            if ($found) { Write-Host "$f -> $found" } else { Write-Host "$f -> not on this runner" }
+          }
+      - name: Chinese probe using NodePaper's own font fallback
+        shell: pwsh
+        run: |
+          # The probe must compile the way NodePaper does, not the way a bare
+          # ctexart document does. A bare \documentclass{ctexart} takes ctex's
+          # fontset=windows path and demands SimHei, which this runner does not
+          # have -- it failed here for that reason on 2026-08-07, 08-09 and
+          # 08-17, and none of those failures said anything about NodePaper.
+          #
+          # The preamble below mirrors the fallback in
+          # profiles/cumcm/template.tex: when NodePaper's probe finds SimHei or
+          # KaiTi absent it emits fontset=none and synthesises the weights from
+          # SimSun. Compiling that here checks the strategy on the one platform
+          # that can check it. A failure now is a real NodePaper defect.
           $probeDir = Join-Path $env:RUNNER_TEMP ("miktex-probe-" + [Guid]::NewGuid().ToString("N"))
           New-Item -ItemType Directory -Force -Path $probeDir | Out-Null
-          $probeText = "\documentclass[UTF8]{ctexart}`n\begin{document}`nNodePaper 中文环境探针`n\end{document}"
+          $probeText = @'
+\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}
+\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
+\setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
+\setCJKfamilyfont{zhfs}{SimSun}
+\providecommand{\songti}{\CJKfamily{zhsong}}
+\providecommand{\heiti}{\CJKfamily{zhhei}}
+\providecommand{\kaishu}{\CJKfamily{zhkai}}
+\providecommand{\fangsong}{\CJKfamily{zhfs}}
+\begin{document}
+NodePaper 中文环境探针：宋体 {\heiti 黑体} {\kaishu 楷书} \textbf{粗体} \emph{斜体}
+\end{document}
+'@
           Set-Content -LiteralPath (Join-Path $probeDir "probe.tex") -Value $probeText -Encoding UTF8
           & latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error "-outdir=$probeDir" (Join-Path $probeDir "probe.tex")
-          Write-Host "probe exit: $LASTEXITCODE"
+          $probeExit = $LASTEXITCODE
+          Write-Host "probe exit: $probeExit"
           $log = Join-Path $probeDir "probe.log"
           if (Test-Path -LiteralPath $log) {
             Write-Host "===== probe.log tail ====="
             Get-Content -LiteralPath $log -Tail 40
           }
-          exit $LASTEXITCODE
+          exit $probeExit
       - name: M3 E2E suite
         run: .\scripts\test-e2e.ps1
