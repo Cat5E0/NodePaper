@@ -154,3 +154,32 @@ func TestFormatChecks(t *testing.T) {
 		}
 	}
 }
+
+func TestFirstLaTeXError(t *testing.T) {
+	dir := t.TempDir()
+	cases := map[string]struct{ log, want string }{
+		"bang form": {
+			log:  "This is XeTeX\n! LaTeX Error: File `xeCJK.sty' not found.\nmore\n",
+			want: "LaTeX Error: File `xeCJK.sty' not found.",
+		},
+		"file-line-error form": {
+			log:  "This is XeTeX\n./probe.tex:29: ! Undefined control sequence.\n",
+			want: "Undefined control sequence.",
+		},
+		"no error": {log: "This is XeTeX\nOutput written on probe.pdf.\n", want: ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, name+".log")
+			if err := os.WriteFile(path, []byte(tc.log), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if got := firstLaTeXError(path); got != tc.want {
+				t.Fatalf("firstLaTeXError() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	if got := firstLaTeXError(filepath.Join(dir, "absent.log")); got != "" {
+		t.Fatalf("missing log should yield %q, got %q", "", got)
+	}
+}

@@ -495,6 +495,12 @@ func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
 		if runErr != nil {
 			message = fmt.Sprintf("minimal Chinese document failed: %v", runErr)
 		}
+		// An exit code alone leaves the reader guessing. The log names the
+		// actual cause -- a missing .sty, an unresolvable font, a broken
+		// installation -- and those demand different fixes, so quote it.
+		if reason := firstLaTeXError(filepath.Join(dir, "probe.log")); reason != "" {
+			message = fmt.Sprintf("%s: %s", message, reason)
+		}
 		return Check{
 			Name:       "Chinese TeX probe",
 			Status:     StatusFail,
@@ -654,4 +660,25 @@ func FormatChecks(checks []Check) string {
 		}
 	}
 	return sb.String()
+}
+
+// firstLaTeXError returns the first error line from a TeX log, or "" when the
+// log is unreadable or holds no error. TeX writes errors either as "! message"
+// or, under -file-line-error, as "file:line: message"; both forms are reduced
+// to the message so the caller can put it on one line.
+func firstLaTeXError(logPath string) string {
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "! ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "!"))
+		}
+		if index := strings.Index(line, ": ! "); index > 0 {
+			return strings.TrimSpace(line[index+3:])
+		}
+	}
+	return ""
 }
