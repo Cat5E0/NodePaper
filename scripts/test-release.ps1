@@ -124,8 +124,21 @@ function Test-UserInstallation {
             Remove-Item -LiteralPath (Join-Path $ReleaseRoot "examples\cumcm-single-file\.nodepaper") -Recurse -Force -ErrorAction SilentlyContinue
         }
 
-        $command = Get-Command nodepaper -CommandType Application -ErrorAction Stop
-        Assert-True ((Resolve-Path -LiteralPath $command.Source).Path -eq (Resolve-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe")).Path) "global nodepaper command did not resolve to the registered payload"
+        # Get-Command returns every match, so take the one the shell would
+        # actually run. Registration appends to PATH, so a NodePaper the script
+        # does not track -- a hand-edited PATH entry, or a stale one left by an
+        # uninstall -- keeps winning and the operator upgrades nothing. Name it
+        # instead of dying on an array-to-boolean conversion.
+        $matches = @(Get-Command nodepaper -CommandType Application -All -ErrorAction Stop)
+        $command = $matches[0]
+        $expected = (Resolve-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe")).Path
+        $actual = (Resolve-Path -LiteralPath $command.Source).Path
+        if ($actual -ne $expected) {
+            $others = ($matches | ForEach-Object { $_.Source }) -join "; "
+            throw ("FAIL: nodepaper resolves to '$actual', not the registered payload '$expected'. " +
+                   "PATH holds $($matches.Count) nodepaper command(s): $others. " +
+                   "Registration appends, so an earlier entry shadows it -- remove the stale entry from PATH and re-run.")
+        }
 
         $arbitraryDir = Join-Path $WorkRoot "任意 工作目录"
         New-Item -ItemType Directory -Force -Path $arbitraryDir | Out-Null

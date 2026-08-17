@@ -276,6 +276,52 @@ if ($installedVersion -ne "") {
     }
 }
 
+function Get-EffectiveCommandDirectory {
+    <#
+    .SYNOPSIS
+    Returns the directory whose nodepaper.exe a new terminal would run.
+
+    .DESCRIPTION
+    Registration appends, so it cannot promote this copy over one that is
+    already earlier on Path. Windows composes a new terminal's Path as machine
+    entries followed by user entries, so an entry from either can shadow the one
+    just registered -- an installation the script does not track (a hand-edited
+    Path entry, or one written by the Setup installer to a different folder)
+    keeps answering to `nodepaper` while this script reports success. The Process
+    scope is different: that Path is already live, so it is read as-is.
+    #>
+    param([string]$Scope)
+
+    if ($Scope -eq "Process") {
+        $candidates = [Environment]::GetEnvironmentVariable("Path", "Process")
+    }
+    else {
+        $machine = ""
+        try {
+            $machine = [string](Get-Item -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment").GetValue(
+                "Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        }
+        catch { }
+        $user = Get-PathValue "User"
+        $candidates = (@($machine, $user) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ';'
+    }
+
+    foreach ($entry in ($candidates -split ';')) {
+        $trimmed = $entry.Trim().Trim('"')
+        if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+        # A user Path routinely holds entries that cannot be probed: an
+        # unset %VAR%, a disconnected drive, a name Test-Path rejects. Any of
+        # them must be skipped rather than abort the check.
+        try {
+            $expanded = [Environment]::ExpandEnvironmentVariables($trimmed)
+            if ([string]::IsNullOrWhiteSpace($expanded)) { continue }
+            if (Test-Path -LiteralPath (Join-Path $expanded "nodepaper.exe")) { return $expanded }
+        }
+        catch { continue }
+    }
+    return ""
+}
+
 $oldPath = Get-PathValue $PathScope
 $oldProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
 $pathChanged = $false
@@ -318,3 +364,17 @@ Write-Host "Location: $InstallRoot"
 Write-Host "Keep this folder where it is. Deleting or moving it removes the command;"
 Write-Host "to relocate, move the folder and run this script again from its new location."
 Write-Host "Open a new terminal and run: nodepaper"
+
+# Say so when the command will not be this copy. Reporting success while
+# `nodepaper` still runs an older installation is the one failure here that
+# nobody catches on their own: the script says registered, the command works,
+# and only --version disagrees -- which nobody checks.
+$effective = Get-EffectiveCommandDirectory $PathScope
+if (-not [string]::IsNullOrWhiteSpace($effective) -and
+    (Get-NormalizedPathEntry $effective) -ne (Get-NormalizedPathEntry $InstallRoot)) {
+    Write-Host ""
+    Write-Warning "Another NodePaper is earlier on Path and will answer to `nodepaper`:"
+    Write-Warning "  $effective"
+    Write-Warning "This copy is registered but shadowed. To use it, remove that entry from Path"
+    Write-Warning "(or uninstall that copy), then open a new terminal."
+}
