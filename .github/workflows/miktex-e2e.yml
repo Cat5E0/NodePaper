@@ -77,6 +77,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "initexmf configuration failed" }
           & (Join-Path $miktexBin "miktex.exe") packages update-package-database 2>&1 | Out-String | Write-Host
           Add-Content -LiteralPath $env:GITHUB_PATH -Value $miktexBin
+      - name: Install ctex explicitly rather than relying on auto-install
+        shell: pwsh
+        run: |
+          # MIKTEX_AUTOINSTALL fetches packages mid-compile, and it is not
+          # reliable: run 31991013261 auto-installed ctex and the probe passed,
+          # while 31993318613 -- same workflow, same runner image -- got
+          # "! LaTeX Error: File `ctexart.cls' not found." Flakiness in the
+          # environment is indistinguishable from a NodePaper regression when
+          # reading a red run, so the packages this suite needs are installed
+          # up front and auto-install is left only as a backstop.
+          & miktex packages install ctex 2>&1 | Out-String | Write-Host
+          if ($LASTEXITCODE -ne 0) { throw "installing ctex failed with exit code $LASTEXITCODE" }
+          & kpsewhich ctexart.cls 2>&1 | Out-String | Write-Host
+          if ($LASTEXITCODE -ne 0) { throw "ctexart.cls is still unresolvable after installing ctex" }
       - name: Report how MiKTeX identifies its xelatex
         shell: pwsh
         run: |

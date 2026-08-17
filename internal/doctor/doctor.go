@@ -268,12 +268,14 @@ NodePaper does not require latexmk or Perl.`
 // every known distribution states its identity on line 1, so this is a
 // second line of defence rather than the load-bearing part.
 //
-// NOT YET CONFIRMED ON A REAL MiKTeX. The MiKTeX forms this pattern was written
-// against - "MiKTeX-XeTeX 4.10 (MiKTeX 23.5)" and the older "This is XeTeX,
-// Version 3.141592653-2.6-0.999993 (MiKTeX 21.6.28)" - come from public bug
-// reports, not from a machine we ran. The miktex-e2e workflow now prints
-// `xelatex --version` verbatim; check its first line against this pattern when
-// that output arrives and tighten or loosen accordingly.
+// Confirmed against a real MiKTeX on 2026-08-17 (miktex-e2e run 31993318613),
+// which prints:
+//
+//	MiKTeX-XeTeX 4.18 (MiKTeX 26.5)
+//
+// The line above it on that run is "xelatex: security risk: running with
+// elevated privileges", written to stderr and folded in by CombinedOutput; it
+// says "xelatex" in lower case and so cannot be mistaken for the version line.
 var xelatexVersionLine = regexp.MustCompile(`XeTeX\b[^0-9]*\d`)
 
 func checkXeLaTeX(ctx context.Context, path string) Check {

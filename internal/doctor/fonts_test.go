@@ -207,10 +207,10 @@ func TestChineseProbeFailureSuggestionMatchesTheDocument(t *testing.T) {
 func TestXeLaTeXVersionLineAcceptsBothDistributions(t *testing.T) {
 	accepted := map[string]string{
 		// Observed locally, TeX Live 2025.
-		"TeX Live":                     "XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)",
-		"MiKTeX (unverified)":          "MiKTeX-XeTeX 4.10 (MiKTeX 23.5)",
-		"older MiKTeX (unverified)":    "This is XeTeX, Version 3.141592653-2.6-0.999993 (MiKTeX 21.6.28)",
-		"MiKTeX portable (unverified)": "MiKTeX-XeTeX 4.10 (MiKTeX 23.5 Portable)",
+		"TeX Live":                           "XeTeX 3.141592653-2.6-0.999997 (TeX Live 2025)",
+		"MiKTeX (confirmed run 31993318613)": "MiKTeX-XeTeX 4.18 (MiKTeX 26.5)",
+		"older MiKTeX (unverified)":          "This is XeTeX, Version 3.141592653-2.6-0.999993 (MiKTeX 21.6.28)",
+		"MiKTeX portable (unverified)":       "MiKTeX-XeTeX 4.10 (MiKTeX 23.5 Portable)",
 	}
 	for name, line := range accepted {
 		if !xelatexVersionLine.MatchString(line) {
