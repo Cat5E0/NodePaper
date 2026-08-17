@@ -482,13 +482,26 @@ func checkChineseProbe(ctx context.Context, tc Toolchain) Check {
 		return Check{Name: "Chinese TeX probe", Status: StatusFail, Message: fmt.Sprintf("cannot write probe: %v", err)}
 	}
 
+	// The probe runs in its own directory and names the file relatively, never
+	// as an absolute path. TeX reads the filename argument as TeX tokens, so a
+	// "~" in it is the active character, not a literal: given
+	// C:\Users\RUNNER~1\AppData\Local\Temp\... XeLaTeX stops early and reports
+	//
+	//	I can't find file `C:/Users/RUNNER'.
+	//
+	// That is not a CI quirk. Windows generates such 8.3 names for any account
+	// whose name exceeds eight characters, and %TEMP% sits under the profile,
+	// so ordinary users hit it. Keeping the path out of the argument also
+	// sidesteps spaces and non-ASCII characters. Diagnosed on miktex-e2e run
+	// 31994977105, where a hand-run of the same document under a long path
+	// compiled cleanly.
 	runner := &process.Runner{Dir: dir, CaptureSize: 256 * 1024}
 	processResult, runErr := runner.Run(ctx, tc.XeLaTeX,
 		"-interaction=nonstopmode",
 		"-halt-on-error",
 		"-file-line-error",
-		"-output-directory="+dir,
-		texPath,
+		"-output-directory=.",
+		filepath.Base(texPath),
 	)
 	if runErr != nil || processResult.ExitCode != 0 {
 		message := fmt.Sprintf("minimal Chinese document failed with exit code %d", processResult.ExitCode)

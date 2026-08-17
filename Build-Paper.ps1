@@ -268,12 +268,49 @@ if (-not $xelatex) {
 # already resolved by Pandoc's citeproc before the .tex exists, so no
 # bibtex/biber stage is needed.
 $latexLogPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtension($outputPath) + ".log")
+# TeX reads the file name on its command line as TeX tokens instead of as a
+# literal string, so an absolute path is not safe to hand it: "~" is an active
+# character (a non-breaking space). Windows gives every account name longer
+# than eight characters an 8.3 short name and %TEMP% sits under the user
+# profile, so a build under C:\Users\RUNNER~1\AppData\Local\Temp\... stopped
+# with "I can't find file `C:/Users/RUNNER'" - on CI and equally for any user
+# whose account name is long enough. Handing XeLaTeX the path relative to the
+# working directory keeps the whole absolute prefix - short name, spaces and
+# non-ASCII characters alike - out of the TeX tokeniser.
+#
+# The working directory itself must stay where the caller put it (the Go build
+# runs this script in the project root). Pandoc writes image references such as
+# \includegraphics{images/plot.png} relative to that directory, and TeX only
+# finds them through its own working directory: moving into the build
+# directory and pointing TEXINPUTS back at the project breaks every project
+# whose path is not pure ASCII, because kpathsea reads that variable in the
+# ANSI code page and then cannot resolve it.
+$compileTarget = $outputPath
+$relativeTarget = Resolve-Path -LiteralPath $outputPath -Relative -ErrorAction SilentlyContinue
+if ($relativeTarget) {
+    # Windows PowerShell hands back a nonsense ".\C:\..." string when the
+    # target sits on another drive, so the candidate is only used when it
+    # really does name the same file from the current directory.
+    $roundTrip = ""
+    try {
+        $roundTrip = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $relativeTarget))
+    }
+    catch {
+        $roundTrip = ""
+    }
+    if ($roundTrip -eq $outputPath) {
+        # Forward slashes are mandatory here. TeX normalises the separators of
+        # a drive-qualified path, but in a relative one it reads "\build" as a
+        # control sequence and dies with "Undefined control sequence".
+        $compileTarget = $relativeTarget.Replace("\", "/")
+    }
+}
 $compileArgs = @(
     "-interaction=nonstopmode",
     "-file-line-error",
     "-halt-on-error=0",
     "-output-directory=$buildDir",
-    $outputPath
+    $compileTarget
 )
 
 $maxPasses = 4
