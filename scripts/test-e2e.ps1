@@ -127,7 +127,34 @@ try {
         throw "generated LaTeX is not standalone: $tex"
     }
     $texText = Get-Content -LiteralPath $tex -Raw -Encoding UTF8
-    foreach ($required in @("\documentclass[UTF8,zihao=-4,a4paper]{ctexart}", "top=2.5cm", "bottom=2.5cm", "left=2.5cm", "right=2.5cm", "bookmarksopenlevel=2", "bookmarksdepth=3", "pdfpagemode=UseOutlines", "{nodepaper.abstract}")) {
+
+    # Which \documentclass line is correct depends on the machine. SimHei and
+    # KaiTi ship as an optional Windows feature, and when they are absent the
+    # Profile emits its fallback instead (M4-08). Asserting only the ordinary
+    # line made this suite fail on every machine without them, including the
+    # miktex-e2e runner. Each environment is held to its own contract, so the
+    # fallback is checked rather than merely tolerated.
+    $supplementalPresent = $true
+    foreach ($fontFile in @("simhei.ttf", "simkai.ttf")) {
+        $found = @(
+            (Join-Path $env:WINDIR "Fonts\$fontFile"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\Fonts\$fontFile")
+        ) | Where-Object { Test-Path -LiteralPath $_ }
+        if (-not $found) { $supplementalPresent = $false }
+    }
+    if ($supplementalPresent) {
+        $documentClassContract = @("\documentclass[UTF8,zihao=-4,a4paper]{ctexart}")
+    }
+    else {
+        Write-Host "SimHei/KaiTi absent: expecting the Profile's font fallback"
+        $documentClassContract = @(
+            "\documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}",
+            "\setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]",
+            "\setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]"
+        )
+    }
+
+    foreach ($required in ($documentClassContract + @("top=2.5cm", "bottom=2.5cm", "left=2.5cm", "right=2.5cm", "bookmarksopenlevel=2", "bookmarksdepth=3", "pdfpagemode=UseOutlines", "{nodepaper.abstract}"))) {
         if (-not $texText.Contains($required)) {
             throw "generated LaTeX contract is missing: $required"
         }

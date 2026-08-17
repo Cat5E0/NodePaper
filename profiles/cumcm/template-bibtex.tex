@@ -26,6 +26,14 @@ $if(nodepaper-font-fallback)$
 % below uses \heiti, so those commands are restored here as well.
 \documentclass[UTF8,zihao=-4,a4paper,fontset=none]{ctexart}
 \setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+% fontset=none also leaves the sans and monospace CJK families unbound.
+% Any CJK character inside \texttt{} -- a code block, a file name -- then
+% draws "Package xeCJK Warning: Unknown CJK family `\CJKttdefault' is
+% being ignored", which NodePaper classifies as an unexpected warning and
+% fails the build on. The PDF is produced and looks right, so the failure
+% is pure noise, and CUMCM papers routinely contain code.
+\setCJKsansfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKmonofont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
 \setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
 \setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
 \setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]

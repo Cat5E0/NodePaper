@@ -415,6 +415,8 @@ NodePaper 中文环境探针
 // exactly this fallback, so doctor condemned an environment that works.
 const chineseProbeFallback = `\documentclass[UTF8,fontset=none]{ctexart}
 \setCJKmainfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKsansfont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
+\setCJKmonofont{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
 \setCJKfamilyfont{zhsong}{SimSun}[AutoFakeBold=true, AutoFakeSlant=true]
 \setCJKfamilyfont{zhhei}{SimSun}[AutoFakeBold=true]
 \setCJKfamilyfont{zhkai}{SimSun}[AutoFakeSlant=true]
