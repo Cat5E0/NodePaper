@@ -272,9 +272,9 @@ $latexLogPath = Join-Path $buildDir ([System.IO.Path]::GetFileNameWithoutExtensi
 # literal string, so an absolute path is not safe to hand it: "~" is an active
 # character (a non-breaking space). Windows gives every account name longer
 # than eight characters an 8.3 short name and %TEMP% sits under the user
-# profile, so a build under C:\Users\RUNNER~1\AppData\Local\Temp\... stopped
-# with "I can't find file `C:/Users/RUNNER'" - on CI and equally for any user
-# whose account name is long enough. Handing XeLaTeX the path relative to the
+# profile, so a build under a temp directory below such a profile stopped with
+# "I can't find file" naming only the part before the tilde - on CI and equally
+# for any user whose account name is long enough. Handing XeLaTeX the path relative to the
 # working directory keeps the whole absolute prefix - short name, spaces and
 # non-ASCII characters alike - out of the TeX tokeniser.
 #
