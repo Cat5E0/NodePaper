@@ -373,7 +373,7 @@ $effective = Get-EffectiveCommandDirectory $PathScope
 if (-not [string]::IsNullOrWhiteSpace($effective) -and
     (Get-NormalizedPathEntry $effective) -ne (Get-NormalizedPathEntry $InstallRoot)) {
     Write-Host ""
-    Write-Warning "Another NodePaper is earlier on Path and will answer to `nodepaper`:"
+    Write-Warning 'Another NodePaper is earlier on Path and will answer to nodepaper:'
     Write-Warning "  $effective"
     Write-Warning "This copy is registered but shadowed. To use it, remove that entry from Path"
     Write-Warning "(or uninstall that copy), then open a new terminal."
