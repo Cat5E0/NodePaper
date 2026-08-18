@@ -217,10 +217,25 @@ try {
     Assert-True ($exitCode -eq 0) "Setup exited with 0 for a Chinese custom directory containing a space"
     Assert-True (Test-Path -LiteralPath (Join-Path $script:InstallRoot "nodepaper.exe") -PathType Leaf) "nodepaper.exe was installed"
 
+    # Setup installs the payload minus the ZIP channel's own registration
+    # scripts (installer/windows/nodepaper.iss Excludes, list owned by
+    # scripts/build-setup.ps1). The payload manifest describes the ZIP, so it
+    # still lists them; under {app} they must be absent. A file named
+    # Uninstall-NodePaper.ps1 inside a Setup installation directory invites the
+    # user to run it, and it strips the Path entry while the installation, its
+    # Start-menu entries and its entry in Settings all stay behind.
+    $setupExcludedPayloadFiles = @("Install-NodePaper.ps1", "Uninstall-NodePaper.ps1")
     $installedManifest = Get-Content -LiteralPath (Join-Path $script:InstallRoot "payload-manifest.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($entry in @($installedManifest.files)) {
-        $relative = ([string]$entry.path) -replace '/', '\'
+        $manifestPath = ([string]$entry.path) -replace '\\', '/'
+        $relative = $manifestPath -replace '/', '\'
         $installedFile = Join-Path $script:InstallRoot $relative
+        if ($setupExcludedPayloadFiles -contains $manifestPath) {
+            if (Test-Path -LiteralPath $installedFile) {
+                throw "FAIL: Setup installed a ZIP-channel script it must exclude: $relative"
+            }
+            continue
+        }
         if (-not (Test-Path -LiteralPath $installedFile -PathType Leaf)) {
             throw "FAIL: installed payload file missing: $relative"
         }
@@ -230,12 +245,14 @@ try {
         }
     }
     Assert-True $true "every installed payload file matches the payload manifest bytes"
+    Assert-True $true "the ZIP channel's own scripts were not installed: $($setupExcludedPayloadFiles -join ', ')"
     $installedExtra = @(Get-ChildItem -LiteralPath $script:InstallRoot -Recurse -File | ForEach-Object {
         $_.FullName.Substring($script:InstallRoot.TrimEnd('\').Length).TrimStart('\') -replace '\\', '/'
     } | Where-Object { $_ -notmatch '^unins\d+\.(exe|dat|msg)$' -and $_ -ne "payload-manifest.json" })
-    $payloadPaths = @(@($installedManifest.files) | ForEach-Object { ([string]$_.path) -replace '\\', '/' })
+    $payloadPaths = @(@($installedManifest.files) | ForEach-Object { ([string]$_.path) -replace '\\', '/' } |
+        Where-Object { $setupExcludedPayloadFiles -notcontains $_ })
     foreach ($relative in $installedExtra) {
-        Assert-True ($payloadPaths -contains $relative) "installed file belongs to the payload: $relative"
+        Assert-True ($payloadPaths -contains $relative) "installed file belongs to the payload Setup installs: $relative"
     }
     Assert-True (Test-Path -LiteralPath (Join-Path $script:InstallRoot "unins000.exe") -PathType Leaf) "a standalone uninstaller was stored in the installation directory"
 

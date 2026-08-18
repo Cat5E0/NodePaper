@@ -9,6 +9,8 @@
 ;   NodePaperVersion  release version, for example 0.1.0-rc.4
 ;   PayloadDir        directory holding the built release payload
 ;   ChecksumFile      payload checksum list (<sha256>|<relative path> per line)
+;   PayloadExcludes   payload files Setup must not install, as an Inno
+;                     [Files] Excludes list (see [Files] below)
 ;   OutputDir         directory for the generated Setup
 ;   OutputBaseName    Setup file name without .exe
 ;   SourceCommit      fixed source commit the payload was built from
@@ -21,6 +23,9 @@
 #endif
 #ifndef ChecksumFile
   #error ChecksumFile must be defined by the build script
+#endif
+#ifndef PayloadExcludes
+  #error PayloadExcludes must be defined by the build script
 #endif
 #ifndef OutputDir
   #error OutputDir must be defined by the build script
@@ -101,9 +106,17 @@ english.DowngradeWarning=NodePaper %1 is currently installed and this Setup cont
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; Flags: unchecked
 
 [Files]
-; The complete, already verified release payload. Setup does not build or
-; modify any payload file.
-Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+; The already verified release payload, minus the files PayloadExcludes names.
+; Setup does not build or modify any payload file.
+;
+; The exclusions are the ZIP channel's own Install-NodePaper.ps1 and
+; Uninstall-NodePaper.ps1. Installing them here put a script named
+; "Uninstall-NodePaper" inside a Setup installation directory, where running it
+; is the obvious thing to do and does the wrong thing: it takes the Path entry
+; away and leaves the installation, its Start-menu entries and its entry in
+; Settings behind. scripts\build-setup.ps1 owns the list and keeps the embedded
+; checksum list in step, so an excluded file is not expected under {app} either.
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "{#PayloadExcludes}"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; Verification data stays in the temporary directory and is never installed.
 Source: "{#ChecksumFile}"; Flags: dontcopy
 

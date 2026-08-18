@@ -197,6 +197,53 @@ function Assert-Payload {
     return $manifest
 }
 
+# A Setup installation is not this script's to register. Setup keeps its own
+# uninstaller, Start-menu entry and Windows uninstall registration in that
+# directory; registering it here as a portable installation would leave two
+# channels claiming one folder, which is exactly the state this script exists
+# to avoid (see the note above the HKCU\Software\NodePaper registration below).
+#
+# Both marks are checked because either can be the one present: unins000.exe
+# is written into the installation directory (UninstallFilesDir={app}), and
+# the uninstall registration records the same directory as InstallLocation.
+$SetupAppId = '{6E1B5C6A-6C2F-4D4B-9A62-2C7E60C0A5F1}'
+$SetupUninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($SetupAppId)_is1"
+
+function Test-SetupInstallation {
+    param([string]$Directory)
+    if ([string]::IsNullOrWhiteSpace($Directory)) { return $false }
+    if (Test-Path -LiteralPath (Join-Path $Directory "unins000.exe") -PathType Leaf) { return $true }
+    try {
+        if (Test-Path -LiteralPath $SetupUninstallKey) {
+            $entry = Get-ItemProperty -LiteralPath $SetupUninstallKey -Name "InstallLocation" -ErrorAction SilentlyContinue
+            if ($null -ne $entry) {
+                $location = [string]$entry.InstallLocation
+                if (-not [string]::IsNullOrWhiteSpace($location) -and
+                    (Get-NormalizedPathEntry $location) -eq (Get-NormalizedPathEntry $Directory)) {
+                    return $true
+                }
+            }
+        }
+    }
+    catch { }
+    return $false
+}
+
+if (Test-SetupInstallation $PSScriptRoot) {
+    Write-Host "This folder holds a NodePaper installation created by Setup:"
+    Write-Host "  $PSScriptRoot"
+    Write-Host ""
+    Write-Host "This script registers a portable ZIP release, and registering this folder would"
+    Write-Host "leave the Setup installation and a portable registration claiming the same"
+    Write-Host "directory, which is how an uninstall ends up unable to remove either."
+    Write-Host ""
+    Write-Host "Nothing was changed. That installation puts itself on your Path already: open"
+    Write-Host "a new terminal and run nodepaper. To use a portable release instead, extract the"
+    Write-Host "ZIP into its own folder and run this script from there."
+    Wait-CloseWindow
+    exit 1
+}
+
 $sourceRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $manifest = Assert-Payload $sourceRoot
 
@@ -353,10 +400,10 @@ try {
 catch {
     if ($pathChanged) { try { Set-PathValue $PathScope $oldPath } catch { } }
     try { [Environment]::SetEnvironmentVariable("Path", $oldProcessPath, "Process") } catch { }
-    throw
-}
-finally {
+    Write-Host "NodePaper was not registered: $($_.Exception.Message)"
+    Write-Host "The Path was left as it was."
     Wait-CloseWindow
+    throw
 }
 
 Write-Host "NodePaper $($manifest.version) registered for the current user."
@@ -378,3 +425,7 @@ if (-not [string]::IsNullOrWhiteSpace($effective) -and
     Write-Warning "This copy is registered but shadowed. To use it, remove that entry from Path"
     Write-Warning "(or uninstall that copy), then open a new terminal."
 }
+
+# Last statement on purpose: the summary above is what the user came for, and
+# waiting before it printed made a double-clicked run flash it away.
+Wait-CloseWindow

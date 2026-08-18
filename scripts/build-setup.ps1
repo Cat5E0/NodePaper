@@ -113,6 +113,18 @@ if ([string]$payloadManifest.version -ne $Version) {
     throw "Payload manifest version is $($payloadManifest.version), expected $Version"
 }
 
+# Payload files the ZIP channel needs and Setup must never install. Both are
+# the portable channel's own Path registration scripts, and a file named
+# Uninstall-NodePaper.ps1 sitting inside a Setup installation directory is a
+# trap: running it is the obvious thing to do and it removes the Path entry
+# while the installation, its Start-menu entries and its entry in Settings all
+# stay. One list feeds both the [Files] exclusion and the checksum list Setup
+# verifies under {app} after installing, so those two cannot drift apart.
+$setupExcludedPayloadFiles = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($relative in @("Install-NodePaper.ps1", "Uninstall-NodePaper.ps1")) {
+    $setupExcludedPayloadFiles.Add($relative) | Out-Null
+}
+
 $expected = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 $checksumLines = New-Object System.Collections.Generic.List[string]
 foreach ($entry in @($payloadManifest.files)) {
@@ -138,7 +150,15 @@ foreach ($entry in @($payloadManifest.files)) {
     if ($actual -ne ([string]$entry.sha256).ToLowerInvariant()) {
         throw "Payload SHA-256 mismatch: $relative"
     }
+    # Verified as part of the payload above, then left out of the list Setup
+    # checks under {app}: Setup does not install these.
+    if ($setupExcludedPayloadFiles.Contains($relative)) { continue }
     $checksumLines.Add(($actual + "|" + $relative)) | Out-Null
+}
+foreach ($relative in $setupExcludedPayloadFiles) {
+    if (-not $expected.Contains($relative)) {
+        throw "Setup exclusion list names a file the payload does not contain: $relative"
+    }
 }
 $actualFiles = @(Get-ChildItem -LiteralPath $payloadDir -Recurse -File | ForEach-Object {
     $_.FullName.Substring($payloadDir.Length).TrimStart('\') -replace '\\', '/'
@@ -152,6 +172,7 @@ if ($actualFiles.Count -ne $expected.Count) {
     throw "Payload file list does not match its manifest."
 }
 Write-Host "Payload verified against payload-manifest.json: $($expected.Count) files"
+Write-Host "Not installed by Setup (ZIP channel only): $((@($setupExcludedPayloadFiles) | Sort-Object) -join ', ')"
 
 $exe = Join-Path $payloadDir "nodepaper.exe"
 $reportedVersion = ((& $exe --version 2>&1 | Out-String).Trim())
@@ -181,10 +202,16 @@ if (Test-Path -LiteralPath $setupPath) {
     Remove-Item -LiteralPath $setupPath -Force
 }
 $issPath = Join-Path $root "installer\windows\nodepaper.iss"
+# An Inno [Files] Excludes pattern that contains a backslash is matched against
+# the path relative to the source directory, so the leading backslash pins each
+# name to the payload root instead of every directory below it.
+$payloadExcludes = ((@($setupExcludedPayloadFiles) | Sort-Object | ForEach-Object { "\" + ($_ -replace '/', '\') }) -join ',')
+
 $isccArguments = @(
     "/DNodePaperVersion=$Version",
     "/DPayloadDir=$payloadDir",
     "/DChecksumFile=$checksumPath",
+    "/DPayloadExcludes=$payloadExcludes",
     "/DOutputDir=$OutputDirectory",
     "/DOutputBaseName=$outputBaseName",
     "/DSourceCommit=$sourceCommit",
