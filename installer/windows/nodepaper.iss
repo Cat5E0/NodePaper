@@ -94,6 +94,12 @@ chinesesimplified.NodePaperRunning=NodePaper 正在运行。请关闭 NodePaper 
 chinesesimplified.PayloadBroken=安装文件校验失败：%1。安装已取消并回滚，未修改 PATH、快捷方式和已有安装。
 chinesesimplified.VersionMismatch=安装后的程序版本校验失败（报告为“%1”，期望“nodepaper {#NodePaperVersion}”）。安装已取消并回滚。
 chinesesimplified.DowngradeWarning=当前已安装 NodePaper %1，本安装包为较旧的 %2。继续将降级为 %2。是否继续？
+chinesesimplified.ExistingHeading=现有安装：
+chinesesimplified.ExistingReinstall=已安装 %1，将重新安装（修复）。
+chinesesimplified.ExistingUpgrade=已安装 %1，将升级为 %2。
+chinesesimplified.ExistingDowngrade=已安装 %1，将降级为 %2。
+chinesesimplified.PortableHere=该目录当前登记为便携安装，安装后将由本程序接管。
+chinesesimplified.PortableElsewhere=另有一份便携安装登记在 %1，它在 PATH 中可能优先于本次安装。
 english.LaunchNodePaper=Launch NodePaper
 english.UninstallShortcut=Uninstall NodePaper
 english.DesktopIcon=Create a desktop shortcut
@@ -101,6 +107,12 @@ english.NodePaperRunning=NodePaper is running. Close the NodePaper window or wai
 english.PayloadBroken=Payload verification failed: %1. The installation was canceled and rolled back; Path, shortcuts and any previous installation were left unchanged.
 english.VersionMismatch=The installed executable failed version verification (reported "%1", expected "nodepaper {#NodePaperVersion}"). The installation was canceled and rolled back.
 english.DowngradeWarning=NodePaper %1 is currently installed and this Setup contains the older %2. Continuing downgrades the installation to %2. Continue?
+english.ExistingHeading=Existing installation:
+english.ExistingReinstall=NodePaper %1 is installed; it will be reinstalled (repair).
+english.ExistingUpgrade=NodePaper %1 is installed; it will be upgraded to %2.
+english.ExistingDowngrade=NodePaper %1 is installed; it will be downgraded to %2.
+english.PortableHere=This directory is currently registered as a portable installation; this installation takes it over.
+english.PortableElsewhere=Another portable installation is registered at %1; it may come before this installation on Path.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; Flags: unchecked
@@ -140,6 +152,11 @@ Filename: "{cmd}"; Parameters: "/K ""set PATH={app};%PATH% && ""{app}\nodepaper.
 const
   EnvironmentKey = 'Environment';
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#NodePaperAppId}_is1';
+  { The ZIP channel's own registration (Install-NodePaper.ps1 writes it, and
+    Uninstall-NodePaper.ps1 reads it to know what to unregister). Setup only
+    reads it, and only ever deletes it when it names Setup's own directory. }
+  PortableKey = 'Software\NodePaper';
+  PortableValueName = 'PortablePath';
 
 var
   PathEntryAdded: Boolean;
@@ -414,6 +431,34 @@ begin
     Result := '';
 end;
 
+{ ---------- ZIP channel registration ------------------------------------ }
+
+function RegisteredPortablePath: String;
+begin
+  if not RegQueryStringValue(HKEY_CURRENT_USER, PortableKey, PortableValueName, Result) then
+    Result := '';
+  Result := Trim(Result);
+end;
+
+{ NormalizeEntry is the same comparison the Path code uses: quotes stripped,
+  trailing backslashes dropped, case folded. Reusing it keeps "is this the
+  registered directory" and "is this the Path entry" from ever disagreeing. }
+function PortablePathIs(const Registered, Directory: String): Boolean;
+begin
+  Result := (Registered <> '') and (NormalizeEntry(Registered) = NormalizeEntry(Directory));
+end;
+
+{ Setup owns this directory from now on, so the ZIP channel's bookkeeping for
+  it has to go: leaving it behind has both channels claiming one directory, and
+  Uninstall-NodePaper.ps1 would later take the Path entry of a Setup
+  installation away. A registration naming any other directory is a real
+  portable installation of its own and is never touched. }
+procedure ReleasePortableRegistration(const Directory: String);
+begin
+  if PortablePathIs(RegisteredPortablePath, Directory) then
+    RegDeleteValue(HKEY_CURRENT_USER, PortableKey, PortableValueName);
+end;
+
 { ---------- payload verification ---------------------------------------- }
 
 function ExecutableIsInUse(const FileName: String): Boolean;
@@ -526,6 +571,64 @@ begin
       mbConfirmation, MB_YESNO) = IDYES;
 end;
 
+{ The Ready page is where Setup states what it is about to do, so the state of
+  any existing installation belongs there rather than in one more dialog to
+  click away. Purely informational: nothing here changes what Setup installs,
+  and the downgrade confirmation stays in InitializeSetup. }
+function UpdateReadyMemo(const Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
+  MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+var
+  Installed, Registered, Directory, Details: String;
+  Compared: Integer;
+begin
+  { The stock memo first, unchanged. }
+  Result := '';
+  if MemoUserInfoInfo <> '' then
+    Result := Result + MemoUserInfoInfo + NewLine + NewLine;
+  if MemoDirInfo <> '' then
+    Result := Result + MemoDirInfo + NewLine + NewLine;
+  if MemoTypeInfo <> '' then
+    Result := Result + MemoTypeInfo + NewLine + NewLine;
+  if MemoComponentsInfo <> '' then
+    Result := Result + MemoComponentsInfo + NewLine + NewLine;
+  if MemoGroupInfo <> '' then
+    Result := Result + MemoGroupInfo + NewLine + NewLine;
+  if MemoTasksInfo <> '' then
+    Result := Result + MemoTasksInfo + NewLine + NewLine;
+
+  Directory := WizardDirValue;
+  Details := '';
+
+  Installed := InstalledNodePaperVersion;
+  if Installed <> '' then
+  begin
+    Compared := CompareNodePaperVersions(Installed, '{#NodePaperVersion}');
+    if Compared = 0 then
+      Details := Details + Space +
+        FmtMessage(CustomMessage('ExistingReinstall'), [Installed]) + NewLine
+    else if Compared < 0 then
+      Details := Details + Space +
+        FmtMessage(CustomMessage('ExistingUpgrade'), [Installed, '{#NodePaperVersion}']) + NewLine
+    else
+      Details := Details + Space +
+        FmtMessage(CustomMessage('ExistingDowngrade'), [Installed, '{#NodePaperVersion}']) + NewLine;
+  end;
+
+  Registered := RegisteredPortablePath;
+  if Registered <> '' then
+  begin
+    if PortablePathIs(Registered, Directory) then
+      Details := Details + Space + CustomMessage('PortableHere') + NewLine
+    else
+      Details := Details + Space +
+        FmtMessage(CustomMessage('PortableElsewhere'), [Registered]) + NewLine;
+  end;
+
+  { Nothing detected: the memo stays exactly as it was. }
+  if Details <> '' then
+    Result := Result + CustomMessage('ExistingHeading') + NewLine + Details;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
@@ -556,6 +659,10 @@ begin
   end;
   AddUserPathEntry(ExpandConstant('{app}'));
   PathEntryAdded := True;
+  { Only after the Path entry exists: until then this installation is not yet
+    reachable, and dropping the ZIP registration first would leave the
+    directory unaccounted for by either channel if the step above failed. }
+  ReleasePortableRegistration(ExpandConstant('{app}'));
 end;
 
 function InitializeUninstall: Boolean;
@@ -573,7 +680,13 @@ begin
   { Remove only the exact installation directory entry. Projects, PDFs, TeX,
     Pandoc, Node.js, Git and unrelated Path entries are never touched. }
   if CurUninstallStep = usUninstall then
+  begin
     RemoveUserPathEntry(ExpandConstant('{app}'));
+    { A registration naming this directory can only be one this Setup took
+      over, or one left pointing at a directory that is about to be emptied.
+      Either way it would outlive the installation it describes. }
+    ReleasePortableRegistration(ExpandConstant('{app}'));
+  end;
 end;
 
 [UninstallDelete]
