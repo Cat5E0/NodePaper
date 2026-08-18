@@ -16,26 +16,12 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 | 你想要 | 需要装 TeX 吗 | 怎么做 |
 |---|---|---|
-| **在自己电脑上出 PDF** | 需要 | 装 MiKTeX 或 TeX Live，见下方「本地出 PDF：安装 TeX」 |
-| **只要一份 LaTeX 工程，拿去 Overleaf 编译** | **不需要** | 直接跳到「安装」，用 `nodepaper export`，见「用 Overleaf 编译」 |
+| **在自己电脑上出 PDF** | 需要 | 装 MiKTeX 或 TeX Live，见下方「安装 TeX」 |
+| **只要一份 LaTeX 工程，自己拿去 Overleaf 编译** | **不需要** | 装完 NodePaper 即可，见「导出 LaTeX 工程」 |
 
-第二条路完全跳过本节剩下的内容——`nodepaper export` 只用发布包里自带的 pandoc，装完 NodePaper 就能用。
+走第二条路可以跳过本节剩下的内容——`nodepaper export` 只调用发布包内置的 pandoc。
 
-### 用 Overleaf 编译（不装 TeX）
-
-```powershell
-nodepaper export . --to ..\paper-latex
-```
-
-把 `..\paper-latex` 整个文件夹打包成 zip 上传到 Overleaf，然后：
-
-- 在 Overleaf 的 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出原因；
-- 中文字体会按编译环境自动切换：你自己的 Windows 上用宋体/黑体，Overleaf 上用 Noto CJK。**版面会有细微差别，但不会掉字**；
-- 导出目录里的 `README.txt` 写了该跑哪几条命令、需要哪些宏包。
-
-导出是**单向**的：在 Overleaf 上改的内容不会回到 Markdown 项目。把它当成交接点，不是同步。
-
-### 本地出 PDF：安装 TeX
+### 安装 TeX
 
 安装 TeX 是整个流程中耗时最长的一步，只有 `nodepaper build` 需要它。
 
@@ -212,6 +198,51 @@ nodepaper build
 dist/paper.pdf
 ```
 
+## 导出 LaTeX 工程
+
+上一节的 `nodepaper build` 直接出 PDF，需要本机装 TeX。**如果你不想装 TeX，或者需要在 LaTeX 层面继续改，就用导出**：
+
+```powershell
+nodepaper export . --to ..\paper-latex
+```
+
+它产出的不是 PDF，而是一份**可直接编辑、可独立编译**的 LaTeX 工程：`paper.tex` 正文、`references.bib` 文献库、论文实际引用到的图片、`\input{}` 的 Fragment，以及一份 `README.txt`（写明该按什么顺序跑哪几条命令、缺哪些宏包怎么装、中文字体怎么处理）。导出的工程不引用原项目，也不需要 NodePaper 才能编译。
+
+导出只调用发布包内置的 pandoc，**本机没有 TeX 也能导出**。
+
+适用场景：
+
+- 没有 TeX 环境，想在 Overleaf 上编译（见下）；
+- 要投稿，或交给导师、队友在 LaTeX 层面继续改；
+- 某处排版需要手工微调，而 Markdown 表达不出来。
+
+### 选择参考文献后端
+
+`--bib` 决定文献怎么处理，默认 `bibtex`：
+
+| 模式 | 引用命令 | 样式 | 编译顺序 | 取舍 |
+|---|---|---|---|---|
+| `bibtex`（默认） | `\cite{}` | `gbt7714` | `xelatex` → `bibtex` → `xelatex` ×2 | 兼容性最好，几乎所有环境都有 |
+| `biblatex` | `\autocite{}` | `biblatex-gb7714-2015` | `xelatex` → `biber` → `xelatex` ×2 | 样式更全更新，但需要 `biber`（MiKTeX 常常默认没装） |
+| `inline` | 无 | 文献已排版进 `paper.tex` | `xelatex` ×2 | 零依赖、没有 `.bib`，代价是文献列表变成死文本，不能再自动重排 |
+
+重复跑 `xelatex` 不是多余：第一遍写出引用和交叉引用数据，后面几遍读回来。
+
+### 拿去 Overleaf 编译
+
+把导出目录整个打包成 zip 上传到 Overleaf，然后：
+
+- 在 Overleaf 的 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出真实原因；
+- 中文字体按编译环境自动切换：你自己的 Windows 上用宋体/黑体，Overleaf 上用 Noto CJK。**版面会有细微差别，但不会掉字**。
+
+### 其他选项
+
+- `--verify` 默认关闭。开启后会把导出**复制一份到临时目录**完整编译一遍来确认可用，不在交付目录里留下 `.aux`、`.log` 或 `.pdf`。它需要本机有 TeX；找不到 `xelatex`／`bibtex`／`biber` 时只报一条 Warning，**导出本身照常完成**。另外，本机编译成功不代表收件人机器上也一定能编译；
+- `--to` 指定的目录非空时，需要加 `--force` 才会导出；
+- `nodepaper doctor` 会附带报告导出用到的宏包是否可用，缺了不影响日常构建。
+
+导出是**单向**的：在 LaTeX 工程里改的内容不会回到 Markdown 项目。把它当成交接点，不是同步。
+
 ## 启动方式
 
 - 开始菜单“NodePaper”：打开一个持续可用的命令行窗口，先显示当前位置的下一步提示，随后可以继续输入命令；
@@ -255,12 +286,7 @@ nodepaper --version
 - `clean` 删除中间构建文件；
 - `clean --all` 额外删除 `dist/`；
 - `nodepaper` 无参数运行时会根据当前位置提示下一步；
-- `export` 把项目导出成一份可编辑的 LaTeX 工程（`.tex` + `.bib` + 图片 + Fragment + `README.txt`）到 `--to` 指定的目录，而不是 PDF；
-- `--bib` 决定导出的文献处理方式：`bibtex`（默认，`\cite{}` + `gbt7714`，编译链 `xelatex → bibtex → xelatex ×2`，兼容性最好）、`biblatex`（`\autocite{}` + `biblatex-gb7714-2015`，编译链 `xelatex → biber → xelatex ×2`，需要 biber）、`inline`（文献已渲染成文本，零依赖）；
-- `--verify` 默认关闭；开启后会在导出完成后完整编译一遍确认可用，但本机编译成功不代表收件人机器上也一定能编译；
-- `--to` 指定的目录非空时需要加 `--force` 才会导出；
-- 导出是单向的：在 LaTeX 工程里做的修改不会回流到 Markdown 项目；
-- `nodepaper doctor` 会附带检查导出用到的几个宏包是否可用，供需要时参考，不影响日常构建。
+- `export` 产出的是一份可编辑的 LaTeX 工程而不是 PDF；`--bib`、`--verify` 与 `--force` 的取舍见「导出 LaTeX 工程」。
 
 机器可读输出：
 

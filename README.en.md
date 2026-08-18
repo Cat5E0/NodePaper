@@ -16,26 +16,12 @@ Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in s
 
 | You want | TeX required | What to do |
 |---|---|---|
-| **A PDF on your own machine** | Yes | Install MiKTeX or TeX Live — see "For local PDFs: installing TeX" below |
-| **Just a LaTeX project, compiled on Overleaf** | **No** | Skip ahead to "Install", then use `nodepaper export` — see "Compiling on Overleaf" |
+| **A PDF on your own machine** | Yes | Install MiKTeX or TeX Live — see "Installing TeX" below |
+| **Just a LaTeX project you compile on Overleaf yourself** | **No** | Installing NodePaper is enough — see "Exporting a LaTeX project" |
 
-The second path skips the rest of this section entirely: `nodepaper export` only uses the pandoc shipped inside the release package, so it works as soon as NodePaper is installed.
+Taking the second path lets you skip the rest of this section: `nodepaper export` only calls the pandoc shipped inside the release package.
 
-### Compiling on Overleaf (no TeX)
-
-```powershell
-nodepaper export . --to ..\paper-latex
-```
-
-Zip the whole `..\paper-latex` folder, upload it to Overleaf, and then:
-
-- Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the cause;
-- Chinese fonts follow the machine doing the compiling: the SimSun families on your Windows box, Noto CJK on Overleaf. **The page differs slightly; no characters are dropped**;
-- `README.txt` in the exported folder lists the exact commands and the packages they need.
-
-Export is **one-way**: edits made on Overleaf do not flow back into the Markdown project. Treat it as a handover, not a sync.
-
-### For local PDFs: installing TeX
+### Installing TeX
 
 Installing TeX is the longest step of the whole process, and only `nodepaper build` needs it.
 
@@ -209,6 +195,51 @@ After a successful build, the PDF is located at:
 dist/paper.pdf
 ```
 
+## Exporting a LaTeX project
+
+`nodepaper build` above produces a PDF directly and needs TeX on this machine. **If you would rather not install TeX, or you need to keep editing at the LaTeX level, export instead:**
+
+```powershell
+nodepaper export . --to ..\paper-latex
+```
+
+What you get is not a PDF but an **editable, self-contained** LaTeX project: `paper.tex`, the `references.bib` database, only the images the paper actually references, any fragments it `\input{}`s, and a `README.txt` that spells out which commands to run in which order, which packages are missing and how to install them, and how the Chinese fonts are handled. The exported project does not refer back to the original, and compiling it does not need NodePaper.
+
+Export only calls the pandoc bundled in the release package, so **it works without TeX installed**.
+
+When to use it:
+
+- no TeX environment, and you want to compile on Overleaf (below);
+- you are submitting the paper, or handing it to an advisor or teammate who works in LaTeX;
+- one spot needs manual typographic tuning that Markdown cannot express.
+
+### Choosing a bibliography backend
+
+`--bib` decides how references are handled. The default is `bibtex`:
+
+| Mode | Citation command | Style | Compile order | Trade-off |
+|---|---|---|---|---|
+| `bibtex` (default) | `\cite{}` | `gbt7714` | `xelatex` → `bibtex` → `xelatex` ×2 | Widest compatibility; present almost everywhere |
+| `biblatex` | `\autocite{}` | `biblatex-gb7714-2015` | `xelatex` → `biber` → `xelatex` ×2 | More styles, updated more recently, but needs `biber`, which MiKTeX often does not install by default |
+| `inline` | none | already typeset into `paper.tex` | `xelatex` ×2 | No dependencies and no `.bib`, at the cost of a reference list that is dead text and cannot be re-sorted |
+
+The repeated `xelatex` runs are not redundant: the first pass writes the citation and cross-reference data, and the later ones read it back.
+
+### Compiling on Overleaf
+
+Zip the whole exported folder, upload it to Overleaf, and then:
+
+- Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the real cause;
+- Chinese fonts follow the machine doing the compiling: the SimSun families on your Windows box, Noto CJK on Overleaf. **The page differs slightly; no characters are dropped**.
+
+### Other options
+
+- `--verify` is off by default. When enabled it **copies the export to a temporary directory** and compiles it there to confirm it works, so no `.aux`, `.log` or `.pdf` is left in the delivered folder. It needs TeX on this machine; when `xelatex`, `bibtex` or `biber` is missing it only reports a Warning and **the export itself still completes**. Note also that compiling here does not guarantee it compiles on the recipient's machine;
+- `--force` is required when the `--to` directory is not empty;
+- `nodepaper doctor` additionally reports whether the packages used by export are available; missing ones do not affect ordinary builds.
+
+Export is **one-way**: edits made in the LaTeX project do not flow back into the Markdown project. Treat it as a handover, not a sync.
+
 ## Ways to start NodePaper
 
 - Start menu “NodePaper”: opens a persistent command-line window that first prints the next step for the current location and then keeps accepting commands;
@@ -252,12 +283,7 @@ nodepaper --version
 - `clean` removes intermediate build files;
 - `clean --all` also removes `dist/`;
 - running `nodepaper` without arguments suggests the next step for the current location;
-- `export` produces an editable LaTeX project (`.tex` + `.bib` + images + Fragments + `README.txt`) in the `--to` directory — not a PDF;
-- `--bib` selects how references are handled: `bibtex` (default, `\cite{}` + `gbt7714`, compile chain `xelatex → bibtex → xelatex ×2`, broadest compatibility), `biblatex` (`\autocite{}` + `biblatex-gb7714-2015`, compile chain `xelatex → biber → xelatex ×2`, requires biber), `inline` (references already rendered as plain text, no extra dependencies);
-- `--verify` is off by default; when enabled, the exported project is compiled once end-to-end to confirm it works, but a successful local compile does not guarantee the same on a recipient's machine;
-- if `--to` points at a non-empty directory, `--force` is required;
-- export is one-way: edits made to the LaTeX project do not flow back into the Markdown project;
-- `nodepaper doctor` also reports whether the packages used by export are available, for reference when needed — it does not affect ordinary builds.
+- `export` produces an editable LaTeX project rather than a PDF; see "Exporting a LaTeX project" for the `--bib`, `--verify` and `--force` trade-offs.
 
 Machine-readable output:
 
