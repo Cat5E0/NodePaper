@@ -83,7 +83,9 @@ function Compare-NodePaperVersion {
 
 # Ask for confirmation only when this script runs in a console that Windows
 # opened only for it; piped, redirected, non-console and CI invocations never
-# prompt and follow the safe default per case (see caller).
+# prompt and follow the safe default per case (see caller). Only the downgrade
+# uses this: an upgrade and a repeat of the same version are carried out
+# without asking (see the version comparison below).
 function Confirm-Installation {
     param([string]$Message)
     if (-not (Test-InteractivePause)) { return $true }
@@ -309,17 +311,28 @@ if ($installedVersion -ne "") {
         }
         Write-Host "Downgrading NodePaper from $installedVersion to $($manifest.version)."
     }
-    elseif ($versionComparison -gt 0) {
-        if (-not (Confirm-Installation "NodePaper $installedVersion is already installed. This package will upgrade it to $($manifest.version).")) {
-            throw "Installation cancelled by the user; the existing installation was not changed."
-        }
-        Write-Host "Upgrading NodePaper from $installedVersion to $($manifest.version)."
-    }
     else {
-        if (-not (Confirm-Installation "NodePaper $($manifest.version) is already installed. Continuing performs a repair install.")) {
-            throw "Installation cancelled by the user; the existing installation was not changed."
+        # An upgrade and a repeat of the same version are not questions. Eight
+        # of nine surveyed Windows installers ask on neither: 7-Zip, IrfanView,
+        # Notepad++, electron-builder, winget, Git for Windows and VS Code all
+        # upgrade or reinstall within their own channel without a word, the odd
+        # one out being JetBrains, which asks only when reinstalling an
+        # identical version. Inno's own DirExistsWarning is likewise turned off
+        # when the directory belongs to the same application being upgraded.
+        # Somebody who ran this script has already said what they want; asking
+        # again only trains them to press Enter.
+        #
+        # One line still says which of the two happened, because the version
+        # that ends up registered is the thing they cannot see otherwise. The
+        # summary printed at the end reports the same version once more, and
+        # nothing is stated twice: this line names the change, that one names
+        # the result.
+        if ($versionComparison -gt 0) {
+            Write-Host "Upgrading NodePaper $installedVersion to $($manifest.version)."
         }
-        Write-Host "Repairing NodePaper $($manifest.version)."
+        else {
+            Write-Host "Reinstalling NodePaper $($manifest.version)."
+        }
     }
 }
 

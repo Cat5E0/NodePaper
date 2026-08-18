@@ -14,6 +14,15 @@
 ;   OutputDir         directory for the generated Setup
 ;   OutputBaseName    Setup file name without .exe
 ;   SourceCommit      fixed source commit the payload was built from
+;
+; Command-line switches of this Setup, in addition to Inno's own:
+;   /ALLOWDOWNGRADE   install this version over a newer installed one without
+;                     asking. Without it the downgrade confirmation appears,
+;                     and a silent run (/SILENT or /VERYSILENT, with or
+;                     without /SUPPRESSMSGBOXES) refuses the downgrade and
+;                     leaves the installed version alone, because that
+;                     confirmation defaults to No. /ALLOWDOWNGRADE=0 declines
+;                     just as clearly as leaving the switch out.
 
 #ifndef NodePaperVersion
   #error NodePaperVersion must be defined by the build script
@@ -557,6 +566,44 @@ begin
   RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, UninstallKey);
 end;
 
+{ ---------- command line ------------------------------------------------- }
+
+{ Inno has no "was this switch given" function, so the parameters are scanned
+  here. Both /ALLOWDOWNGRADE and /ALLOWDOWNGRADE=VALUE are accepted: the bare
+  form is what someone types, and the =VALUE form is what a wrapper script
+  builds from a variable, where =0 has to mean no rather than "the switch is
+  present, so yes".
+
+  ParamStr is read rather than Pos: the switch name is ASCII and is matched by
+  its exact length, so a Path or directory argument holding non-ASCII
+  characters cannot shift the comparison. }
+function AllowDowngradeRequested: Boolean;
+var
+  Index: Integer;
+  Param, Remainder, Value: String;
+begin
+  Result := False;
+  for Index := 1 to ParamCount do
+  begin
+    Param := Trim(ParamStr(Index));
+    if Lowercase(Copy(Param, 1, Length('/ALLOWDOWNGRADE'))) <> '/allowdowngrade' then
+      Continue;
+    Remainder := Copy(Param, Length('/ALLOWDOWNGRADE') + 1, Length(Param));
+    if Remainder = '' then
+    begin
+      Result := True;
+      Exit;
+    end;
+    if Copy(Remainder, 1, 1) = '=' then
+    begin
+      Value := Lowercase(Trim(Copy(Remainder, 2, Length(Remainder))));
+      Result := (Value = '1') or (Value = 'yes') or (Value = 'true');
+      Exit;
+    end;
+    { Anything else is a different switch that merely starts the same way. }
+  end;
+end;
+
 { ---------- wizard flow ------------------------------------------------- }
 
 function InitializeSetup: Boolean;
@@ -566,9 +613,33 @@ begin
   Result := True;
   PathEntryAdded := False;
   Installed := InstalledNodePaperVersion;
-  if (Installed <> '') and (CompareNodePaperVersions(Installed, '{#NodePaperVersion}') > 0) then
-    Result := MsgBox(FmtMessage(CustomMessage('DowngradeWarning'), [Installed, '{#NodePaperVersion}']),
-      mbConfirmation, MB_YESNO) = IDYES;
+  { A first installation, an upgrade and a repeat of the same version all pass
+    straight through. Eight of nine surveyed Windows installers ask on none of
+    them - 7-Zip, IrfanView, Notepad++, electron-builder, winget, Git for
+    Windows and VS Code among them, the odd one out being JetBrains, which asks
+    only when reinstalling an identical version - and Inno itself turns
+    DirExistsWarning off when the directory belongs to the same application
+    being upgraded. Only going backwards is worth a question. }
+  if (Installed = '') or (CompareNodePaperVersions(Installed, '{#NodePaperVersion}') <= 0) then
+    Exit;
+
+  { /ALLOWDOWNGRADE is the caller stating the intent up front, which is what a
+    script has instead of an answer to a dialog. }
+  if AllowDowngradeRequested then
+    Exit;
+
+  { SuppressibleMsgBox, not MsgBox: /SUPPRESSMSGBOXES does not reach a MsgBox
+    raised from [Code], so what a silent downgrade did here was decided by
+    whatever happened next rather than by this line. Observed with the rc.8
+    Setup over an installed rc.9: exit 1, no hang, no downgrade - but which
+    step produced that exit was never established, so this change is about
+    stating the outcome, not about repairing a diagnosed defect.
+
+    The default is IDNO, matching both that observation and Git for Windows,
+    which refuses a silent downgrade unless /ALLOWDOWNGRADE says otherwise.
+    MB_DEFBUTTON2 puts the same answer under the Enter key in the dialog. }
+  Result := SuppressibleMsgBox(FmtMessage(CustomMessage('DowngradeWarning'), [Installed, '{#NodePaperVersion}']),
+    mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES;
 end;
 
 { The Ready page is where Setup states what it is about to do, so the state of
@@ -645,16 +716,20 @@ begin
     Exit;
   { Verify the installed payload and program version before touching the user
     Path. A failure removes everything this Setup created. }
+  { SuppressibleMsgBox reports the failure when there is someone to read it and
+    returns IDOK on its own when there is not. The rollback and the Abort are
+    outside the box on purpose: a silent run that shows no dialog must still
+    undo everything and still fail. }
   if not VerifyInstalledPayload(FailedFile) then
   begin
     UndoFailedInstallation;
-    MsgBox(FmtMessage(CustomMessage('PayloadBroken'), [FailedFile]), mbCriticalError, MB_OK);
+    SuppressibleMsgBox(FmtMessage(CustomMessage('PayloadBroken'), [FailedFile]), mbCriticalError, MB_OK, IDOK);
     Abort;
   end;
   if not VerifyInstalledVersion(Reported) then
   begin
     UndoFailedInstallation;
-    MsgBox(FmtMessage(CustomMessage('VersionMismatch'), [Reported]), mbCriticalError, MB_OK);
+    SuppressibleMsgBox(FmtMessage(CustomMessage('VersionMismatch'), [Reported]), mbCriticalError, MB_OK, IDOK);
     Abort;
   end;
   AddUserPathEntry(ExpandConstant('{app}'));
@@ -670,7 +745,10 @@ begin
   Result := True;
   if ExecutableIsInUse(AddBackslash(ExpandConstant('{app}')) + 'nodepaper.exe') then
   begin
-    MsgBox(CustomMessage('NodePaperRunning'), mbError, MB_OK);
+    { As above: the answer to the box is irrelevant, Result stays False, so a
+      silent uninstall of a running NodePaper still refuses rather than
+      deleting files out from under it. }
+    SuppressibleMsgBox(CustomMessage('NodePaperRunning'), mbError, MB_OK, IDOK);
     Result := False;
   end;
 end;

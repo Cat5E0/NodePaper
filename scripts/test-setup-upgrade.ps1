@@ -10,10 +10,14 @@
     or uninstall-registry residue remains. A Chinese/space path round also
     installs, verifies and uninstalls.
 
-    Runs with /VERYSILENT so the downgrade MsgBox is suppressed to its default
-    (continue); the visual dialog itself stays a manual item in the release
-    checklist. All installs target %LOCALAPPDATA%\Programs\NodePaper (and the
-    custom path round) and are removed at the end.
+    Runs with /VERYSILENT, where the downgrade confirmation is suppressed to
+    its default of No: the downgrade round below therefore expects a non-zero
+    exit and an unchanged installation. Confirming the dialog by hand, and
+    downgrading on purpose with /ALLOWDOWNGRADE, both stay manual items in the
+    release checklist - the second one can only be scripted here once the
+    -OldSetup candidate is itself new enough to carry that switch. All installs
+    target %LOCALAPPDATA%\Programs\NodePaper (and the custom path round) and
+    are removed at the end.
 
 .PARAMETER OldSetup
     Path to an older candidate Setup (for example rc.6 or rc.7).
@@ -143,10 +147,11 @@ try {
     Invoke-Setup $NewSetup $DefaultInstallRoot "repeat-new"
     Assert-True ((Get-InstalledVersion) -eq $upgradedVersion) "repeat install changed the version"
 
-    # 4. Downgrade is a protected path: the confirmation MsgBox is suppressed
-    # to its default (reject) under /VERYSILENT, so the install must be
-    # cancelled and the current version must stay. The interactive
-    # "confirm downgrade" flow remains a manual item in the release checklist.
+    # 4. Downgrade is a protected path: the confirmation is a
+    # SuppressibleMsgBox defaulting to No, so under /VERYSILENT the install
+    # must be cancelled and the current version must stay. The interactive
+    # "confirm downgrade" flow and the /ALLOWDOWNGRADE override remain manual
+    # items in the release checklist.
     $versionBeforeDowngrade = Get-InstalledVersion
     $downgradeLog = Join-Path $workRoot "downgrade-old.log"
     $downgradeArgs = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=chinesesimplified", ('/DIR="' + $DefaultInstallRoot + '"'), ('/LOG="' + $downgradeLog + '"'))
