@@ -337,5 +337,7 @@ nodepaper build
 ` + "```" + `
 
 先修复 Validate/Build 报告的 Diagnostic，再检查 ` + "`dist/paper.pdf`" + `。不要直接修改生成的 ` + "`.nodepaper/build/paper.tex`" + ` 作为长期修复。
+
+本机没有 TeX 时 ` + "`nodepaper build`" + ` 无法出 PDF，这不是项目错误。此时用 ` + "`nodepaper export . --to <目录>`" + ` 导出可独立编译的 LaTeX 工程（只用内置 pandoc，不需要 TeX），交由有 TeX 的环境编译；导出是单向的，不要改导出结果来代替修改 Markdown 源。
 `
 }

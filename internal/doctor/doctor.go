@@ -285,10 +285,13 @@ func checkXeLaTeXDriver(ctx context.Context, tc Toolchain) Check {
 // 2026-08-15 (basic-miktex-25.12-x64.exe, texlive2026-20260301.iso); installed
 // footprint and duration are order-of-magnitude figures.
 //
-// The closing line names export because a bare FAIL here reads as "NodePaper
-// cannot do anything on this machine", which is not true: export runs the
-// packaged Pandoc only and needs no TeX at all.
-const texDistributionHelp = `NodePaper does not bundle TeX; a TeX distribution is required.
+// The opening line names export, because "a TeX distribution is required" reads
+// as "NodePaper cannot do anything on this machine", which is not true: export
+// runs the packaged Pandoc only and needs no TeX at all. It belongs on the first
+// line because that is what a user reads before deciding whether to spend an
+// hour on the install.
+const texDistributionHelp = `Only ` + "`nodepaper build`" + ` needs a TeX distribution, and NodePaper does not bundle one.
+` + "`nodepaper export`" + ` works without TeX; install a distribution when you want the PDF locally.
   MiKTeX     ~140 MB download, ~1 GB installed, 10-20 min
              https://miktex.org/download
   TeX Live   ~6.3 GB download, ~8-9 GB installed, 20-60 min with a local mirror
@@ -297,8 +300,7 @@ Install to a path without spaces or non-ASCII characters. Then open a NEW termin
 (PATH changes do not affect already-open windows), run ` + "`xelatex --version`" + `, and
 re-run ` + "`nodepaper doctor`" + `.
 NodePaper does not require latexmk or Perl.
-Only the PDF stage needs TeX: ` + "`nodepaper export`" + ` still works here, and writes a
-LaTeX project that compiles on a machine that has one.`
+The project written by ` + "`nodepaper export`" + ` compiles on any machine that has TeX.`
 
 // xelatexVersionLine matches the line on which a XeLaTeX binary states its
 // identity. It looks for XeTeX *anywhere* on the line rather than at the start,

@@ -8,51 +8,9 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 > 当前仍处于测试版开发阶段，尚未正式发布。NodePaper 不代表比赛官方认证。
 
-## 环境准备
-
-需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。
-
-**它不自带 TeX，而你不一定需要 TeX。** 先选一条路：
-
-| 你想要 | 需要装 TeX 吗 | 怎么做 |
-|---|---|---|
-| **在自己电脑上出 PDF** | 需要 | 装 MiKTeX 或 TeX Live，见下方「安装 TeX」 |
-| **只要一份 LaTeX 工程，自己拿去 Overleaf 编译** | **不需要** | 装完 NodePaper 即可，见「导出 LaTeX 工程」 |
-
-走第二条路可以跳过本节剩下的内容——`nodepaper export` 只调用发布包内置的 pandoc。
-
-### 安装 TeX
-
-安装 TeX 是整个流程中耗时最长的一步，只有 `nodepaper build` 需要它。
-
-| 方案 | 下载 | 装完占盘 | 耗时 | 适用 |
-|---|---|---|---|---|
-| **MiKTeX**（推荐先试） | 约 140 MB | 约 1 GB | 约 10～20 分钟 | 磁盘空间有限。首次构建时会自动下载所缺宏包，需联网 |
-| **TeX Live 完整版** | 约 6.3 GB | 约 8～9 GB | 20～60 分钟（使用国内镜像） | 磁盘空间充裕，希望一次装全、之后完全离线 |
-
-以上为量级参考，实际取决于网络与磁盘性能。
-
-下载地址（请使用官方来源）：
-
-- MiKTeX：<https://miktex.org/download>
-- TeX Live：<https://tug.org/texlive/windows.html>
-
-**国内用户建议更换镜像。** TeX Live 默认从国外服务器下载，可能需要数小时；改用国内镜像后通常几十分钟内完成。配置方法见镜像站说明：
-
-- 清华 TUNA：<https://mirrors.tuna.tsinghua.edu.cn/help/CTAN/>
-- 中科大 USTC：<https://mirrors.ustc.edu.cn/CTAN/systems/texlive/tlnet/>
-
-### 注意事项
-
-- 安装路径不要包含中文或空格。TeX 生态对非 ASCII 路径的支持不稳定。
-- 安装完成后需要**打开一个新终端**。PATH 变更不作用于已打开的窗口，这是「已安装但提示找不到 `xelatex`」最常见的原因。
-- 不建议使用 CTeX 套装。它捆绑的是多年未更新的旧版 MiKTeX，可能与当前宏包版本不兼容。NodePaper 只需要一个能运行 `xelatex` 的现代 TeX 发行版。
-
-在新终端执行 `xelatex --version`，有版本输出即表示环境就绪。NodePaper 直接驱动 XeLaTeX，**不需要 latexmk 或 Perl**。
-
-没装 TeX 也可以先装 NodePaper：`nodepaper doctor` 会把「PDF 输出」和「LaTeX 工程导出」分开报告，缺 TeX 只影响前者，不会把整台机器判为不可用。
-
 ## 安装
+
+需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。**它不自带 TeX，而下面的「快速开始」整条走完都不需要 TeX**——导出只调用发布包内置的 pandoc。想在本机一条命令直接出 PDF，再回头装 TeX，见「在本机直接出 PDF：安装 TeX」。
 
 > 官方仓库 <https://github.com/Cat5E0/NodePaper> 当前尚无公开 GitHub Release 资产。测试候选由维护者直接提供；请同时取得 `NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP）和同批 `release-manifest-<版本>.json`，不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包。
 
@@ -143,13 +101,15 @@ Get-FileHash .\NodePaper-Setup-<版本>-windows-x64.exe -Algorithm SHA256
 7. 不索取 Token 或密码，不执行论文代码，不删除或修改论文 Project；不要把 AI 输出当作测试通过证据。
 ```
 
-## 快速开始
+## 快速开始（不装 TeX 也能走完）
 
 ### 1. 检查环境
 
 ```powershell
 nodepaper doctor
 ```
+
+没装 TeX 时 XeLaTeX 会报一条 Warning，这是预期的：它只影响 `nodepaper build`，第 5 步的导出不受影响。
 
 ### 2. 创建项目
 
@@ -184,7 +144,64 @@ cumcm-a/
 - `images/`：图片资源；
 - `nodepaper.yaml`：项目配置。
 
-### 4. 验证和构建
+### 4. 验证
+
+```powershell
+cd D:\papers\cumcm-a
+nodepaper validate
+```
+
+先把 Validate 报出的 Diagnostic 修掉，再往下走。
+
+### 5. 出成品：导出后在 Overleaf 编译
+
+```powershell
+nodepaper export . --to ..\paper-latex
+```
+
+导出的不是 PDF，而是一份可独立编译的 LaTeX 工程：`paper.tex`、`references.bib`、论文实际用到的图片、`\input{}` 的 Fragment，以及一份写明编译步骤和所需宏包的 `README.txt`。
+
+把 `..\paper-latex` 整个文件夹打包成 zip 上传到 Overleaf，然后：
+
+- 在 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出真实原因；
+- 中文字体按编译环境自动切换：Overleaf 上用 Noto CJK，你自己的 Windows 上用宋体/黑体。**版面会有细微差别，但不会掉字**。
+
+到这一步你已经能看到真实排版效果了，全程没有安装 TeX。
+
+**接下来怎么选**：只想先看看效果，或者这次本来就打算交一份 LaTeX 工程，到此为止就够了。如果要反复改稿——尤其是比赛那几天——每改一版都打包上传很费时间，建议装 TeX 换成一条 `nodepaper build` 直接出 PDF。
+
+导出是**单向**的：在 Overleaf 上改的内容不会回到 Markdown 项目。把它当成交接点，不是同步。
+
+## 在本机直接出 PDF：安装 TeX
+
+安装 TeX 是整个流程中耗时最长的一步，只有 `nodepaper build` 需要它。
+
+| 方案 | 下载 | 装完占盘 | 耗时 | 适用 |
+|---|---|---|---|---|
+| **MiKTeX**（推荐先试） | 约 140 MB | 约 1 GB | 约 10～20 分钟 | 磁盘空间有限。首次构建时会自动下载所缺宏包，需联网 |
+| **TeX Live 完整版** | 约 6.3 GB | 约 8～9 GB | 20～60 分钟（使用国内镜像） | 磁盘空间充裕，希望一次装全、之后完全离线 |
+
+以上为量级参考，实际取决于网络与磁盘性能。
+
+下载地址（请使用官方来源）：
+
+- MiKTeX：<https://miktex.org/download>
+- TeX Live：<https://tug.org/texlive/windows.html>
+
+**国内用户建议更换镜像。** TeX Live 默认从国外服务器下载，可能需要数小时；改用国内镜像后通常几十分钟内完成。配置方法见镜像站说明：
+
+- 清华 TUNA：<https://mirrors.tuna.tsinghua.edu.cn/help/CTAN/>
+- 中科大 USTC：<https://mirrors.ustc.edu.cn/CTAN/systems/texlive/tlnet/>
+
+### 注意事项
+
+- 安装路径不要包含中文或空格。TeX 生态对非 ASCII 路径的支持不稳定。
+- 安装完成后需要**打开一个新终端**。PATH 变更不作用于已打开的窗口，这是「已安装但提示找不到 `xelatex`」最常见的原因。
+- 不建议使用 CTeX 套装。它捆绑的是多年未更新的旧版 MiKTeX，可能与当前宏包版本不兼容。NodePaper 只需要一个能运行 `xelatex` 的现代 TeX 发行版。
+
+在新终端执行 `xelatex --version`，有版本输出即表示环境就绪。NodePaper 直接驱动 XeLaTeX，**不需要 latexmk 或 Perl**。
+
+### 装好之后
 
 ```powershell
 cd D:\papers\cumcm-a
@@ -198,23 +215,9 @@ nodepaper build
 dist/paper.pdf
 ```
 
-## 导出 LaTeX 工程
+## 导出：更多选项
 
-上一节的 `nodepaper build` 直接出 PDF，需要本机装 TeX。**如果你不想装 TeX，或者需要在 LaTeX 层面继续改，就用导出**：
-
-```powershell
-nodepaper export . --to ..\paper-latex
-```
-
-它产出的不是 PDF，而是一份**可直接编辑、可独立编译**的 LaTeX 工程：`paper.tex` 正文、`references.bib` 文献库、论文实际引用到的图片、`\input{}` 的 Fragment，以及一份 `README.txt`（写明该按什么顺序跑哪几条命令、缺哪些宏包怎么装、中文字体怎么处理）。导出的工程不引用原项目，也不需要 NodePaper 才能编译。
-
-导出只调用发布包内置的 pandoc，**本机没有 TeX 也能导出**。
-
-适用场景：
-
-- 没有 TeX 环境，想在 Overleaf 上编译（见下）；
-- 要投稿，或交给导师、队友在 LaTeX 层面继续改；
-- 某处排版需要手工微调，而 Markdown 表达不出来。
+除了上面「快速开始」第 5 步的默认用法，导出还适用于：要投稿、要交给导师或队友在 LaTeX 层面继续改、某处排版需要手工微调而 Markdown 表达不出来。导出的工程不引用原项目，编译它也不需要 NodePaper。
 
 ### 选择参考文献后端
 
@@ -228,20 +231,11 @@ nodepaper export . --to ..\paper-latex
 
 重复跑 `xelatex` 不是多余：第一遍写出引用和交叉引用数据，后面几遍读回来。
 
-### 拿去 Overleaf 编译
-
-把导出目录整个打包成 zip 上传到 Overleaf，然后：
-
-- 在 Overleaf 的 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出真实原因；
-- 中文字体按编译环境自动切换：你自己的 Windows 上用宋体/黑体，Overleaf 上用 Noto CJK。**版面会有细微差别，但不会掉字**。
-
 ### 其他选项
 
 - `--verify` 默认关闭。开启后会把导出**复制一份到临时目录**完整编译一遍来确认可用，不在交付目录里留下 `.aux`、`.log` 或 `.pdf`。它需要本机有 TeX；找不到 `xelatex`／`bibtex`／`biber` 时只报一条 Warning，**导出本身照常完成**。另外，本机编译成功不代表收件人机器上也一定能编译；
 - `--to` 指定的目录非空时，需要加 `--force` 才会导出；
 - `nodepaper doctor` 会附带报告导出用到的宏包是否可用，缺了不影响日常构建。
-
-导出是**单向**的：在 LaTeX 工程里改的内容不会回到 Markdown 项目。把它当成交接点，不是同步。
 
 ## 启动方式
 
@@ -286,7 +280,7 @@ nodepaper --version
 - `clean` 删除中间构建文件；
 - `clean --all` 额外删除 `dist/`；
 - `nodepaper` 无参数运行时会根据当前位置提示下一步；
-- `export` 产出的是一份可编辑的 LaTeX 工程而不是 PDF；`--bib`、`--verify` 与 `--force` 的取舍见「导出 LaTeX 工程」。
+- `export` 产出的是一份可编辑的 LaTeX 工程而不是 PDF；`--bib`、`--verify` 与 `--force` 的取舍见「导出：更多选项」。
 
 机器可读输出：
 

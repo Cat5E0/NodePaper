@@ -8,48 +8,9 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 > NodePaper is still under beta development and has not been formally released. It is not endorsed by the competition organizers.
 
-## Before you start
-
-Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds.
-
-**It does not bundle TeX, and you may not need TeX.** Pick a path first:
-
-| You want | TeX required | What to do |
-|---|---|---|
-| **A PDF on your own machine** | Yes | Install MiKTeX or TeX Live — see "Installing TeX" below |
-| **Just a LaTeX project you compile on Overleaf yourself** | **No** | Installing NodePaper is enough — see "Exporting a LaTeX project" |
-
-Taking the second path lets you skip the rest of this section: `nodepaper export` only calls the pandoc shipped inside the release package.
-
-### Installing TeX
-
-Installing TeX is the longest step of the whole process, and only `nodepaper build` needs it.
-
-| Option | Download | Installed | Time | Suits |
-|---|---|---|---|---|
-| **MiKTeX** (try this first) | ~140 MB | ~1 GB | 10–20 min | Limited disk space. Missing packages are downloaded on demand during the first build, so it needs a network connection |
-| **TeX Live, full** | ~6.3 GB | ~8–9 GB | 20–60 min (with a nearby mirror) | Plenty of disk space; everything installed up front and fully offline afterwards |
-
-These are order-of-magnitude figures; the real numbers depend on your network and disk.
-
-Download from the official sources:
-
-- MiKTeX: <https://miktex.org/download>
-- TeX Live: <https://tug.org/texlive/windows.html>
-
-**Use a nearby CTAN mirror.** TeX Live downloads from its default server can take hours; a local mirror usually brings that down to tens of minutes. Mirror lists and setup instructions are published by each mirror, for example <https://mirrors.tuna.tsinghua.edu.cn/help/CTAN/>.
-
-### Notes
-
-- Install to a path without spaces or non-ASCII characters. TeX tooling handles such paths inconsistently.
-- **Open a new terminal after installing.** PATH changes do not apply to already-open windows, and this is the most common reason for "installed but `xelatex` not found".
-- Avoid the CTeX suite. It bundles a years-old MiKTeX that may not match current packages. NodePaper only needs a current TeX distribution that can run `xelatex`.
-
-Run `xelatex --version` in a new terminal; a version banner means you are ready. NodePaper drives XeLaTeX directly; **latexmk and Perl are not required**.
-
-You can install NodePaper before TeX: `nodepaper doctor` reports "PDF output" and "LaTeX export" as separate capabilities, so a missing TeX costs only the first instead of declaring the whole machine unusable.
-
 ## Installation
+
+Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds. **It does not bundle TeX, and the whole "Quick start" below runs without TeX** — export only calls the pandoc shipped inside the release package. Install TeX later if you want a PDF from a single local command; see "Producing a PDF locally: installing TeX".
 
 > The official repository, <https://github.com/Cat5E0/NodePaper>, has no public GitHub Release assets yet. Test candidates are handed out directly by the maintainer. Obtain `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP) together with the matching `release-manifest-<version>.json`; do not use third-party downloads or GitHub's Source code ZIP.
 
@@ -140,13 +101,15 @@ Please install NodePaper on Windows. Rules:
 7. Do not request tokens or passwords, execute paper code, or delete or modify paper Projects. Do not present AI output as test evidence.
 ```
 
-## Quick start
+## Quick start (no TeX required)
 
 ### 1. Check the environment
 
 ```powershell
 nodepaper doctor
 ```
+
+Without TeX, XeLaTeX reports a Warning. That is expected: it costs you `nodepaper build` only, and the export in step 5 is unaffected.
 
 ### 2. Create a Project
 
@@ -181,7 +144,61 @@ The main files are:
 - `images/`: image resources;
 - `nodepaper.yaml`: Project configuration.
 
-### 4. Validate and build
+### 4. Validate
+
+```powershell
+cd D:\papers\cumcm-a
+nodepaper validate
+```
+
+Fix whatever Validate reports before going on.
+
+### 5. Get the finished document: export, then compile on Overleaf
+
+```powershell
+nodepaper export . --to ..\paper-latex
+```
+
+What you get is not a PDF but a self-contained LaTeX project: `paper.tex`, `references.bib`, only the images the paper references, any fragments it `\input{}`s, and a `README.txt` spelling out the compile steps and the packages they need.
+
+Zip the whole `..\paper-latex` folder, upload it to Overleaf, and then:
+
+- Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the real cause;
+- Chinese fonts follow the machine doing the compiling: Noto CJK on Overleaf, the SimSun families on your own Windows box. **The page differs slightly; no characters are dropped**.
+
+At this point you can see the real typeset result, with no TeX installed anywhere.
+
+**What to do next**: if you only wanted to see the result, or you intended to hand over a LaTeX project anyway, you are done. If you will revise repeatedly — especially during a competition — zipping and uploading every revision costs real time, so install TeX and switch to a single `nodepaper build`.
+
+Export is **one-way**: edits made on Overleaf do not flow back into the Markdown project. Treat it as a handover, not a sync.
+
+## Producing a PDF locally: installing TeX
+
+Installing TeX is the longest step of the whole process, and only `nodepaper build` needs it.
+
+| Option | Download | Installed | Time | Suits |
+|---|---|---|---|---|
+| **MiKTeX** (try this first) | ~140 MB | ~1 GB | 10–20 min | Limited disk space. Missing packages are downloaded on demand during the first build, so it needs a network connection |
+| **TeX Live, full** | ~6.3 GB | ~8–9 GB | 20–60 min (with a nearby mirror) | Plenty of disk space; everything installed up front and fully offline afterwards |
+
+These are order-of-magnitude figures; the real numbers depend on your network and disk.
+
+Download from the official sources:
+
+- MiKTeX: <https://miktex.org/download>
+- TeX Live: <https://tug.org/texlive/windows.html>
+
+**Use a nearby CTAN mirror.** TeX Live downloads from its default server can take hours; a local mirror usually brings that down to tens of minutes. Mirror lists and setup instructions are published by each mirror, for example <https://mirrors.tuna.tsinghua.edu.cn/help/CTAN/>.
+
+### Notes
+
+- Install to a path without spaces or non-ASCII characters. TeX tooling handles such paths inconsistently.
+- **Open a new terminal after installing.** PATH changes do not apply to already-open windows, and this is the most common reason for "installed but `xelatex` not found".
+- Avoid the CTeX suite. It bundles a years-old MiKTeX that may not match current packages. NodePaper only needs a current TeX distribution that can run `xelatex`.
+
+Run `xelatex --version` in a new terminal; a version banner means you are ready. NodePaper drives XeLaTeX directly; **latexmk and Perl are not required**.
+
+### Once it is installed
 
 ```powershell
 cd D:\papers\cumcm-a
@@ -195,23 +212,9 @@ After a successful build, the PDF is located at:
 dist/paper.pdf
 ```
 
-## Exporting a LaTeX project
+## Export: further options
 
-`nodepaper build` above produces a PDF directly and needs TeX on this machine. **If you would rather not install TeX, or you need to keep editing at the LaTeX level, export instead:**
-
-```powershell
-nodepaper export . --to ..\paper-latex
-```
-
-What you get is not a PDF but an **editable, self-contained** LaTeX project: `paper.tex`, the `references.bib` database, only the images the paper actually references, any fragments it `\input{}`s, and a `README.txt` that spells out which commands to run in which order, which packages are missing and how to install them, and how the Chinese fonts are handled. The exported project does not refer back to the original, and compiling it does not need NodePaper.
-
-Export only calls the pandoc bundled in the release package, so **it works without TeX installed**.
-
-When to use it:
-
-- no TeX environment, and you want to compile on Overleaf (below);
-- you are submitting the paper, or handing it to an advisor or teammate who works in LaTeX;
-- one spot needs manual typographic tuning that Markdown cannot express.
+Beyond the default use in step 5 above, exporting also suits submitting the paper, handing it to an advisor or teammate who works in LaTeX, or tuning one spot of typography that Markdown cannot express. The exported project does not refer back to the original, and compiling it does not need NodePaper.
 
 ### Choosing a bibliography backend
 
@@ -225,20 +228,11 @@ When to use it:
 
 The repeated `xelatex` runs are not redundant: the first pass writes the citation and cross-reference data, and the later ones read it back.
 
-### Compiling on Overleaf
-
-Zip the whole exported folder, upload it to Overleaf, and then:
-
-- Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the real cause;
-- Chinese fonts follow the machine doing the compiling: the SimSun families on your Windows box, Noto CJK on Overleaf. **The page differs slightly; no characters are dropped**.
-
 ### Other options
 
 - `--verify` is off by default. When enabled it **copies the export to a temporary directory** and compiles it there to confirm it works, so no `.aux`, `.log` or `.pdf` is left in the delivered folder. It needs TeX on this machine; when `xelatex`, `bibtex` or `biber` is missing it only reports a Warning and **the export itself still completes**. Note also that compiling here does not guarantee it compiles on the recipient's machine;
 - `--force` is required when the `--to` directory is not empty;
 - `nodepaper doctor` additionally reports whether the packages used by export are available; missing ones do not affect ordinary builds.
-
-Export is **one-way**: edits made in the LaTeX project do not flow back into the Markdown project. Treat it as a handover, not a sync.
 
 ## Ways to start NodePaper
 
@@ -283,7 +277,7 @@ nodepaper --version
 - `clean` removes intermediate build files;
 - `clean --all` also removes `dist/`;
 - running `nodepaper` without arguments suggests the next step for the current location;
-- `export` produces an editable LaTeX project rather than a PDF; see "Exporting a LaTeX project" for the `--bib`, `--verify` and `--force` trade-offs.
+- `export` produces an editable LaTeX project rather than a PDF; see "Export: further options" for the `--bib`, `--verify` and `--force` trade-offs.
 
 Machine-readable output:
 
