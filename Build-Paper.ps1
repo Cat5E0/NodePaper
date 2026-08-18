@@ -269,8 +269,12 @@ $xelatex = Find-CommandPath @(
 )
 
 if (-not $xelatex) {
-    Write-Log "LaTeX compiler not found. Generated LaTeX, but skipped PDF: $outputPath" "WARN"
-    exit 0
+    # Exit non-zero: the script was asked for a PDF and cannot produce one.
+    # Reporting success here made the caller infer the reason from the absent
+    # file, which reads the same whether TeX is missing or the document failed
+    # to compile. -SkipPdf above is the supported way to ask for the .tex only.
+    Write-Log "LaTeX compiler not found; generated the LaTeX but cannot produce a PDF: $outputPath" "ERROR"
+    exit 1
 }
 
 # XeLaTeX is driven directly instead of through latexmk. latexmk is a Perl

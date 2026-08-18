@@ -553,6 +553,15 @@ func runPowerShellBuild(ctx context.Context, executor commandExecutor, logger *b
 	processResult, err := executor.Run(ctx, bctx.ProjectRoot, "powershell.exe", args...)
 	logProcessResult(logger, processResult, err)
 	if err != nil || processResult.ExitCode != 0 {
+		// A build that fails for want of TeX is the one case where the logs
+		// answer nothing: the script says so and stops, and "inspect the logs"
+		// sends the reader looking for a compile error that was never attempted.
+		// Name it here instead, the same way the missing-PDF path does.
+		// ExitCode > 0 means the script ran and rejected the job; -1 means it
+		// could not be started at all, where the absence of TeX explains nothing.
+		if processResult.ExitCode > 0 && !xelatexAvailable(scriptPath) {
+			return []diagnostic.Diagnostic{missingPDFDiagnostic(false)}
+		}
 		message := fmt.Sprintf("PowerShell build exited with code %d", processResult.ExitCode)
 		if err != nil {
 			message = fmt.Sprintf("PowerShell build failed: %v", err)
