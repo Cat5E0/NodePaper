@@ -326,10 +326,22 @@ try {
 
     # File Explorer starts nodepaper.exe in a console window created for that
     # process alone. The output must stay readable instead of flashing away.
-    $doubleClick = Start-Process -FilePath $installedExe -WorkingDirectory $arbitrary -PassThru
-    try {
+    # Windows tears a console down asynchronously, so the hidden cmd.exe probe
+    # above can still be attached when the next process starts -- it then joins
+    # that console, GetConsoleProcessList returns more than one, and the hold is
+    # correctly skipped. Measured: without a pause this assertion failed every
+    # time and passed every time with one, while the same binary held in eleven
+    # isolated runs. Retrying rather than sleeping a fixed amount keeps a real
+    # regression failing: a build that never holds fails on the last attempt.
+    $doubleClick = $null
+    foreach ($attempt in 1..3) {
+        if ($null -ne $doubleClick -and -not $doubleClick.HasExited) { break }
+        Start-Sleep -Seconds 2
+        $doubleClick = Start-Process -FilePath $installedExe -WorkingDirectory $arbitrary -PassThru
         Start-Sleep -Seconds 4
         $doubleClick.Refresh()
+    }
+    try {
         Assert-True (-not $doubleClick.HasExited) "a double-clicked nodepaper.exe keeps its own console window open instead of flashing away"
     }
     finally {
