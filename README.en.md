@@ -10,9 +10,34 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 ## Before you start
 
-Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds, but NodePaper **does not bundle TeX** — typesetting is done by a TeX distribution on your machine, and installing it is the longest step of the whole process.
+Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds.
 
-TeX is a prerequisite for `nodepaper build`, not for every command: `nodepaper export`, which writes out an editable LaTeX project, only uses the pandoc shipped inside the release package. It works with no TeX installed, leaving the compile to whoever receives the project.
+**It does not bundle TeX, and you may not need TeX.** Pick a path first:
+
+| You want | TeX required | What to do |
+|---|---|---|
+| **A PDF on your own machine** | Yes | Install MiKTeX or TeX Live — see "For local PDFs: installing TeX" below |
+| **Just a LaTeX project, compiled on Overleaf** | **No** | Skip ahead to "Install", then use `nodepaper export` — see "Compiling on Overleaf" |
+
+The second path skips the rest of this section entirely: `nodepaper export` only uses the pandoc shipped inside the release package, so it works as soon as NodePaper is installed.
+
+### Compiling on Overleaf (no TeX)
+
+```powershell
+nodepaper export . --to ..\paper-latex
+```
+
+Zip the whole `..\paper-latex` folder, upload it to Overleaf, and then:
+
+- Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the cause;
+- Chinese fonts follow the machine doing the compiling: the SimSun families on your Windows box, Noto CJK on Overleaf. **The page differs slightly; no characters are dropped**;
+- `README.txt` in the exported folder lists the exact commands and the packages they need.
+
+Export is **one-way**: edits made on Overleaf do not flow back into the Markdown project. Treat it as a handover, not a sync.
+
+### For local PDFs: installing TeX
+
+Installing TeX is the longest step of the whole process, and only `nodepaper build` needs it.
 
 | Option | Download | Installed | Time | Suits |
 |---|---|---|---|---|
@@ -35,6 +60,8 @@ Download from the official sources:
 - Avoid the CTeX suite. It bundles a years-old MiKTeX that may not match current packages. NodePaper only needs a current TeX distribution that can run `xelatex`.
 
 Run `xelatex --version` in a new terminal; a version banner means you are ready. NodePaper drives XeLaTeX directly; **latexmk and Perl are not required**.
+
+You can install NodePaper before TeX: `nodepaper doctor` reports "PDF output" and "LaTeX export" as separate capabilities, so a missing TeX costs only the first instead of declaring the whole machine unusable.
 
 ## Installation
 

@@ -10,9 +10,34 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 ## 环境准备
 
-需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完，但它**不自带 TeX**——PDF 排版由你机器上的 TeX 发行版完成，安装 TeX 是整个流程中耗时最长的一步。
+需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。
 
-TeX 是 `nodepaper build` 的前置，不是全部命令的前置：`nodepaper export`（导出可编辑的 LaTeX 工程）只用发布包里自带的 pandoc，没装 TeX 也能用，编译留给拿到工程的人。
+**它不自带 TeX，而你不一定需要 TeX。** 先选一条路：
+
+| 你想要 | 需要装 TeX 吗 | 怎么做 |
+|---|---|---|
+| **在自己电脑上出 PDF** | 需要 | 装 MiKTeX 或 TeX Live，见下方「本地出 PDF：安装 TeX」 |
+| **只要一份 LaTeX 工程，拿去 Overleaf 编译** | **不需要** | 直接跳到「安装」，用 `nodepaper export`，见「用 Overleaf 编译」 |
+
+第二条路完全跳过本节剩下的内容——`nodepaper export` 只用发布包里自带的 pandoc，装完 NodePaper 就能用。
+
+### 用 Overleaf 编译（不装 TeX）
+
+```powershell
+nodepaper export . --to ..\paper-latex
+```
+
+把 `..\paper-latex` 整个文件夹打包成 zip 上传到 Overleaf，然后：
+
+- 在 Overleaf 的 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出原因；
+- 中文字体会按编译环境自动切换：你自己的 Windows 上用宋体/黑体，Overleaf 上用 Noto CJK。**版面会有细微差别，但不会掉字**；
+- 导出目录里的 `README.txt` 写了该跑哪几条命令、需要哪些宏包。
+
+导出是**单向**的：在 Overleaf 上改的内容不会回到 Markdown 项目。把它当成交接点，不是同步。
+
+### 本地出 PDF：安装 TeX
+
+安装 TeX 是整个流程中耗时最长的一步，只有 `nodepaper build` 需要它。
 
 | 方案 | 下载 | 装完占盘 | 耗时 | 适用 |
 |---|---|---|---|---|
@@ -38,6 +63,8 @@ TeX 是 `nodepaper build` 的前置，不是全部命令的前置：`nodepaper e
 - 不建议使用 CTeX 套装。它捆绑的是多年未更新的旧版 MiKTeX，可能与当前宏包版本不兼容。NodePaper 只需要一个能运行 `xelatex` 的现代 TeX 发行版。
 
 在新终端执行 `xelatex --version`，有版本输出即表示环境就绪。NodePaper 直接驱动 XeLaTeX，**不需要 latexmk 或 Perl**。
+
+没装 TeX 也可以先装 NodePaper：`nodepaper doctor` 会把「PDF 输出」和「LaTeX 工程导出」分开报告，缺 TeX 只影响前者，不会把整台机器判为不可用。
 
 ## 安装
 
