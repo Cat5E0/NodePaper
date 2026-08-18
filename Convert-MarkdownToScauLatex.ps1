@@ -487,7 +487,8 @@ if ($CoverLastPdf) {
     if (-not (Test-Path -LiteralPath $coverLastAbs -PathType Leaf)) {
         throw "CoverLastPdf not found: $coverLastAbs"
     }
-    # pages={1,last} — first page as cover, last page as last page
+    $coverLastAbs = $coverLastAbs.Replace('\', '/')
+    # pages={1} = first page; pages={last} = last page (with newtxmath removed)
     $coverLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf[pages={1}]{$coverLastAbs}"
     $lastPageLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf[pages={last}]{$coverLastAbs}"
 }
@@ -497,6 +498,7 @@ else {
         if (-not (Test-Path -LiteralPath $coverAbs -PathType Leaf)) {
             throw "CoverPdf not found: $coverAbs"
         }
+        $coverAbs = $coverAbs.Replace('\', '/')
         $coverLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf{{$coverAbs}}"
     }
     if ($LastPagePdf) {
@@ -504,6 +506,7 @@ else {
         if (-not (Test-Path -LiteralPath $lastAbs -PathType Leaf)) {
             throw "LastPagePdf not found: $lastAbs"
         }
+        $lastAbs = $lastAbs.Replace('\', '/')
         $lastPageLatex = "\clearpage`n\thispagestyle{empty}`n\includepdf{{$lastAbs}}"
     }
 }

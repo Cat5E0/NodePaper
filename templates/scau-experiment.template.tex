@@ -4,6 +4,11 @@
 
 \usepackage[UTF8]{ctex}
 \xeCJKsetup{AutoFakeBold=true}
+\setCJKmainfont{SimSun}[AutoFakeBold=3,BoldFont=SimHei,ItalicFont=KaiTi]
+\setCJKsansfont{SimHei}
+\setCJKmonofont{FangSong}
+% 确保任何后续创建的 SimSun 字体族都带有粗体映射
+\defaultfontfeatures[SimSun]{BoldFont=SimHei,ItalicFont=KaiTi,AutoFakeBold=3}
 \setmainfont{Times New Roman}
 \usepackage[a4paper, top=2.55cm, bottom=2.75cm, left=2.4cm, right=2.4cm, bindingoffset=0.5cm, headheight=15pt, headsep=0.37cm, footskip=0.85cm]{geometry}
 \usepackage{setspace}
@@ -12,7 +17,7 @@
 \allowdisplaybreaks[4]
 \usepackage{amssymb}
 \usepackage{amsthm}
-\usepackage{newtxmath}
+% newtxmath omitted to avoid keyval conflict with pdfpages
 \usepackage{graphicx}
 \graphicspath{{./}{image/}{../image/}} % 自动搜索当前目录和 image 子目录
 \usepackage{booktabs}
@@ -34,6 +39,7 @@
 \usepackage{titlesec}
 \usepackage{fancyhdr}
 \usepackage[hidelinks]{hyperref}
+\usepackage{pdfpages}
 \usepackage{cleveref}
 \usepackage{xcolor}
 \usepackage{color}
@@ -116,7 +122,8 @@
 \crefformat{theorem}{#2定理#1#3}
 \crefformat{lemma}{#2引理#1#3}
 
-\usepackage{pdfpages}
+% Pandoc 对无标题表格生成 \def\LTcaptype{none}，预先定义计数器防止报错
+\newcounter{none}
 
 \begin{document}
 %%__COVER_PDF__

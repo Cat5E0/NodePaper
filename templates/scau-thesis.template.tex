@@ -5,6 +5,11 @@
 % ================= 基础宏包与环境设定 =================
 \usepackage[UTF8]{ctex} % 自动调用宋体、黑体、楷体等
 \xeCJKsetup{AutoFakeBold=true} % 允许伪粗体，防止宋体加粗报错
+\setCJKmainfont{SimSun}[AutoFakeBold=3,BoldFont=SimHei,ItalicFont=KaiTi]
+\setCJKsansfont{SimHei}
+\setCJKmonofont{FangSong}
+% 确保任何后续创建的 SimSun 字体族都带有粗体映射
+\defaultfontfeatures[SimSun]{BoldFont=SimHei,ItalicFont=KaiTi,AutoFakeBold=3}
 
 % 将正文的英文和数字字体设为 Times New Roman
 \setmainfont{Times New Roman}
@@ -240,6 +245,9 @@
   \IfFileExists{#2}{\includegraphics[#1]{#2}}{\fbox{\zihao{5} Missing image: #2}}%
 }
 \newcommand{\scauSubmissionDate}{%%__DATE__}
+
+% Pandoc 对无标题表格生成 \def\LTcaptype{none}，预先定义计数器防止报错
+\newcounter{none}
 
 \begin{document}
 \pagenumbering{alph}
