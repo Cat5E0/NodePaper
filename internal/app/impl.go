@@ -57,6 +57,7 @@ func (a *appImpl) Doctor(ctx context.Context, req DoctorRequest) (DoctorResult, 
 			Status:     string(c.Status),
 			Message:    c.Message,
 			Suggestion: c.Suggestion,
+			Group:      string(c.Group),
 		})
 	}
 

@@ -5,6 +5,7 @@ package doctor
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,12 +30,40 @@ const (
 	StatusSkipped Status = "skipped"
 )
 
+// Group is the capability a check speaks for, and the heading the text
+// renderer prints it under. Doctor reports per capability rather than as one
+// flat list because the capabilities are independent: a machine with no TeX
+// can still convert and export, so the reader has to be able to see which of
+// the things they came for is ready.
+type Group string
+
+const (
+	GroupToolchain    Group = "Toolchain"
+	GroupPDFOutput    Group = "PDF output (nodepaper build)"
+	GroupLaTeXExport  Group = "LaTeX export (nodepaper export)"
+	GroupInstallation Group = "Installation"
+	GroupProject      Group = "Project"
+	// GroupOther catches any check that reaches a renderer without a group of
+	// its own. It exists so that forgetting to group a new check costs a
+	// misplaced heading rather than a check that never appears: an unreported
+	// check is the one failure mode doctor must not have.
+	GroupOther Group = "Other checks"
+)
+
 // Check is the outcome of inspecting a single tool or resource.
 type Check struct {
 	Name       string `json:"name"`
 	Status     Status `json:"status"`
 	Message    string `json:"message"`
 	Suggestion string `json:"suggestion,omitempty"`
+	// Group is carried by the check itself and deliberately not serialised.
+	// Not serialised because the JSON `checks` array is an existing contract
+	// with tooling and with the release tests, which address checks by name;
+	// grouping is a presentation change and must not alter it. Carried by the
+	// check rather than decided in the renderer because a renderer that
+	// matched on Name would silently misfile - or drop - every check added
+	// after it was written.
+	Group Group `json:"-"`
 }
 
 // Result collects the findings from a doctor run.
@@ -67,20 +96,25 @@ func Run(ctx context.Context, projectRoot string, resourceRoot string) Result {
 		profileDir = filepath.Join(resourceRoot, "profiles", "cumcm")
 	}
 	loadedProfile, profileCheck := checkBuiltinProfile(profileDir)
-	checks = append(checks, profileCheck)
-	checks = append(checks, checkPowershell(ctx))
 	tc := findToolchain(resourceRoot)
-	checks = append(checks,
+	// The append order is also the order of the JSON `checks` array, so it is
+	// kept exactly as it was; grouping only adds headings to the text output.
+	checks = append(checks, grouped(GroupToolchain,
+		profileCheck,
+		checkPowershell(ctx),
 		checkPandoc(ctx, tc.Pandoc, loadedProfile.Definition.PandocVersion),
 		checkPandocCrossref(ctx, tc.PandocCrossref, loadedProfile.Definition.PandocCrossrefVersion),
+	)...)
+	checks = append(checks, grouped(GroupPDFOutput,
 		checkXeLaTeXDriver(ctx, tc),
 		checkXeLaTeX(ctx, tc.XeLaTeX),
-	)
-	checks = append(checks, checkChineseProbe(ctx, tc))
-	checks = append(checks, checkLaTeXExportPackages(ctx))
+		checkChineseProbe(ctx, tc),
+	)...)
+	checks = append(checks, grouped(GroupLaTeXExport, checkLaTeXExportPackages(ctx))...)
+	checks = append(checks, grouped(GroupInstallation, checkInstallation()...)...)
 
 	if projectRoot != "" {
-		checks = append(checks, checkProjectResources(projectRoot)...)
+		checks = append(checks, grouped(GroupProject, checkProjectResources(projectRoot)...)...)
 	}
 
 	result := Result{Success: true, Checks: checks}
@@ -97,6 +131,19 @@ func Run(ctx context.Context, projectRoot string, resourceRoot string) Result {
 		result.ProjectRoot = projectRoot
 	}
 	return result
+}
+
+// grouped tags checks with the capability they are reported under, leaving a
+// group a check already set for itself untouched. Grouping happens here, at
+// the one place that knows which capability each check function was written
+// to answer for, instead of inside the renderers.
+func grouped(group Group, checks ...Check) []Check {
+	for i := range checks {
+		if checks[i].Group == "" {
+			checks[i].Group = group
+		}
+	}
+	return checks
 }
 
 // ---------- individual checks -------------------------------------------
@@ -284,12 +331,30 @@ LaTeX project that compiles on a machine that has one.`
 // says "xelatex" in lower case and so cannot be mistaken for the version line.
 var xelatexVersionLine = regexp.MustCompile(`XeTeX\b[^0-9]*\d`)
 
+// checkXeLaTeX distinguishes "no TeX installed" from "TeX installed but
+// broken", because they are not equally serious.
+//
+// Absent is a Warning. It costs the user one capability - `nodepaper build`
+// cannot render a PDF here - and leaves the rest working: conversion and
+// `nodepaper export` run the packaged Pandoc and touch no TeX at all. Reported
+// as a Fail it took the whole run down with it, so a machine that could
+// convert and export was told its toolchain was broken. This is the same
+// reading as `flutter doctor`, which reports a missing Xcode without
+// pronouncing the installation unusable, since the user may not be building
+// for iOS.
+//
+// A xelatex that is present but cannot report its version stays a Fail. That
+// is a damaged installation rather than an absent one: the user asked for TeX,
+// has it on PATH, and something about it does not run - which no amount of
+// install guidance addresses and which will fail the build in a way they
+// cannot predict.
 func checkXeLaTeX(ctx context.Context, path string) Check {
 	if path == "" {
 		return Check{
-			Name:       "XeLaTeX",
-			Status:     StatusFail,
-			Message:    "XeLaTeX not found",
+			Name:   "XeLaTeX",
+			Status: StatusWarning,
+			Message: "XeLaTeX not found, so nodepaper build cannot produce a PDF on this machine; " +
+				"conversion and nodepaper export are unaffected",
 			Suggestion: texDistributionHelp,
 		}
 	}
@@ -666,25 +731,86 @@ func severityCode(c Check) int {
 	}
 }
 
-// FormatChecks returns a multi-line human-readable summary of checks.
+// FormatChecks returns a multi-line human-readable summary of checks, one
+// section per capability. The CLI renders the same list through
+// internal/output.TextWriter.Doctor, which groups by Check.Group in the same
+// way; the grouping itself lives on the checks, so the two renderers cannot
+// disagree about which section a check belongs to.
 func FormatChecks(checks []Check) string {
 	var sb strings.Builder
-	for _, c := range checks {
-		prefix := "PASS"
-		switch c.Status {
-		case StatusWarning:
-			prefix = "WARN"
-		case StatusFail:
-			prefix = "FAIL"
-		case StatusSkipped:
-			prefix = "SKIP"
+	for i, group := range groupChecks(checks) {
+		if i > 0 {
+			fmt.Fprintln(&sb)
 		}
-		fmt.Fprintf(&sb, "%-4s %-20s %s\n", prefix, c.Name, c.Message)
-		if c.Suggestion != "" {
-			fmt.Fprintf(&sb, "     → %s\n", c.Suggestion)
+		fmt.Fprintln(&sb, string(group.Group))
+		for _, c := range group.Checks {
+			fmt.Fprintf(&sb, "  %-4s %-20s %s\n", statusPrefix(c.Status), c.Name, c.Message)
+			writeSuggestion(&sb, "  ", c.Suggestion)
 		}
 	}
 	return sb.String()
+}
+
+// writeSuggestion prints a check's suggestion under it, indenting every line
+// of a multi-line one. Without that, a suggestion as long as the TeX install
+// guide spilled back to column zero and read as though it had left the section
+// it belongs to. internal/output shapes suggestions the same way for the CLI;
+// it renders app-layer results and does not import this package.
+func writeSuggestion(w io.Writer, indent, suggestion string) {
+	if suggestion == "" {
+		return
+	}
+	for i, line := range strings.Split(strings.ReplaceAll(suggestion, "\r\n", "\n"), "\n") {
+		marker := "  "
+		if i == 0 {
+			marker = "→ "
+		}
+		fmt.Fprintf(w, "%s     %s%s\n", indent, marker, line)
+	}
+}
+
+// statusPrefix returns the four-character column a status is shown in.
+func statusPrefix(status Status) string {
+	switch status {
+	case StatusWarning:
+		return "WARN"
+	case StatusFail:
+		return "FAIL"
+	case StatusSkipped:
+		return "SKIP"
+	default:
+		return "PASS"
+	}
+}
+
+// section is a run of checks that share a group, in the order they were
+// checked.
+type section struct {
+	Group  Group
+	Checks []Check
+}
+
+// groupChecks buckets checks into sections by their own Group, in order of
+// first appearance, so the section order follows the order the checks were
+// run rather than a separate list a new check could be left out of. A check
+// that carries no group is filed under GroupOther: every check that goes in
+// comes out.
+func groupChecks(checks []Check) []section {
+	var sections []section
+	position := make(map[Group]int, len(checks))
+	for _, c := range checks {
+		group := c.Group
+		if group == "" {
+			group = GroupOther
+		}
+		if index, ok := position[group]; ok {
+			sections[index].Checks = append(sections[index].Checks, c)
+			continue
+		}
+		position[group] = len(sections)
+		sections = append(sections, section{Group: group, Checks: []Check{c}})
+	}
+	return sections
 }
 
 // firstLaTeXError returns the first error line found across the given sources,

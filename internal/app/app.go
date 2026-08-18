@@ -77,6 +77,11 @@ type DoctorCheck struct {
 	Status     string `json:"status"`
 	Message    string `json:"message"`
 	Suggestion string `json:"suggestion,omitempty"`
+	// Group is the capability heading the text renderer files this check
+	// under, carried straight through from doctor.Check.Group. It is not
+	// serialised: the JSON `checks` array is an existing contract addressed by
+	// name, and grouping is a presentation concern.
+	Group string `json:"-"`
 }
 
 type ValidateResult struct {

@@ -33,14 +33,28 @@ func (tw *TextWriter) Init(result app.InitResult) {
 	}
 }
 
-// Doctor renders a DoctorResult.
+// Doctor renders a DoctorResult, one section per capability.
+//
+// The sections exist because the capabilities are independent: a machine
+// without TeX cannot render a PDF and can still convert and export, and a flat
+// list gave the reader no way to see which of the two they were looking at.
+// Every check is printed under the group it carries (app.DoctorCheck.Group,
+// straight from doctor.Check.Group), never matched by name here - a renderer
+// that recognised names would quietly misfile whatever check is added next.
 func (tw *TextWriter) Doctor(result app.DoctorResult) {
 	tw.writeProjectRoot(result.ProjectRoot)
-	for _, c := range result.Checks {
-		prefix := doctorStatusPrefix(c.Status)
-		fmt.Fprintf(tw.W, "%-4s %-20s %s\n", prefix, c.Name, c.Message)
-		if c.Suggestion != "" {
-			fmt.Fprintf(tw.W, "     → %s\n", c.Suggestion)
+	for i, section := range groupDoctorChecks(result.Checks) {
+		if i > 0 {
+			fmt.Fprintln(tw.W)
+		}
+		indent := ""
+		if section.group != "" {
+			fmt.Fprintln(tw.W, section.group)
+			indent = "  "
+		}
+		for _, c := range section.checks {
+			fmt.Fprintf(tw.W, "%s%-4s %-20s %s\n", indent, doctorStatusPrefix(c.Status), c.Name, c.Message)
+			tw.writeDoctorSuggestion(indent, c.Suggestion)
 		}
 	}
 	fmt.Fprintln(tw.W)
@@ -52,6 +66,50 @@ func (tw *TextWriter) Doctor(result app.DoctorResult) {
 			fmt.Fprintln(tw.W, "Next: run nodepaper validate")
 		}
 	}
+}
+
+// writeDoctorSuggestion prints a check's suggestion under it, indenting every
+// line of a multi-line one. Without that, a suggestion as long as the TeX
+// install guide spilled back to column zero and read as though it had left the
+// section it belongs to. This package renders app-layer results and does not
+// import doctor - the same convention doctorStatusPrefix follows - so
+// doctor.FormatChecks keeps its own copy of this shaping.
+func (tw *TextWriter) writeDoctorSuggestion(indent, suggestion string) {
+	if suggestion == "" {
+		return
+	}
+	for i, line := range strings.Split(strings.ReplaceAll(suggestion, "\r\n", "\n"), "\n") {
+		marker := "  "
+		if i == 0 {
+			marker = "→ "
+		}
+		fmt.Fprintf(tw.W, "%s     %s%s\n", indent, marker, line)
+	}
+}
+
+// doctorSection is a run of doctor checks that share a group.
+type doctorSection struct {
+	group  string
+	checks []app.DoctorCheck
+}
+
+// groupDoctorChecks buckets checks by the group they carry, in order of first
+// appearance, so the sections follow the order the checks were run instead of
+// a separate ordered list that a new check could be left out of. Checks
+// without a group form their own headingless section rather than being
+// dropped: an unreported check is the one outcome doctor must never produce.
+func groupDoctorChecks(checks []app.DoctorCheck) []doctorSection {
+	var sections []doctorSection
+	position := make(map[string]int, len(checks))
+	for _, c := range checks {
+		if index, ok := position[c.Group]; ok {
+			sections[index].checks = append(sections[index].checks, c)
+			continue
+		}
+		position[c.Group] = len(sections)
+		sections = append(sections, doctorSection{group: c.Group, checks: []app.DoctorCheck{c}})
+	}
+	return sections
 }
 
 func doctorStatusPrefix(status string) string {
@@ -171,8 +229,18 @@ func (tw *TextWriter) writeDiagnostics(diags []diagnostic.Diagnostic) {
 			fmt.Fprint(tw.W, ")")
 		}
 		fmt.Fprintln(tw.W)
+		// A multi-line suggestion has its continuation lines indented under the
+		// first, so that guidance several lines long - install instructions, a
+		// list of commands - still reads as part of the diagnostic instead of
+		// as unrelated output flush against the left margin.
 		if d.Suggestion != "" {
-			fmt.Fprintf(tw.W, "      Suggestion: %s\n", d.Suggestion)
+			for i, line := range strings.Split(strings.ReplaceAll(d.Suggestion, "\r\n", "\n"), "\n") {
+				if i == 0 {
+					fmt.Fprintf(tw.W, "      Suggestion: %s\n", line)
+					continue
+				}
+				fmt.Fprintf(tw.W, "                  %s\n", line)
+			}
 		}
 	}
 }

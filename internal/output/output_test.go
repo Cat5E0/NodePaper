@@ -92,6 +92,85 @@ func TestTextWriterDoctorSuccess(t *testing.T) {
 	}
 }
 
+func TestTextWriterIndentsMultiLineDiagnosticSuggestion(t *testing.T) {
+	var buf bytes.Buffer
+	tw := &TextWriter{W: &buf}
+
+	tw.Build(app.BuildResult{
+		ProjectRoot: `D:\papers\a`,
+		Diagnostics: []diagnostic.Diagnostic{
+			makeDiag(diagnostic.SeverityError, "NP6002", "no PDF was produced", "", 0, "Install a TeX distribution:\n  MiKTeX     https://miktex.org/download"),
+		},
+	})
+
+	out := buf.String()
+	if !strings.Contains(out, "      Suggestion: Install a TeX distribution:\n") {
+		t.Fatalf("first suggestion line changed shape:\n%s", out)
+	}
+	if !strings.Contains(out, "\n                    MiKTeX     https://miktex.org/download\n") {
+		t.Fatalf("continuation line is not indented under the suggestion:\n%s", out)
+	}
+}
+
+func TestTextWriterDoctorGroupsChecksByCapability(t *testing.T) {
+	var buf bytes.Buffer
+	tw := &TextWriter{W: &buf}
+
+	// The second Toolchain check comes last on purpose: the renderer buckets by
+	// the group each check carries, so one heading has to cover both.
+	tw.Doctor(app.DoctorResult{
+		Success: true,
+		Checks: []app.DoctorCheck{
+			{Name: "Pandoc", Status: "pass", Message: "pandoc 3.9", Group: "Toolchain"},
+			{Name: "XeLaTeX", Status: "warning", Message: "XeLaTeX not found", Suggestion: "install a TeX distribution\nsecond guidance line", Group: "PDF output (nodepaper build)"},
+			{Name: "profile", Status: "pass", Message: "loaded", Group: "Toolchain"},
+		},
+	})
+
+	out := buf.String()
+	for _, group := range []string{"Toolchain", "PDF output (nodepaper build)"} {
+		if count := strings.Count(out, group+"\n"); count != 1 {
+			t.Fatalf("heading %q appears %d times, want once:\n%s", group, count, out)
+		}
+	}
+	if strings.Index(out, "profile") > strings.Index(out, "PDF output (nodepaper build)") {
+		t.Fatalf("profile was filed under the wrong heading:\n%s", out)
+	}
+	if !strings.Contains(out, "  WARN") {
+		t.Fatalf("grouped checks should be indented under their heading:\n%s", out)
+	}
+	if !strings.Contains(out, "install a TeX distribution") {
+		t.Fatalf("suggestion was dropped:\n%s", out)
+	}
+	// A long suggestion is the one thing that can visually escape its section,
+	// so its continuation lines are indented with it.
+	if !strings.Contains(out, "\n         second guidance line\n") {
+		t.Fatalf("continuation line of a multi-line suggestion is not indented:\n%s", out)
+	}
+}
+
+func TestTextWriterDoctorKeepsACheckWithNoGroup(t *testing.T) {
+	// A check that arrives without a group is what a future check looks like
+	// before anyone groups it. It may lose its heading; it may not disappear.
+	var buf bytes.Buffer
+	tw := &TextWriter{W: &buf}
+
+	tw.Doctor(app.DoctorResult{
+		Success: true,
+		Checks: []app.DoctorCheck{
+			{Name: "Pandoc", Status: "pass", Message: "pandoc 3.9", Group: "Toolchain"},
+			{Name: "unregistered check", Status: "fail", Message: "invented by a later change", Suggestion: "still shown"},
+		},
+	})
+
+	out := buf.String()
+	for _, expected := range []string{"unregistered check", "invented by a later change", "still shown"} {
+		if !strings.Contains(out, expected) {
+			t.Fatalf("output missing %q:\n%s", expected, out)
+		}
+	}
+}
+
 func TestTextWriterValidateWithWarnings(t *testing.T) {
 	var buf bytes.Buffer
 	tw := &TextWriter{W: &buf}

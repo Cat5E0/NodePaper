@@ -345,6 +345,58 @@ func TestBuildReportsMissingPDF(t *testing.T) {
 	}
 }
 
+func TestMissingPDFDiagnosticNamesTheMissingTeX(t *testing.T) {
+	// doctor reports an absent XeLaTeX as a warning, so this diagnostic is the
+	// only place the user is told why no PDF appeared. It has to say "no TeX",
+	// not "read the logs".
+	withoutTeX := missingPDFDiagnostic(false)
+	if withoutTeX.Code != "NP6002" {
+		t.Fatalf("Code = %q, want NP6002 (the code is part of the contract)", withoutTeX.Code)
+	}
+	if !strings.Contains(withoutTeX.Message, "XeLaTeX was not found") {
+		t.Fatalf("Message does not name the missing TeX: %q", withoutTeX.Message)
+	}
+	for _, want := range []string{"miktex.org/download", "tug.org/texlive/windows.html", "NEW terminal", "nodepaper export"} {
+		if !strings.Contains(withoutTeX.Suggestion, want) {
+			t.Errorf("Suggestion is missing %q:\n%s", want, withoutTeX.Suggestion)
+		}
+	}
+
+	// With TeX present the same absent PDF means something else entirely, and
+	// must not send the user off installing a distribution they already have.
+	withTeX := missingPDFDiagnostic(true)
+	if withTeX.Code != "NP6002" {
+		t.Fatalf("Code = %q, want NP6002", withTeX.Code)
+	}
+	for _, unwanted := range []string{"miktex.org", "tug.org"} {
+		if strings.Contains(withTeX.Suggestion, unwanted) {
+			t.Errorf("Suggestion should not offer an install link when TeX is present: %q", withTeX.Suggestion)
+		}
+	}
+}
+
+func TestXeLaTeXAvailableFindsTheBundledCompiler(t *testing.T) {
+	// Build-Paper.ps1 looks beside itself before it looks at PATH, so the
+	// diagnostic has to see the same bundled compiler the script would use.
+	root := t.TempDir()
+	scriptPath := filepath.Join(root, "Build-Paper.ps1")
+	bundled := filepath.Join(root, "tools", "windows-x64", "texlive", "bin", "windows", "xelatex.exe")
+	if err := os.MkdirAll(filepath.Dir(bundled), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundled, []byte("bundled"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// PATH is emptied so only the bundled copy can be the reason for a hit.
+	t.Setenv("PATH", t.TempDir())
+	if !xelatexAvailable(scriptPath) {
+		t.Fatalf("bundled xelatex at %s was not found", bundled)
+	}
+	if xelatexAvailable(filepath.Join(t.TempDir(), "Build-Paper.ps1")) {
+		t.Fatal("xelatexAvailable reported a compiler with neither a bundled copy nor PATH")
+	}
+}
+
 func TestBuildRejectsDamagedPDFAndPreservesOldPDF(t *testing.T) {
 	projectDir := copyBuildFixture(t, "minimal-valid")
 	distDir := filepath.Join(projectDir, "dist")

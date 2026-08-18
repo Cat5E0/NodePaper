@@ -234,8 +234,11 @@ func TestXeLaTeXVersionLineAcceptsBothDistributions(t *testing.T) {
 
 func TestXeLaTeXHelpIsActionable(t *testing.T) {
 	got := checkXeLaTeX(t.Context(), "")
-	if got.Status != StatusFail {
-		t.Fatalf("Status = %v, want fail", got.Status)
+	// The severity of this check is asserted in
+	// TestCheckXeLaTeXMissingIsWarningNotFailure; this test is about the
+	// guidance being usable whatever the severity is.
+	if got.Status != StatusWarning {
+		t.Fatalf("Status = %v, want warning", got.Status)
 	}
 	// The one-line version of this message told users to install TeX without
 	// saying it is a multi-gigabyte, multi-hour step. Each of these is the
