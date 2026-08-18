@@ -1,0 +1,1194 @@
+% !TEX program = latexmk
+% !TEX options = -xelatex -synctex=1 -interaction=nonstopmode -file-line-error "%DOC%"
+\documentclass[a4paper, 12pt, oneside]{article}
+
+% ================= 基础宏包与环境设定 =================
+\usepackage[UTF8]{ctex} % 自动调用宋体、黑体、楷体等
+\xeCJKsetup{AutoFakeBold=true} % 允许伪粗体，防止宋体加粗报错
+
+% 将正文的英文和数字字体设为 Times New Roman
+\setmainfont{Times New Roman}
+
+\usepackage[a4paper, top=2.55cm, bottom=2.75cm, left=2.4cm, right=2.4cm, bindingoffset=0.5cm, headheight=15pt, headsep=0.37cm, footskip=0.85cm]{geometry}
+\usepackage{setspace} % 行距设置宏包
+\setstretch{1.70} % 复刻 Word 1.5 倍行距（LaTeX的1.625 ≈ Word的1.5）
+
+\usepackage{amsmath} % 数学公式宏包
+\allowdisplaybreaks[4]
+\usepackage{amssymb} % 数学符号宏包
+\usepackage{amsthm} % 必须引入的数学定理宏包
+\usepackage{newtxmath} % 兼容 XeLaTeX，让公式也是 Times 风格，且不干扰正文新罗马
+\usepackage{tikz}             % 绘图基础包
+\usepackage{pgfplots}         % 绘制二维/三维坐标图
+\pgfplotsset{compat=1.18}     % 设定 pgfplots 版本以避免警告
+\usepackage{graphicx} % 插图宏包
+\usepackage{booktabs} % 三线表宏包
+\usepackage{multirow} % 单元格合并宏包
+\usepackage{longtable} % 跨页长表格宏包
+\usepackage{tabularx} % 自动调整宽度的表格宏包
+\usepackage{array} % 增强型表格列宏包
+\usepackage{caption} % 图表标题定制
+\usepackage{subcaption} % 子图定制
+
+% ================= 图、表、公式编号与样式自动化 =================
+% 规范8：公式编号如“(式1)”，写在右边行末。
+\makeatletter
+\def\tagform@#1{\maketag@@@{(式#1\unskip\@@italiccorr)}}
+\makeatother
+\renewcommand{\theequation}{\arabic{equation}} % 内部编号恢复纯数字，防交叉引用套娃
+
+% 规范7：表格采用三线表，上下线用1.5磅粗线，中间线用1磅细线
+\setlength{\heavyrulewidth}{1.5pt}
+\setlength{\lightrulewidth}{1pt}
+
+% 定义图表标题字体为宋体五号
+\DeclareCaptionFont{wuhao}{\zihao{5}\songti}
+
+% 规范6/7：图号/表号后空1个字距写图题/表题
+\DeclareCaptionLabelFormat{myfig}{图#2}
+\DeclareCaptionLabelFormat{mytab}{表#2}
+
+% 规范6：图题放图下方居中，图表上下各空一行(通过skip调整)
+\captionsetup[figure]{labelformat=myfig, labelsep=quad, font=wuhao, position=bottom, skip=1.5ex}
+
+% 规范7：表题放表格上方居中
+\captionsetup[table]{labelformat=mytab, labelsep=quad, font=wuhao, position=top, skip=1.5ex}
+
+% 规范6：图中若有分图时，分图号用“(a)”“(b)”置于分图之下
+\captionsetup[subfigure]{labelformat=simple, labelsep=space, font=wuhao}
+\renewcommand\thesubfigure{(\alph{subfigure})}
+
+% ================= 标题格式与目录自动化 =================
+\usepackage{titlesec} % 自定义章节标题
+\usepackage{tocloft} % 自定义目录样式
+
+% 规范3/4：标题阿拉伯数字连续编号后空一个字距，无空行
+% 一级标题：黑体四号字，左顶格
+\titleformat{\section}{\zihao{4}\heiti}{\thesection\quad}{0pt}{}
+\titlespacing*{\section}{0pt}{*1.5}{*1.5} % 使用相对单位替代 0pt，恢复正常行距缓冲
+
+% 二级标题：黑体小四号字，左顶格
+\titleformat{\subsection}{\zihao{-4}\heiti}{\thesubsection\quad}{0pt}{}
+\titlespacing*{\subsection}{0pt}{*1.2}{*1.2}
+
+% 三级标题：楷体小四号字，左顶格
+\titleformat{\subsubsection}{\zihao{-4}\kaishu}{\thesubsubsection\quad}{0pt}{}
+\titlespacing*{\subsubsection}{0pt}{*1}{*1}
+
+% 四级标题：楷体小四号字，左顶格
+\titleformat{\paragraph}{\zihao{-4}\kaishu}{\theparagraph\quad}{0pt}{}
+\titlespacing*{\paragraph}{0pt}{*1}{*1}
+
+% 规范目录：目录两字居中，空4个字距，黑体四号；显示三级标题，内容宋体小四
+\setcounter{tocdepth}{3}
+\renewcommand{\cfttoctitlefont}{\hfill\zihao{4}\heiti}
+\renewcommand{\cftaftertoctitle}{\hfill}
+\renewcommand{\contentsname}{目\hspace{4em}录}
+\renewcommand{\cftsecfont}{\zihao{-4}\songti}
+\renewcommand{\cftsecpagefont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsecfont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsecpagefont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsubsecfont}{\zihao{-4}\songti}
+\renewcommand{\cftsubsubsecpagefont}{\zihao{-4}\songti}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+
+% 层次标题序号一律左对齐
+\setlength{\cftsecindent}{0pt}
+\setlength{\cftsubsecindent}{0pt}
+\setlength{\cftsubsubsecindent}{0pt}
+
+% 统一目录行距（增加一定的弹性）
+\setlength{\cftbeforesecskip}{0pt plus 5pt}
+\setlength{\cftbeforesubsecskip}{0pt plus 3pt}
+\setlength{\cftbeforesubsubsecskip}{0pt plus 3pt}
+
+% 调整编号宽度，防止左对齐后长编号（如 1.1.1）与后续汉字粘连
+\setlength{\cftsecnumwidth}{1.5em}
+\setlength{\cftsubsecnumwidth}{2.2em}
+\setlength{\cftsubsubsecnumwidth}{3.0em}
+
+% ================= 页眉页脚与脚注设定 =================
+\usepackage{fancyhdr}
+% 规范4：全部不加页眉。页码数字两侧不加修饰线，位于页脚居中，五号字。
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \renewcommand{\headrulewidth}{0pt}
+  \fancyfoot[C]{\zihao{5}\thepage}
+}
+\pagestyle{plain}
+
+% 规范5：脚注右上标连续编号，宋体小五号字
+\renewcommand{\footnotesize}{\zihao{-5}\songti}
+
+\usepackage[hidelinks]{hyperref} % 提供目录及交叉引用跳转
+
+% ================= 终极交叉引用神器 cleveref (必须放最后) =================
+\usepackage{cleveref}
+
+% 汉化并消除英式空格（#2和#3是超链接锚点，#1是数字）
+\crefformat{figure}{#2图#1#3}
+\crefformat{table}{#2表#1#3}
+\crefformat{equation}{#2式#1#3}
+\crefformat{theorem}{#2定理#1#3}
+\crefformat{lemma}{#2引理#1#3}
+\crefformat{remark}{#2注解#1#3}
+\crefformat{section}{#2第#1节#3}
+
+% 汉化多重引用时的连词（比如同时引用两个图，三个公式）
+\newcommand{\crefpairconjunction}{~和~}
+\newcommand{\crefmiddleconjunction}{、}
+\newcommand{\creflastconjunction}{~和~}
+
+% ================= 定理、引理与注解环境定制 =================
+
+% 自定义一个适合中文排版的定理样式 "cn_theorem"
+\newtheoremstyle{cn_theorem}
+  {0pt}           % 段前间距：0pt
+  {0pt}           % 段后间距：0pt
+  {\normalfont}   % 正文字体：强制使用正常字体（宋体，绝不倾斜）
+  {2\ccwd}        % 缩进：首行自动缩进两个中文字符
+  {\heiti}        % 表头字体：让“定理”、“引理”显示为黑体
+  {}              % 表头后的标点：留空
+  {\ccwd}         % 表头与正文之间的空格：空一个中文字符
+  {}              % 表头自定义格式：使用默认
+
+% 激活并应用上述样式
+\theoremstyle{cn_theorem}
+
+% 【最简单且绝对不会错的方案】：全部独立计数，全挂载在 section 之下！
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}{引理}[section]   % 不再共享 theorem 的计数器，独立使用自己的
+\newtheorem{remark}{注解}[section]  % 注解也独立
+
+% 将默认的证明环境英文 "Proof" 替换为中文黑体的 "证明"
+\renewcommand{\proofname}{\heiti 证明}
+
+% ================= 附录自动化命令 =================
+\newcommand{\startappendix}{
+    \setcounter{section}{0}
+    \renewcommand{\thesection}{附录\Alph{section}} 
+    \renewcommand{\thefigure}{\Alph{section}\arabic{figure}}
+    \renewcommand{\thetable}{\Alph{section}\arabic{table}}
+    \renewcommand{\theequation}{式\Alph{section}\arabic{equation}}
+    
+    \renewcommand{\theHsection}{\Alph{section}}
+    \renewcommand{\theHfigure}{\Alph{section}\arabic{figure}}
+    \renewcommand{\theHtable}{\Alph{section}\arabic{table}}
+    \renewcommand{\theHequation}{\Alph{section}\arabic{equation}}
+    
+    \setcounter{figure}{0}
+    \setcounter{table}{0}
+    \setcounter{equation}{0}
+
+    \titleformat{\section}{\zihao{4}\heiti\centering}{\thesection\quad}{0pt}{}
+    \addtocontents{toc}{\protect\setlength{\cftsecnumwidth}{4.5em}}
+}
+
+\begin{document}
+\pagenumbering{alph}
+
+% 正文基础字体设定为宋体小四，首行缩进两字距
+\zihao{-4}\songti
+\setlength{\parindent}{2em}
+
+% --------------------封面--------------------
+\clearpage
+\thispagestyle{empty} 
+\vfill 
+\begin{center}
+    \includegraphics[width=0.8\textwidth]{SCAU-LOGO.jpg} 
+\end{center}
+\vfill 
+\begin{center}
+    {\zihao{-0} \songti \textbf{本科毕业论文}}
+\end{center}
+\vfill 
+\begin{center}
+    {\zihao{2} \heiti \textbf{基于Lyapunov泛函方法的时滞神经网络稳定性分析}}
+\end{center}
+\vfill
+\vfill
+\vfill 
+\begin{center}
+    \zihao{-3} \songti 
+    \renewcommand{\arraystretch}{1.3} 
+    \begin{tabular}{ll}
+        \makebox[4em][s]{学\hfill 院}： & \underline{\makebox[9.5cm]{数学与信息学院、软件学院}} \\
+        \makebox[4em][s]{专\hfill 业}： & \underline{\makebox[9.5cm]{信息与计算科学}} \\
+        \makebox[4em][s]{姓\hfill 名}： & \underline{\makebox[9.5cm]{陈汝恒}} \\
+        \makebox[4em][s]{学\hfill 号}： & \underline{\makebox[9.5cm]{202225810103}} \\
+        \makebox[4em][s]{指导教师}： & \underline{\makebox[3.8cm]{史晨阳}}\makebox[1.9cm][c]{职称}\underline{\makebox[3.8cm]{讲师}} \\
+        \makebox[4em][s]{提交日期}： & \underline{\makebox[2.2cm]{\the\year}}\makebox[0.9cm][c]{年}\underline{\makebox[2.2cm]{\the\month}}\makebox[0.9cm][c]{月}\underline{\makebox[2.2cm]{\the\day}}\makebox[1.1cm][r]{日} \\
+    \end{tabular}
+\end{center}
+
+\vspace{3em} 
+\clearpage
+
+% --------------------原创性声明及授权声明--------------------
+\clearpage
+\thispagestyle{empty}
+\vspace{2em}
+\begin{center}
+    {\zihao{4}\heiti 华南农业大学本科毕业论文（设计）原创性声明}
+\end{center}
+
+本人郑重声明：所呈交的毕业论文（设计），是本人在导师的指导下，独立进行研究工作所取得的成果。除文中已经注明引用的内容外，本论文不包含任何其他个人或集体已经发表或撰写过的作品成果。对本文的研究做出重要贡献的个人和集体，均已在文中以明确方式标明。本人完全意识到本声明的法律结果由本人承担。
+\vspace{3em}
+\begin{center}
+    \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+        作者签名：\raisebox{-0.4\height}{\includegraphics[angle=90, height=4em]{陈汝恒电签.jpg}} & 日期：\the\year\ 年 \the\month\ 月 \the\day\ 日 \\
+    \end{tabular}
+\end{center}
+
+\vspace{5em}
+\begin{center}
+    {\zihao{4}\heiti 华南农业大学本科毕业论文（设计）使用授权声明}
+\end{center}
+
+本人完全了解学校有关保留、使用毕业论文（设计）的规定，同意学校保留并向国家有关部门或机构送交毕业论文（设计）的复印件和电子版，允许毕业论文（设计）被查阅和借阅。学校可以将本毕业论文（设计）的全部或部分内容编入有关数据库进行检索，可以采用影印、缩印或扫描等复制手段保存和汇编毕业论文（设计）。
+\vspace{3em}
+\begin{center}
+    \begin{tabular}{p{0.45\textwidth} p{0.45\textwidth}}
+        作者签名：\raisebox{-0.4\height}{\includegraphics[angle=90, height=4em]{陈汝恒电签.jpg}} & 指导教师签名： \\[1.5em] 
+        日期：\the\year\ 年 \the\month\ 月 \the\day\ 日 & 日期：\the\year\ 年 \the\month\ 月 \the\day\ 日 \\
+    \end{tabular}
+\end{center}
+
+% --------------------中文摘要-------------------
+\clearpage 
+\pagenumbering{Roman}
+\setcounter{page}{1}
+\centerline{\zihao{4}\heiti 摘\hspace{4em}要}
+\vspace{0.5em}
+时滞不可避免地存在于人工神经网络的硬件实现中，往往会导致系统性能下降甚至产生不稳定行为。为了保证神经网络在实际工程应用中的可靠性，降低稳定性判据的保守性一直是该领域的核心研究课题。本文针对带有变时滞的神经网络，研究了其全局指数稳定性问题，提出一种保守性更低、计算效率更高的稳定性判据。
+
+首先，本文建立了一种新型的加权积分不等式。通过在基于辅助函数的积分不等式中引入指数权重函数，并将其与包含不连续示性函数的正交函数集相结合，本文对Lyapunov-Krasovskii泛函导数中带有指数衰减因子的多重积分项进行了更精确地估计。
+
+其次，本文优化了Lyapunov-Krasovskii泛函的结构。在理论推导过程中，不仅放宽了对变时滞导数非负（$\dot{h}(t) \ge 0$）的常规假设，扩大了判据的适用范围；还通过删减泛函展开式中部分冗余的交叉矩阵变量，有效减少了最终LMI中的决策变量数量，从而降低了计算复杂度。
+
+最后，基于上述新型加权积分不等式与改进的泛函框架，本文提出了一种新的时滞神经网络全局指数稳定性判据。通过三个典型数值算例的仿真对比实验，验证了本文所提判据在计算最大容许时滞上限以及容许指数收敛率方面具有更小的保守性。
+
+\noindent{\zihao{-4}\heiti 关键词：}时滞神经网络；指数稳定；Lyapunov-Krasovskii泛函；加权积分不等式；线性矩阵不等式(LMI)
+    
+% --------------------英文摘要-------------------
+\clearpage
+\begin{center}
+    {\zihao{4}\textbf{On the Stability of Time-Delay Neural Networks: A Lyapunov-Krasovskii Functional Approach}} 
+    
+    {\zihao{-4} Chen Ruheng}
+    
+    {\zihao{-4} (College of Mathematics and Informatics College of Software Engineering, South China Agricultural University, Guangzhou, 510642, China)}
+\end{center}
+\vspace{-0.89em}
+\noindent{\zihao{-4}\textbf{Abstract:} 
+Time delays inevitably exist in the hardware implementation of artificial neural networks, often degrading system performance and leading to instability. To ensure the reliability of neural networks in practical engineering applications, reducing the conservatism of stability criteria remains a core research topic. This thesis investigates the global exponential stability of neural networks with time-varying delays, aiming to propose a less conservative and more computationally efficient stability criterion.
+
+First, a novel weighted integral inequality is established. By introducing an exponential weight function into the auxiliary function-based integral inequality and combining it with a set of orthogonal functions containing a discontinuous characteristic function, a tighter bound is achieved for the multiple integral terms with exponential decay factors in the derivative of the Lyapunov-Krasovskii functional.
+
+Second, the structure of the LKF is optimized. During the theoretical derivation, the conventional assumption that the derivative of the time-varying delay is non-negative ($\dot{h}(t) \ge 0$) is removed, which broadens the applicability of the criterion. Furthermore, by eliminating redundant cross-matrix variables in the functional expansion, the number of decision variables in the resulting LMI is reduced, thereby decreasing computational complexity.
+
+Finally, based on the proposed weighted integral inequality and the improved LKF framework, a new global exponential stability criterion for time-delay neural networks is presented. Three typical numerical examples are provided, and the simulation results demonstrate that the proposed criterion is less conservative in calculating the admissible delay upper bound and the allowable exponential convergence rate.
+}
+
+\noindent{\zihao{-4}\textbf{Key words:} Neural networks; exponential stability; Lyapunov-Krasovskii functional; time-varying delay; Linear matrix inequality}
+
+% --------------------符号表-------------------
+\clearpage
+\centerline{\zihao{4}\heiti 英文缩略词（符号表）}
+\begin{center}
+    \zihao{-4}
+    \begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+        \toprule
+        英文缩写 & 英文全称 & 中文全称 \\
+        \midrule
+        $\mathbb{R}^n$ & $n$-dimensional Euclidean vector space & $n$维欧几里得向量空间 \\
+        $\mathbb{R}^{n \times m}$ & $n \times m$ real matrix space & $n \times m$维实矩阵空间 \\
+        $\mathbb{S}_{n}^{+}$ & Set of symmetric positive definite matrices & 对称正定矩阵集合 \\
+        $P > 0 \ (P \ge 0)$ & Symmetric positive (semi-positive) definite matrix & 矩阵$P$是对称且正定（半正定）的 \\
+        $\mathrm{diag}\{\dots\}$ & Diagonal matrix & 对角矩阵 \\
+        $\mathrm{sym}(A)$ & Sum of matrix $A$ and its transpose & 矩阵$A$与其转置之和，即 $A + A^T$ \\
+        LMI & Linear Matrix Inequality & 线性矩阵不等式 \\
+        LKF & Lyapunov-Krasovskii Functional & 李雅普诺夫-克拉索夫斯基泛函 \\
+        ADUB & Admissible Delay Upper Bound & 最大容许时滞上限 \\
+        \bottomrule
+    \end{tabularx}
+\end{center}
+
+% --------------------目录--------------------
+\clearpage
+\tableofcontents 
+
+% --------------------正文--------------------
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\section{绪论}
+
+\subsection{研究背景与意义}
+人工神经网络通过模拟生物神经系统的结构与信息处理机制，具备处理复杂非线性映射的能力。近年来，随着现代科学技术的飞速发展，神经网络在图像解密、模式识别、优化计算、安全通信以及金融预测等领域得到了广泛的应用(Zhang et al., 2015; Yang et al., 2015; Shen et al., 2017; Yan et al., 2018; Zhang et al., 2016)。神经网络实现上述实际工程功能的基础，通常依赖于其动力学行为的收敛特性。例如，在联想记忆和模式识别任务中，网络的状态必须能够从初始位置收敛至预期的稳定平衡点，因此对神经网络进行稳定性分析，是其投入实际工程应用的首要前提。
+
+在分析网络系统时，降低稳定性判据的保守性是一项重要的任务(Wen et al., 2015; Li et al., 2019; Wang et al., 2012; Zhang et al., 2014; Liu et al., 2014)。某些实际应用往往需要系统具备指数稳定性(Dai et al., 2011; Hien and Trinh, 2016; Shi and Vong, 2020; Vong et al., 2020)。为此，针对该课题学术界已经发展了多种方法，其中包括自由权矩阵技术(He et al., 2007)、互凸优化(Park et al., 2011) 以及时滞分割(Gu, 2001; Wang et al., 2015)。神经网络的指数稳定性分析，其核心目的在于推导出一个容许时滞上限（Admissible Delay Upper Bound, ADUB），使得只要所有的时滞都小于该上限，时滞神经网络就能保持稳定。一般来说，ADUB 是衡量一个稳定性判据保守性大小的标尺。如果某个稳定性判据能比另一个判据得出更大或更精确的 ADUB，就说明该判据的保守性更小。文献(He et al., 2017)表明，Lyapunov-Krasovskii 泛函 (LKF) 方法结合线性矩阵不等式 (LMI) 技术，在确定时滞系统的 ADUB 方面是非常有效的。
+
+在确立了基于 LKF 与 LMI 技术的分析框架后，理论推导面临的一个重要问题是如何处理泛函沿系统轨迹求导后产生的复杂积分项。在这个过程中，积分不等式技术是一类重要的估计积分项的技术。它的作用是通过提供严格的数学下界，将无限维的积分项转化为可通过计算机高效求解的有限维代数矩阵不等式。研究(Zhang et al., 2019)表明，采用不同精度的积分不等式，会直接导致截然不同的保守性结果：积分不等式的估计界限越紧致，放缩过程中的误差和系统动态信息的丢失就越少，计算得出的 ADUB 也就越接近系统的真实稳定域。因此，在追求更优的稳定判据时，仅仅依赖经典放缩方法已遇到瓶颈；持续探索并建立结构更精确、保守性更低的新型积分不等式（尤其是适用于处理瞬态衰减率的加权积分不等式），不仅是时滞神经网络理论发展的必然趋势，也是当前该领域试图攻克的理论难点。
+
+\subsection{国内外研究现状}
+
+\subsubsection{时滞神经网络的发展及其影响}
+在构建实际的神经网络硬件或软件系统时，需要大量的神经元进行协同处理与信息交互。正如文献(Marcus and Westervelt, 1989)所指出，由于放大器的有限开关速度、节点间的物理距离、以及通信信号在传输过程中的网络拥塞，节点间的信息交换不可避免地存在时间差。这种物理层面的时间延迟在超大规模集成电路的物理实现中尤为显著。此外，由于实际网络运行环境和传输带宽的动态波动，这些延迟通常不是固定不变的常数，而是表现为随时间波动的时变时滞。
+
+动力学模型中引入上述时滞项后，系统状态的演化不再仅仅依赖于当前时刻的变量，而是依赖于过去一段历史区间的状态轨迹。这种记忆效应改变了原无时滞系统的特征方程结构，使系统从有限维常微分方程转化为无限维泛函微分方程。大量理论与实验研究表明，时滞是导致神经网络动态行为发生改变的重要因素。即便时滞的数值较小，也足以破坏系统原有的稳定状态(Liu et al., 2016; Liu et al., 2016)，导致网络产生持续振荡、分岔甚至混沌等复杂的非线性动力学现象。这种由时滞引起的不稳定行为会降低系统的工作性能，导致算法发散或识别失败。因此，研究时滞效应对神经网络系统动态行为的影响，并在理论上给出可靠的稳定性判据，始终是该领域的核心研究对象。
+
+\subsubsection{积分不等式技术的发展与演进}
+在处理时滞系统稳定性时，寻求泛函导数中负定积分项的紧致下界是降低保守性的关键。早期的处理方式主要依赖于代数方程改写，即模型转换法。该方法利用 Leibniz-Newton 公式 $x(t-h) = x(t) - \int_{t-h}^t \dot{x}(s)\mathrm{d}s$ 替换原系统方程中的时滞项，从而在 Lyapunov-Krasovskii 泛函的导数中引入交叉积分项 $\eta(t) := -\int_{t-h}^t 2x^T(t) P A_d \dot{x}(s)\mathrm{d}s$.
+
+为了处理交叉项 $\eta(t)$, 研究中应用了 Young 不等式的各类矩阵变体。最基础的不等式形式为：
+\begin{equation*}
+    2a^T b \le a^T R a + b^T R^{-1} b, \quad a, b \in \mathbb{R}^n.
+\end{equation*}
+后续进一步扩展为如下包含自由矩阵 $M$ 与 $Z$ 的一般形式。
+
+若存在对称矩阵满足
+\begin{equation*}
+    \begin{bmatrix} R & M \\ M^T & Z \end{bmatrix} \ge 0,
+\end{equation*}
+则有
+\begin{equation*}
+    2a^T b \le \begin{bmatrix} a \\ b \end{bmatrix}^T \begin{bmatrix} R & M-I \\ M^T-I & Z \end{bmatrix} \begin{bmatrix} a \\ b \end{bmatrix},
+\end{equation*}
+取 $a = \dot{x}(s)$, 交叉项 $\eta(t)$ 的上界被解析为仅依赖于端点状态的代数二次型与积分项 $\int_{t-h}^t \dot{x}^T(s) R \dot{x}(s)\mathrm{d}s$ 之和。该积分项用于抵消泛函导数中原始的负定积分项，从而将稳定性条件转化为线性矩阵不等式（LMI）。然而，一阶转换等模型转换方法会为系统引入额外的特征值，导致转换后的系统与原系统在动态轨迹上并不等价；描述符模型转换通过将 $\dot{x}(t)$ 设为增广状态变量解决了等价性问题，但基础的放缩过程仍不可避免地存在界定误差 (Fridman, 2014; Zhang et al., 2019)。
+
+为减小不等式放缩误差，自由权矩阵法被提出。该方法直接利用零值等式整合积分项，即引入矩阵 $N$ 使得：
+\begin{equation*}
+    2\zeta^T(t) N \left[ x(t) - x(t-h) - \int_{t-h}^t \dot{x}(s)\mathrm{d}s \right] = 0.
+\end{equation*}
+此方法免去了积分交叉项的放缩，但引入了大量矩阵变量，导致 LMI 的决策变量数量（Number of Decision Variables, NoDVs）呈平方级增长，限制了其计算可行性 (Zhang et al., 2019)。
+
+为在控制决策变量数量的同时提供精确的积分下界，纯积分不等式技术取代了模型转换法成为主流框架。
+
+基础的 Jensen 积分不等式直接给出了基于端点状态的下界：
+\begin{equation*}
+    -\int_{t-h}^t \dot{x}^T(s) R \dot{x}(s) \mathrm{d}s \le -\frac{1}{h} \left( \int_{t-h}^t \dot{x}(s) \mathrm{d}s \right)^T R \left( \int_{t-h}^t \dot{x}(s) \mathrm{d}s \right).
+\end{equation*}
+由于 Jensen 不等式仅利用了积分区间端点信息，后续文献指出(Zhang, 2018)基于 Wirtinger 的积分不等式在零阶矩 $\nu_0 = \int_{t-h}^t \dot{x}(s)\mathrm{d}s$ 之外，计算了一阶矩 $\nu_1 = \nu_0 - \frac{2}{h}\int_{t-h}^t \int_s^t \dot{x}(\theta)\mathrm{d}\theta \mathrm{d}s$, 将放缩下界收紧为 $\frac{1}{h} ( \nu_0^T R \nu_0 + 3 \nu_1^T R \nu_1 )$.
+
+进一步的研究引入了 Legendre 多项式，提出了 Canonical Bessel-Legendre 积分不等式。对于给定的阶数 $N$，下界被表达为级数求和的形式：
+\begin{equation*}
+    \int_a^b \omega^T(s) R \omega(s) \mathrm{d}s \ge \frac{1}{b-a} \sum_{i=0}^N (2i+1) \Omega_i^T R \Omega_i,
+\end{equation*}
+当 $N \to \infty$ 时，该不等式利用 Parseval 等式渐近逼近真实的积分值(Zhang, 2018)。
+
+事实上，迄今为止为了研究时滞系统并进一步收紧界限，学者们已经提出了大量的积分不等式，例如基于 Wirtinger 的不等式(Shi and Vong, 2020; Vong et al., 2020)、Bessel-Legendre 不等式(Li et al., 2019; Li et al., 2019; Li et al., 2010)以及基于辅助函数的不等式(Li et al., 2019; Liu et al., 2017)。
+
+本文重点关注文献(Park et al., 2015)中基于辅助函数的不等式。由于它能提供比 Jensen 不等式更紧致的估计，与扩展形式的 Jensen 不等式(Hien and Trinh, 2015; Hien and Trinh, 2016)相比，采用该不等式可以为某些时滞系统得出保守性更小的渐近稳定判据。在文献(Park et al., 2015)的基础上，文献(Liu et al., 2017)通过引入一组包含一个不连续函数的正交函数集，建立了一个进一步改进的积分不等式。该方法并没有使用高阶多项式来使界限变得更紧致，而是采用了一个不连续示性函数 $\chi(u)$, 从而有效地减少了决策变量的数量 (NoDVs)。
+
+此外，当时滞参数表现为时变函数 $h(t)$ 时，Lyapunov-Krasovskii 泛函求导后的积分区间分裂为 $[t-h, t-h(t)]$ 与 $[t-h(t), t]$ 两部分。应用积分不等式后，会产生形如 $\frac{1}{\alpha} \beta_1^T R_1 \beta_1 + \frac{1}{1-\alpha} \beta_2^T R_2 \beta_2$ 的耦合非线性项，其中 $\alpha = h(t)/h \in (0, 1)$. 互凸方法通过引入自由矩阵 $S$, 利用代数配方法提供了独立于时变参数 $\alpha$ 的严格代数下界，成为处理时变时滞的标准化工具 (Zhang et al., 2019)。
+
+前述的各类纯积分不等式主要用于处理标准的二次积分项。然而，在诸多实际应用中需要评估系统的指数衰减率。在处理带有指数衰减因子的积分项时，传统的放缩方法往往会产生极大的误差。为此，学者们在经典积分不等式的基础上，进一步发展了加权积分不等式（Weighted Integral Inequalities, WIIs）。文献(Hien and Trinh, 2016) 提出了基础的单重加权积分不等式：
+\begin{equation*}
+    \int_a^b e^{2k(s-b)} \varphi^T(s) R \varphi(s) \mathrm{d}s \ge \frac{2k}{e^{2k(b-a)} - 1} \left( \int_a^b \varphi(s) \mathrm{d}s \right)^T R \left( \int_a^b \varphi(s) \mathrm{d}s \right).
+\end{equation*}
+相较于以往常用的放缩界限 $I_w \ge e^{-2k(b-a)} \int_a^b \varphi^T(s) R \varphi(s) \mathrm{d}s$, 该不等式提供了更紧致的下界。
+
+在此基础上，文献(Hien and Trinh, 2016) 进一步定义了含权重的误差，并利用一阶多项式进行逼近，推导了进一步收紧的下界矩阵估计：
+\begin{equation*}
+    J_w^g(\varphi, 2k) \ge \frac{2k}{\rho_0} \zeta^T (L_1^T L_1 \otimes R) \zeta,
+\end{equation*}
+在极限情形 $k \to 0$ 下，该一阶加权积分不等式与无权重的 Wirtinger 不等式保持完全的数学等价。
+
+为进一步降低泛函指数估计的保守性，文献(Vong et al., 2018) 将逼近函数提升至二次多项式 $f_2(s) = s^2 + cs + m$, 并在内积空间 $\langle f, g \rangle_w = \int_a^b f(u)g(u)w(u)\mathrm{d}u$ 中施加正交条件 $\langle f_2, 1 \rangle_w = 0$ 与 $\langle f_2, f_1 \rangle_w = 0$. 基于该加权正交二次多项式，推导了更紧致的单重与双重加权积分不等式：
+\begin{equation*}
+    \int_a^b e^{2k(s-b)} \varphi^T(s) R \varphi(s) \mathrm{d}s \ge \frac{2k}{\gamma_0} \omega_0^T R \omega_0 + \frac{1}{\langle f_1, f_1 \rangle_w} \omega_1^T R \omega_1 + \frac{1}{\langle f_2, f_2 \rangle_w} \omega_2^T R \omega_2.
+\end{equation*}
+该多项式加权方法无需进行系统状态的指数模型转换，通过有限维 LMI 直接输出了系统的指数收敛率边界。上述不断演进的加权多项式方法，为后续建立低保守性的指数稳定判据提供了更强的数学工具。
+
+\subsubsection{Lyapunov 泛函方法与稳定性分析的发展}
+时滞神经网络属于无限维系统。在时域分析中，Lyapunov-Krasovskii泛函方法是分析其稳定性的主要理论工具 (Fridman, 2014)。
+
+Lyapunov-Krasovskii 泛函方法通过构造连续泛函 $V(t, x_t)$ 并计算其沿系统轨迹的时间导数 $\dot{V}(t, x_t)$ 来判定系统状态。在早期的标准分析框架中，泛函通常包含如下形式的多重积分项：
+\begin{equation*}
+    V(x_t) = x^T(t) P x(t) + \int_{t-h}^t x^T(s) Q x(s) \mathrm{d}s + \int_{-h}^0 \int_{t+\theta}^t \dot{x}^T(s) R \dot{x}(s) \mathrm{d}s \mathrm{d}\theta.
+\end{equation*}
+对上述泛函求导时，二重积分项的导数会产生形如 $-\int_{t-h}^t \dot{x}^T(s) R \dot{x}(s) \mathrm{d}s$ 的二次积分项。结合 1.2.2 节中所述的各类纯积分不等式，学者们主要解决了时滞系统的渐近稳定性问题，其核心在于寻找更大的容许时滞上限 (ADUB) (Fridman, 2014)。
+
+然而，在诸多实际工程应用中，仅仅保证系统状态收敛是不够的，确定系统状态的收敛速率或寻找系统瞬态衰减率的估计值同样重要，这就要求系统具备指数稳定性 (Hien and Trinh, 2016)。传统的指数稳定性分析方法往往采用状态变换 $\xi(t) = e^{kt}x(t)$. 但这不仅会导致闭环系统的系统矩阵产生时变指数系数，将问题转化为保守的有界性问题，而且在求解容许时滞上限及指数收敛率时会引入较大的保守性 (Hien and Trinh, 2016)。
+
+为了克服模型转换带来的保守性，寻找更优的指数衰减率估计，近期的研究直接从 Lyapunov-Krasovskii 泛函的结构入手进行改进。文献(Hien and Trinh, 2016) 等引入了带有指数衰减因子的多重积分泛函结构，直接在泛函内部处理指数权重，其核心项包含如下形式：
+\begin{equation*}
+    V(x_t) = \int_{-h}^0 \int_{t+s}^t e^{2k(u-t)} \dot{x}^T(u) R \dot{x}(u) \mathrm{d}u \mathrm{d}s.
+\end{equation*}
+
+对该类新型指数泛函求导后，必然会产生带有指数权重的积分目标项
+\begin{equation*}
+    \int_a^b e^{2k(s-b)} \varphi^T(s) R \varphi(s) \mathrm{d}s.
+\end{equation*}
+此时，只要结合 1.2.2 节中提到的加权积分不等式（WIIs）技术，即可在无需进行系统状态指数模型转换的前提下，通过有限维 LMI 直接输出系统的指数收敛率边界。这种“指数型 LKF 结构 + 加权积分不等式放缩”的方法，构成了目前时滞系统指数稳定性研究中保守性更低、效率更高的前沿分析框架。
+
+\subsection{本文主要工作与章节安排}
+
+在上述方法的基础上，本研究借鉴文献(Park et al., 2015; Liu et al., 2017) 的思想，探讨具有时变时滞的神经网络的指数稳定性。与文献(Liu et al., 2017)不同的是，基于研究(Vong et al., 2018)，本文考虑了关于指数项（称之为权函数）的正交函数集 $\{p_0(\cdot), p_1(\cdot), p_2(\cdot)\}$.将由多项式构成的状态向量分解与正交集 $\{p_0(\cdot), p_2(\cdot), p_3(\cdot)\}$（其中 $p_3(\cdot)$ 为不连续函数）相结合，本文建立了一个新型的加权不等式。本文的新加权不等式是在改进文献(Liu et al., 2017)的基础上，将带有指数项的积分作为一个整体进行估计而推导得出的。利用这一新的不等式，本文推导出了一个能够保证时变时滞神经网络指数稳定性的改进判据。
+
+本文的主要工作包含以下三个方面：
+\begin{enumerate}
+    \item 建立包含不连续函数的加权正交积分不等式。对系统误差状态向量进行分解，将其与包含示性函数 $\chi(u)$ 的不连续正交函数集结合。在此基础上，将 Lyapunov-Krasovskii 泛函中带有指数衰减因子 $e^{2ks}$ 的多重积分项视为整体进行运算，推导新的加权积分下界解析式；
+    \item 改进 Lyapunov-Krasovskii 泛函结构特征。在泛函导数放缩阶段，移除了关于时滞导数非负（$\dot{h}(t) \ge 0$）的假定约束；同时，优化了状态变量的代数耦合方式，删减了泛函展开式中的部分交叉冗余矩阵变量，在维持保守性边界的前提下降低 LMI 的维数；
+    \item 提出时变时滞神经网络指数稳定判据。应用前述加权积分不等式与倒数凸组合技术，得出保证网络系统全局指数稳定的充分条件。最终提供数值验证结果，对比判据在计算时滞上限及指数收敛率方面的理论保守性表现。
+\end{enumerate}
+
+本文的后续章节组织结构如下：第 2 章定义神经网络的系统方程与数学引理；第 3 章推导含有不连续函数的加权正交积分不等式；第 4 章构造基于多重加权积分的 Lyapunov-Krasovskii 泛函并完成定理证明；第 5 章通过对比算例进行仿真分析；第 6 章对全文工作进行总结。
+
+\section{预备知识}
+\subsection{时变时滞神经网络模型}
+本文研究如下带有时滞的神经网络：
+\begin{equation} \label{eq:system}
+    \dot{x}(t) = -C x(t) + A g(x(t)) + B g(x(t-h(t))) + u,
+\end{equation}
+其中，神经元状态向量表示为 $x(\cdot) = [x_1(\cdot), x_2(\cdot), \dots, x_n(\cdot)]^T \in \mathbb{R}^n$, 激活函数为 $g(x(\cdot)) = [g_1(x_1(\cdot)), g_2(x_2(\cdot)), \dots, g_n(x_n(\cdot))]^T \in \mathbb{R}^n$. 向量 $u = [u_1, u_2, \dots, u_n]^T \in \mathbb{R}^n$ 是网络的输入。矩阵 $C = \mathrm{diag}\{c_1, c_2, \dots, c_n\}$ 的元素满足 $c_i > 0$. 矩阵 $A$ 和 $B$ 是对应的连接权重矩阵。可微函数 $h(t)$ 表示时变时滞，且满足
+\begin{equation}
+    0 \le h(t) \le h
+\end{equation}
+以及
+\begin{equation}
+    |\dot{h}(t)| \le \mu,
+\end{equation}
+其中 $\mu$ 和 $h$ 为常数。
+
+与先前的研究类似，假设方程 \eqref{eq:system} 的每个激活函数满足：
+\begin{equation} \label{eq:lipschitz_g}
+    0 \le \frac{g_j(x) - g_j(y)}{x - y} \le L_j, \quad x, y \in \mathbb{R}, \quad x \neq y, \quad j=1,2,\dots,n,
+\end{equation}
+其中 $L_j$ ($j=1,2,\dots,n$) 为正常数。
+
+\subsection{平衡点平移与误差系统}
+在条件 \eqref{eq:lipschitz_g} 下，存在一个平衡点 $x^* = [x_1^*, x_2^*, \dots, x_n^*]^T$ 使得
+\begin{equation}
+    C x^* = A g(x^*) + B g(x^*) + u.
+\end{equation}
+通过变换 $z(\cdot) = x(\cdot) - x^*$ 将系统 \eqref{eq:system} 的平衡点平移至原点。则向量
+\begin{equation*}
+    z = [z_1(\cdot), z_2(\cdot), \dots, z_n(\cdot)]^T
+\end{equation*}
+满足：
+\begin{equation} \label{eq:error_sys}
+    \dot{z}(t) = -C z(t) + A f(z(t)) + B f(z(t-h(t))).
+\end{equation}
+其中，$f(z(\cdot))$ 的定义如下：
+\begin{equation*}
+    f(z(\cdot)) = [f_1(z_1(\cdot)), f_2(z_2(\cdot)), \dots, f_n(z_n(\cdot))]^T,
+\end{equation*}
+且每个分量满足 $f_j(z_j(\cdot)) = g_j(z_j(\cdot) + x_j^*) - g_j(x_j^*)$，$j=1,2,\dots,n$, 通过上述定义，有
+\begin{equation} \label{eq:lipschitz_f}
+    0 \le \frac{f_j(z_j)}{z_j} \le L_j, \quad f_j(0)=0, \quad \forall z_j \neq 0, \quad j=1,2,\dots,n.
+\end{equation}
+
+\subsection{基础引理与稳定性定义}
+系统 \eqref{eq:error_sys} 的指数稳定性定义给出如下。
+
+定义 2.1(Liu et al., 2017) 如果对于 $t > 0$, 满足
+\begin{equation*}
+    ||z(t)|| \le H \phi e^{-kt}.
+\end{equation*}
+其中 $k > 0$ 和 $H \ge 1$ 为正常数，$\phi = \sup_{-h \le \theta \le 0} ||z(\theta)||$, 则神经网络 \eqref{eq:error_sys} 在原点是指数稳定的。在这种情况下，称 $k$ 为指数收敛率。
+
+互凸不等式对理论证明有用，总结如下：
+
+\begin{lemma}[Park et al., 2011] \label{lemma:Park2011}
+假设 $f_1, f_2, \dots, f_n: \mathbb{R}^m \to \mathbb{R}$ 在 $\mathbb{R}^m$ 的开子集 $D$ 中取正值，则下式成立：
+\begin{equation}
+    \min_{\left\{\alpha_i \mid \alpha_i > 0, \sum_i \alpha_i = 1\right\}} \sum_i \frac{1}{\alpha_i} f_i(t) = \sum_i f_i(t) + \max_{g_{ij}(t)} \sum_{i \neq j} g_{ij}(t),
+\end{equation}
+约束条件为
+\begin{equation*}
+    \left\{ g_{ij}: \mathbb{R}^m \to \mathbb{R}, g_{ji} \triangleq g_{ij}, \begin{bmatrix} f_i(t) & g_{ij}(t) \\ g_{ji}(t) & f_j(t) \end{bmatrix} \ge 0 \right\}.
+\end{equation*}
+\end{lemma}
+
+\section{新型加权积分不等式}
+
+\subsection{加权正交函数的定义}
+在下文中，将导出一些改进自文献(Liu et al., 2017; Vong et al., 2018)的新的加权积分不等式。令 $p_i(u)$ ($i=0,1,2,3$) 为区间 $[a,b]$ 上的标量函数，且权重函数 $w(u) > 0$, 考虑两个函数之间的乘积如下:
+\begin{equation*}
+    \langle p_i, p_j \rangle = \int_a^b p_i(u) p_j(u) w(u) du.
+\end{equation*}
+函数集 $\{p_0, p_1, p_2, p_3\}$ 满足如下“正交”性质：
+\begin{equation}
+    \begin{aligned}
+        & \int_a^b p_0(u) p_i(u) w(u) du = 0 \quad (i=1,2,3), \\
+        & \int_a^b p_1(u) p_2(u) w(u) du = 0, \\
+        & \int_a^b p_2(u) p_3(u) w(u) du = 0.
+    \end{aligned}
+\end{equation}
+特别地，取 $p_0(u) \equiv 1$.
+
+\subsection{一般化加权积分不等式}
+\begin{lemma} \label{lemma:ori_2_3}
+对于矩阵 $R \in \mathbb{S}_n^+$, 有
+\begin{align} \label{eq:lemma23}
+    \int_a^b \phi^T(u) R \phi(u) w(u) du \ge & \frac{1}{q_0} F_0^T R F_0 + \frac{1}{q_1} F_1^T R F_1 + \frac{1}{q_2} F_2^T R F_2 \nonumber \\
+    & + \frac{1}{q_3} \left[ F_3 - \frac{q_{13}}{q_1} F_1 \right]^T R \left[ F_3 - \frac{q_{13}}{q_1} F_1 \right].
+\end{align}
+其中
+\begin{gather*}
+    F_i = \int_a^b p_i(u) \phi(u) w(u) du, \quad q_i = \int_a^b p_i^2(u) w(u) du, \quad i=0,1,2,3. \\
+    F_0 = \int_a^b \phi(u) w(u) du, \quad q_0 = \int_a^b w(u) du, \quad q_{13} = \int_a^b p_1(u) p_3(u) w(u) du.
+\end{gather*}
+\end{lemma}
+
+\textbf{\heiti 证明.} 令
+\begin{equation*}
+    e(u) = \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) - p_3(u) v,
+\end{equation*}
+其中 $v$ 是 $\mathbb{R}^n$ 中的常数向量。由于 $R$ 是正定的，如果取
+\begin{equation*}
+    v = \frac{F_3}{q_3} - \frac{\int_a^b p_1(u) p_3(u) w(u) du}{q_1 q_3} F_1.
+\end{equation*}
+可得
+\begin{align*}
+    \int_a^b & e^T(u) R e(u) w(u) du \\
+    =& \int_a^b \left[ \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) - p_3(u) v \right]^T R \\
+    & \quad \times \left[ \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) - p_3(u) v \right] w(u) du \\
+    =& \int_a^b \left[ \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) \right]^T R \\
+    & \quad \times \left[ \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) \right] w(u) du \\
+    & - 2 \int_a^b \left[ \phi(u) p_3(u) - \frac{F_0}{q_0} p_3(u) - \frac{F_1}{q_1} p_1(u) p_3(u) - \frac{F_2}{q_2} p_2(u) p_3(u) \right]^T w(u) du \, R v \\
+    & + \int_a^b p_3^2(u) w(u) du \, v^T R v \\
+    =& \int_a^b \left[ \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) \right]^T R \\
+    & \quad \times \left[ \phi(u) - \frac{F_0}{q_0} - \frac{F_1}{q_1} p_1(u) - \frac{F_2}{q_2} p_2(u) \right] w(u) du - q_3 v^T R v \\
+    =& \int_a^b \phi^T(u) R \phi(u) w(u) du - 2 \int_a^b \phi^T(u) R \left[ \frac{F_0}{q_0} + \frac{F_1}{q_1} p_1(u) + \frac{F_2}{q_2} p_2(u) \right] w(u) du \\
+    & + \int_a^b \left[ \frac{F_0}{q_0} + \frac{F_1}{q_1} p_1(u) + \frac{F_2}{q_2} p_2(u) \right]^T R \left[ \frac{F_0}{q_0} + \frac{F_1}{q_1} p_1(u) + \frac{F_2}{q_2} p_2(u) \right] w(u) du - q_3 v^T R v \\
+    =& \int_a^b \phi^T(u) R \phi(u) w(u) du - \frac{1}{q_0} F_0^T R F_0 - \frac{1}{q_1} F_1^T R F_1 - \frac{1}{q_2} F_2^T R F_2 - q_3 v^T R v \ge 0.
+\end{align*}
+这等价于\eqref{eq:lemma23} 成立。
+
+证明完毕。
+
+\subsection{包含不连续函数的不等式}
+在\eqref{eq:lemma23} 中，考虑如下权重函数与状态向量的组合：
+\begin{equation*}
+    w(u) = e^{-2k(u-b)}, \quad \phi(u) = e^{2k(u-b)} z(u),
+\end{equation*}
+通过代入运算，可以得到如下不等式：
+
+\begin{lemma} \label{lemma:ori_2_4}
+考虑可积函数 $z: [a,b] \to \mathbb{R}^n$ 和矩阵 $R \in \mathbb{S}_n^+$, 有如下不等式：
+\begin{align} \label{eq:lemma24}
+    \int_a^b e^{2k(u-b)} z^T(u) R z(u) du \ge & \frac{1}{q_0} \Omega_0^T R \Omega_0 + \frac{1}{q_1} \Omega_1^T R \Omega_1 + \frac{1}{q_2} \Omega_2^T R \Omega_2 \nonumber \\
+    & + \frac{1}{q_3} \left[ \Omega_3 - \frac{q_{13}}{q_1} \Omega_1 \right]^T R \left[ \Omega_3 - \frac{q_{13}}{q_1} \Omega_1 \right].
+\end{align}
+其中
+\begin{align*}
+    \Omega_0 =& \int_a^b z(u) du, \quad \Omega_1 = c_1 \int_a^b z(u) du + \int_a^b \int_s^b z(u) du ds, \\
+    \Omega_2 =& c_3 \int_a^b z(u) du + c_2 \int_a^b \int_s^b z(u) du ds + 2 \int_a^b \int_s^b \int_u^b z(v) dv du ds, \\
+    \Omega_3 =& \int_a^b z(u) du + c_4 \int_a^\xi z(u) du, \quad w = e^{2k(b-a)}, \quad c_1 = \frac{b-a}{w-1} - \frac{1}{2k}, \\
+    c_2 =& - \frac{\displaystyle \frac{w-1}{2k^3} - (b-a)^3 - \frac{(b-a)^2}{k} - \frac{b-a}{2k^2} - \frac{(b-a)^3}{w-1} - \frac{(b-a)^2}{k(w-1)}}{\displaystyle \frac{w-1}{4k^2} - (b-a)^2 - \frac{(b-a)^2}{w-1}}, \\
+    c_3 =& c_1 c_2 - \left(\frac{1}{2k^2} - \frac{(b-a)^2}{w-1} - \frac{b-a}{k(w-1)}\right), \quad c_4 = -\frac{w-1}{w - e^{-2k(\xi-b)}}, \\
+    q_0 =& \frac{w-1}{2k}, \quad q_1 = \frac{w-1}{8k^3} - \frac{(b-a)^2}{2k} - \frac{(b-a)^2}{2k(w-1)}, \\
+    q_2 =& \frac{3(w-1)}{4k^5} - \frac{(b-a)^4}{2k} - \frac{(b-a)^3}{k^2} - \frac{3(b-a)^2}{2k^3} - \frac{3(b-a)}{2k^4} - c_2^2 q_1 - (c_3 - c_1 c_2)^2 q_0, \\
+    q_3 =& \left(\frac{w-1}{2k}\right) \left(\frac{e^{-2k(\xi-b)} - 1}{w - e^{-2k(\xi-b)}}\right), \quad q_{13} = \frac{(w-1)(\xi-a)e^{-2k(\xi-b)}}{2k\left(w - e^{-2k(\xi-b)}\right)} - \frac{b-a}{2k}.
+\end{align*}
+\end{lemma}
+
+\textbf{\heiti 证明.} 为了应用\cref{lemma:ori_2_3}，首先引入不连续函数 $p_3$, 该函数需满足正交性条件 $\langle p_3, 1 \rangle = \langle p_3, p_2 \rangle = 0$ 且 $\langle p_3, p_1 \rangle \neq 0$.
+
+设 $\xi \in (a,b)$ 满足 $\int_a^\xi p_2(u) w(u) dt = 0$, 定义示性函数：
+\begin{equation*}
+    \chi(u) = \begin{cases} 1, & u \in [a, \xi] \\ 0, & u \in (\xi, b] \end{cases},
+\end{equation*}
+据此构造函数 $p_3 = 1 - \frac{\langle 1, 1 \rangle}{\langle 1, \chi \rangle} \chi$. 通过直接计算可以验证其正交性：
+\begin{align*}
+    \langle p_3, p_2 \rangle &= \langle 1, p_2 \rangle - \frac{\langle 1, 1 \rangle}{\langle 1, \chi \rangle} \langle \chi, p_2 \rangle = 0, \\
+    \langle p_3, 1 \rangle &= \langle 1, 1 \rangle - \frac{\langle 1, 1 \rangle}{\langle 1, \chi \rangle} \langle \chi, 1 \rangle = 0.
+\end{align*}
+
+随后，取 $p_1(u)$ 和 $p_2(u)$ 分别为一次和二次多项式：
+\begin{equation*}
+    p_1(u) = (u-a) + c_1, \quad p_2(u) = (u-a)^2 + c_2(u-a) + c_3.
+\end{equation*}
+为了满足 $\int_a^b p_i(u) w(u) \mathrm{d}u = 0 \ (i=1,2)$ 以及 $\int_a^b p_1(u) p_2(u) w(u) \mathrm{d}u = 0$, 各项系数经计算确定如下：
+\begin{align*}
+    c_1 &= -\frac{\int_a^b (u-a) w(u) \mathrm{d}u}{\int_a^b w(u) \mathrm{d}u}, \\
+    c_2 &= -\frac{\int_a^b (u-a)^2 p_1(u) w(u) \mathrm{d}u}{\int_a^b p_1^2(u) w(u) \mathrm{d}u}, \\
+    c_3 &= c_2 c_1 - \frac{\int_a^b (u-a)^2 w(u) \mathrm{d}u}{\int_a^b w(u) \mathrm{d}u}.
+\end{align*}
+
+进一步地，记常数 $c_4 = -\frac{\langle 1, 1 \rangle}{\langle 1, \chi \rangle}$, 通过代入运算可直接得出：
+\begin{align*}
+    F_0 &= \int_a^b \phi(u) w(u) du = \int_a^b z(u) du = \Omega_0, \\
+    F_1 &= \int_a^b p_1(u) \phi(u) w(u) du = c_1 \int_a^b z(u) du + \int_a^b \int_s^b z(u) du ds = \Omega_1, \\
+    F_2 &= \int_a^b p_2(u) \phi(u) w(u) du = c_3 \int_a^b z(u) du + c_2 \int_a^b \int_s^b z(u) du ds \nonumber \\
+        & \quad + 2 \int_a^b \int_s^b \int_u^b z(v) dv du ds = \Omega_2,\\
+    F_3 &= \int_a^b p_3(u) \phi(u) w(u) du = \int_a^b z(u) du + c_4 \int_a^\xi z(u) du = \Omega_3.
+\end{align*}
+根据\cref{lemma:ori_2_3}，不等式 \eqref{eq:lemma24} 成立。
+
+证明完毕。
+
+\subsection{特例与退化分析}
+特别地，当 $w(u) = 1$ 时，有如下引理。
+
+\begin{lemma}[Liu et al., 2017] \label{Liu2017}
+给定可积函数 $z: [a,b] \to \mathbb{R}^n$ 和矩阵 $R \in \mathbb{S}_n^+$, 有如下不等式：
+
+\begin{equation} \label{eq:lemma_integral_bound}
+\begin{split}
+    \int_a^b z^T(u) R z(u) \mathrm{d}u \ge & \frac{1}{b-a} \omega_0^T R \omega_0 + \frac{3}{b-a} \omega_1^T R \omega_1 + \frac{5}{b-a} \omega_2^T R \omega_2 \\
+    & + \frac{1}{b-a} \left[ \omega_3 - \frac{3}{2} \omega_1 \right]^T R \left[ \omega_3 - \frac{3}{2} \omega_1 \right].
+\end{split}
+\end{equation}
+
+其中
+\begin{align*}
+    \omega_0 &= \int_a^b z(u) du, \\
+    \omega_1 &= \int_a^b z(u) du - \frac{2}{b-a} \int_a^b \int_s^b z(u) du ds, \\
+    \omega_2 &= \int_a^b z(u) du - \frac{6}{b-a} \int_a^b \int_s^b z(u) du ds + \frac{12}{(b-a)^2} \int_a^b \int_s^b \int_v^b z(u) du dv ds, \\
+    \omega_3 &= \int_a^{\frac{a+b}{2}} z(u) du - \int_{\frac{a+b}{2}}^b z(u) du.
+\end{align*}
+\end{lemma}
+
+\begin{remark}
+    通过扩展基于(Liu et al., 2017)辅助函数的积分不等式，\cref{lemma:ori_2_4} 提出了一种新的加权积分不等式。作为一个特例。本文的主要目标是推导出一个改进且更不保守的时滞神经网络稳定性分析的判定准则。可以发现当 $w(u) \equiv 1$ 时，\cref{lemma:ori_2_4} 中的不等式退化为\cref{Liu2017} 中的不等式。
+\end{remark}
+
+\begin{lemma}[Liu et al., 2017]
+给定矩阵 $R > 0$，对于所有连续可导函数 $x: [a,b] \to \mathbb{R}^n$, 有如下不等式：
+\begin{align*}
+    -\int_a^b \int_s^b \dot{x}^T(u) R \dot{x}(u) du ds &\le -2 \Omega_5^T R \Omega_5 - 4 \Omega_6^T R \Omega_6, \\
+    -\int_a^b \int_a^s \dot{x}^T(u) R \dot{x}(u) du ds &\le -2 \Omega_7^T R \Omega_7 - 4 \Omega_8^T R \Omega_8.
+\end{align*}
+其中
+\begin{align*}
+    \Omega_5 &= x(b) - \frac{1}{b-a} \int_a^b x(u) du, \\
+    \Omega_6 &= x(b) + \frac{2}{b-a} \int_a^b x(u) du - \frac{6}{(b-a)^2} \int_a^b \int_s^b x(u) du ds, \\
+    \Omega_7 &= x(a) - \frac{1}{b-a} \int_a^b x(u) du, \\
+    \Omega_8 &= x(a) - \frac{4}{b-a} \int_a^b x(u) du + \frac{6}{(b-a)^2} \int_a^b \int_s^b x(u) du ds.
+\end{align*}
+\end{lemma}
+
+\section{时滞神经网络指数稳定性判据}
+本节证明系统 \eqref{eq:error_sys} 指数稳定性的主要结果。
+
+\subsection{全局指数稳定性定理}
+\begin{theorem} \label{main_theorem}
+对于给定的正常数 $h$ 和 $\mu$, 系统 \eqref{eq:error_sys} 是全局指数稳定的，且指数收敛率 $k$ 满足：$0 < k < \min_{1 \le i \le n} c_i$; 如果存在正定对称矩阵 $P \in \mathbb{R}^{3n \times 3n}$, $Q \in \mathbb{R}^{2n \times 2n}$, $U_i \in \mathbb{R}^{n \times n}$, $Z_i \in \mathbb{R}^{n \times n}$ ($i=1,2,3$), $N_j \in \mathbb{R}^{n \times n}$, $M_j \in \mathbb{R}^{n \times n}$ ($j=1,2$), 正定对角矩阵 $D_i = \mathrm{diag}\{d_{i1}, \dots, d_{in}\} \in \mathbb{R}^{n \times n}$, $R_i \in \mathbb{R}^{n \times n}$ ($i=1,2$), 以及任意矩阵 $S \in \mathbb{R}^{3n \times 3n}$ 满足如下 LMI：
+\begin{equation*}
+    \Phi + \Theta_1 < 0, \quad \Phi + \Theta_2 < 0, \quad \Gamma > 0.
+\end{equation*}
+其中：
+\begin{align*}
+    & \Phi = \Xi_1 + \Xi_2 + \Xi_3 + \Xi_4 + \Xi_5 + \Psi + \Pi, \quad \Theta_1 = \varphi_1 + \varphi_2, \quad \Theta_2 = \psi_1 + \psi_2, \\
+    & e_i = [\underbrace{0, 0, \dots, \overbrace{I}^{i}, \dots, 0}_{12}]_{12n \times n}^T, \ i=1,2,\dots,12, \quad e_s = [-C, 0_{n \times 2n}, A, B, 0_{n \times 7n}]^T, \\
+    & P = \begin{bmatrix} P_{11} & P_{12} & P_{13} \\ * & P_{22} & P_{23} \\ * & * & P_{33} \end{bmatrix}, \quad \Gamma = \begin{bmatrix} Z_{11} & S \\ S & Z_{12} \end{bmatrix}, \quad \Omega = \begin{bmatrix} Z_{13} & S \\ S & Z_{13} \end{bmatrix}, \\
+    & Z_{11} = \mathrm{diag}\{Z_1 + N_1, 3(Z_1 + N_1), 5(Z_1 + N_1)\}, \\
+    & Z_{12} = \mathrm{diag}\{Z_1 + N_2, 3(Z_1 + N_2), 5(Z_1 + N_2)\}, \quad Z_{13} = \mathrm{diag}\{Z_1, 3Z_1, 5Z_1\}, \\
+    & Z_{14} = \mathrm{diag}\left\{ \frac{h}{q_0}Z_3, \frac{h}{q_1}Z_3, \frac{h}{q_2}Z_3 \right\}, \\
+    & N_{14} = \mathrm{diag}\{N_1, 3N_1, 5N_1\}, \quad N_{15} = \mathrm{diag}\{N_2, 3N_2, 5N_2\}, \\
+    & \gamma(1) = [e_1 - e_2, e_1 + e_2 - 2e_7, e_1 - e_2 + 6e_7 - 6e_{10}], \\
+    & \gamma(2) = [e_2 - e_3, e_2 + e_3 - 2e_8, e_2 - e_3 + 6e_8 - 6e_{11}], \\
+    & \gamma(3) = \Big[ e_1 - e_3, (h+c_1)e_1 - c_1 e_3 - h e_6, \nonumber (h^2 + c_2 h + c_3)e_1 - c_3 e_3 - c_2 h e_6 - h^2 e_9 \Big], \\
+    & \gamma = [\gamma(1), \gamma(2)], \quad \zeta(1) = [e_1, h e_7, h e_9], \quad \zeta(2) = [e_1, h e_8, h e_9], \\
+    & \zeta(3) = [e_s, e_1 - e_3, 2(e_1 - e_6)], \quad \zeta(4) = [e_1, h e_6, h e_9], \\
+    & \Xi_1 = \mathrm{sym}\Big\{ k \zeta(4) P \zeta^T(4) + 2k \big[ e_4 D_1 e_1^T + (e_1 L - e_4) D_2 e_1^T \big] \nonumber \\
+    & \quad \quad + e_4 D_1 e_s^T + (e_1 L - e_4) D_2 e_s^T \Big\}, \\
+    & \Xi_2 = e^{2kh}\Big\{ [e_1, e_4] Q [e_1, e_4]^T + e_1 U_1 e_1^T + e_1 U_2 e_1^T \Big\} - (1-\mu)[e_2, e_5] Q [e_2, e_5]^T \nonumber \\
+    & \quad \quad - e^{2k(h-\xi)}[e_{12} U_2 e_{12}^T - e_{12} U_3 e_{12}^T] - [e_3 U_1 e_3^T + e_3 U_3 e_{3}^T], \\
+    & \Xi_3 = h^2(e_s Z_1 e_s^T + e_1 Z_2 e_1^T + e_s Z_3 e_s^T) - \Bigg[ \frac{h^3}{q_0} e_6 Z_2 e_6^T \nonumber \\
+    & \quad \quad + \frac{h^5}{4q_1} \left( \frac{2c_1}{h} e_6 + e_9 \right) Z_2 \left( \frac{2c_1}{h} e_6 + e_9 \right)^T + \gamma(3) Z_{14} \gamma^T(3) \nonumber \\
+    & \quad \quad + \frac{h}{q_3} \left( \left(1 - \frac{(h+c_1)q_{13}}{q_1}\right) e_1 - \left(1+c_4 - \frac{c_1 q_{13}}{q_1}\right) e_3 + \frac{q_{13}}{q_1} e_6 + c_4 e_{12} \right) Z_3 \nonumber \\
+    & \quad \quad \times \left( \left(1 - \frac{(h+c_1)q_{13}}{q_1}\right) e_1 - \left(1+c_4 - \frac{c_1 q_{13}}{q_1}\right) e_3 + \frac{q_{13}}{q_1} e_6 + c_4 e_{12} \right)^T \Bigg], \\
+    & \Xi_4 = \frac{h^2}{2} e_s N_1 e_s^T + \frac{h^2}{2} e_s N_2 e_s^T - e^{-2kh} \Bigg[ 2(e_1 - e_7) N_1 (e_1 - e_7)^T \nonumber \\
+    & \quad \quad + 4(e_1 + 2e_7 - 3e_{10}) N_1 (e_1 + 2e_7 - 3e_{10})^T + 2(e_2 - e_8) N_1 (e_2 - e_8)^T \nonumber \\
+    & \quad \quad + 4(e_2 + 2e_8 - 3e_{11}) N_1 (e_2 + 2e_8 - 3e_{11})^T + 2(e_2 - e_7) N_2 (e_2 - e_7)^T \nonumber \\
+    & \quad \quad + 4(e_2 - 4e_7 + 3e_{10}) N_2 (e_2 - 4e_7 + 3e_{10})^T + 2(e_3 - e_8) N_2 (e_3 - e_8)^T \nonumber \\
+    & \quad \quad + 4(e_3 - 4e_8 + 3e_{11}) N_2 (e_3 - 4e_8 + 3e_{11})^T \Bigg], \\
+    & \Xi_5 = \frac{\mu}{h} e_1(M_1 - M_2) e_1^T, \quad \Psi = -e^{-2kh} \gamma \Omega \gamma^T, \\
+    & \Pi = \mathrm{sym}(e_1 L R_1 e_4^T - e_4 R_1 e_4^T + e_2 L R_2 e_5^T - e_5 R_2 e_5^T), \\
+    & \varphi_1 = \mathrm{sym}(\zeta(1) P \zeta^T(3)), \quad \varphi_2 = \mathrm{sym}(k e_1 M_1 e_1^T + e_1 M_1 e_s^T), \\
+    & \psi_1 = \mathrm{sym}(\zeta(2) P \zeta^T(3)), \quad \psi_2 = \mathrm{sym}(k e_1 M_2 e_1^T + e_1 M_2 e_s^T), \\
+    & \alpha = \frac{h(t)}{h}, \quad \beta = \frac{h - h(t)}{h}, \quad L = \mathrm{diag}\{L_1, \dots, L_n\}.
+\end{align*}
+\end{theorem}
+
+\subsection{泛函构造与定理证明}
+\textbf{\heiti 证明.} 考虑如下 Lyapunov-Krasovskii 泛函：
+\begin{equation*}
+    V(x(t)) = \sum_{i=1}^{5} V_i(x(t)).
+\end{equation*}
+其中
+\begin{align*}
+    V_1(x(t)) =& e^{2kt} \alpha^T(t) P \alpha(t) + 2 \sum_{i=1}^n e^{2kt} d_{1i} \int_0^{z_i} f_i(s) ds \nonumber \\
+               & + 2 \sum_{i=1}^n e^{2kt} d_{2i} \int_0^{z_i} (L_i s - f_i(s)) ds, \\
+    V_2(x(t)) =& e^{2kh} \Bigg\{ \int_{t-h(t)}^t e^{2ks} \varepsilon^T(s) Q \varepsilon(s) ds + \int_{t-h}^t e^{2ks} z^T(s) U_1 z(s) ds \nonumber \\
+               & + \int_{t-\xi}^t e^{2ks} z^T(s) U_2 z(s) ds + \int_{t-h}^{t-\xi} e^{2ks} z^T(s) U_3 z(s) ds \Bigg\}, \\
+    V_3(x(t)) =& h \Bigg\{ \int_{-h}^0 \int_{t+u}^t e^{2ks} \dot{z}(s)^T Z_1 \dot{z}(s) ds du + \int_{-h}^0 \int_{t+u}^t e^{2ks} z(s)^T Z_2 z(s) ds du \nonumber \\
+               & + \int_{-h}^0 \int_{t+u}^t e^{2ks} \dot{z}(s)^T Z_3 \dot{z}(s) ds du \Bigg\}, \\
+    V_4(x(t)) =& \int_{-h}^0 \int_v^0 \int_{t+u}^t e^{2ks} \dot{z}^T(s) N_1 \dot{z}(s) ds du dv \nonumber \\
+               & + \int_{-h}^0 \int_{-h}^v \int_{t+u}^t e^{2ks} \dot{z}^T(s) N_2 \dot{z}(s) ds du dv, \\
+    V_5(x(t)) =& \frac{h(t)}{h} e^{2kt} z^T(t) M_1 z(t) + \frac{h-h(t)}{h} e^{2kt} z^T(t) M_2 z(t).
+\end{align*}
+令 
+\begin{align*}
+    \eta^T(t) = & \left[ z^T(t), z^T(t-h(t)), z^T(t-h), f^T(z(t)), f^T(z(t-h(t))), \frac{1}{h}\int_{t-h}^t z^T(s)ds, \right. \\
+                & \frac{1}{h(t)}\int_{t-h(t)}^t z^T(s)ds, \frac{1}{h-h(t)}\int_{t-h}^{t-h(t)} z^T(s)ds, \frac{2}{h^2}\int_{-h}^0 \int_{t+u}^t z^T(s)ds du, \\
+                & \left. \frac{2}{h^2(t)}\int_{-h(t)}^0 \int_{t+u}^t z^T(s)ds du, \frac{2}{(h-h(t))^2}\int_{-h}^{-h(t)} \int_{t+u}^{t-h(t)} z^T(s)ds du, z^T(t-\xi) \right], \\
+    \alpha^T(t) =& \left[ z^T(t), \int_{t-h}^t z^T(s)ds, \frac{2}{h} \int_{-h}^0 \int_{t+u}^t z^T(s)ds du \right], \\
+    \varepsilon^T(t) =& \left[ z^T(t), f^T(z(t)) \right].
+\end{align*}
+
+接下来，沿着系统 \eqref{eq:error_sys} 的轨迹估计 $V_i(z(t))$ ($i=1,2,3$) 的时间导数。
+\begin{align*}
+    \dot{V}_1(z(t)) \le & e^{2kt} \eta^T(t) [\Xi_1 + \alpha \varphi_1 + \beta \psi_1] \eta(t), \\
+    \dot{V}_2(z(t)) =& e^{2kh} \Big[ e^{2kt} \varepsilon^T(t) Q \varepsilon(t) - e^{2k(t-h(t))}(1-h'(t)) \varepsilon^T(t-h(t)) Q \varepsilon(t-h(t)) \nonumber \\
+                     & \quad + e^{2kt} z^T(t) U_1 z(t) - e^{2k(t-h)} z^T(t-h) U_1 z(t-h) + e^{2kt} z^T(t) U_2 z(t) \nonumber \\
+                     & \quad - e^{2k(t-\xi)} z^T(t-\xi) U_2 z(t-\xi) + e^{2k(t-\xi)} z^T(t-\xi) U_3 z(t-\xi) \nonumber \\
+                     & \quad - e^{2k(t-h)} z^T(t-h) U_3 z(t-h) \Big] \\
+    \le & e^{2kt} \eta^T(t) \Big\{ e^{2kh}[e_1, e_4] Q [e_1, e_4]^T - (1-\mu)[e_2, e_5] Q [e_2, e_5]^T \nonumber \\
+        & \quad + e^{2kh} e_1 U_1 e_1^T - e_3 U_1 e_3^T + e^{2kh} e_1 U_2 e_1^T \nonumber \\
+        & \quad - e^{2k(h-\xi)} e_{12} U_2 e_{12}^T + e^{2k(h-\xi)} e_{12} U_3 e_{12}^T - e_3 U_3 e_3^T \Big\} \eta(t) \\
+    =& e^{2kt} \eta^T(t) \Xi_2 \eta(t), \\
+    \dot{V}_4(z(t)) =& \frac{h^2}{2} e^{2kt} \dot{z}^T(t)(N_1 + N_2) \dot{z}(t) - \int_{-h}^0 \int_{t+u}^t e^{2ks} \dot{z}^T(s) N_1 \dot{z}(s) ds du \nonumber \\
+                     & - \int_{-h}^0 \int_{t-h}^{t+u} e^{2ks} \dot{z}^T(s) N_2 \dot{z}(s) ds du \\
+    \le & \frac{h^2}{2} e^{2kt} \dot{z}^T(t)(N_1 + N_2) \dot{z}(t) - e^{2k(t-h)} \int_{-h}^0 \int_{t+u}^t \dot{z}^T(s) N_1 \dot{z}(s) ds du \nonumber \\
+        & - e^{2k(t-h)} \int_{-h}^0 \int_{t-h}^{t+u} \dot{z}^T(s) N_2 \dot{z}(s) ds du \\
+    \le & e^{2kt} \eta^T(t) \Big\{ \Xi_4 - e^{-2kh} \Big[ \Big(\frac{1}{\alpha}-1\Big) \gamma(1) N_{14} \gamma^T(1) \nonumber \\
+        & \quad + \Big(\frac{1}{\beta}-1\Big) \gamma(2) N_{15} \gamma^T(2) \Big] \Big\} \eta(t).
+\end{align*}
+
+利用\cref{lemma:ori_2_4} 估计 $\dot{V}_3$, 可得：
+\begin{align*}
+    \dot{V}_3(z(t)) =& e^{2kt} \left[ h^2 \dot{z}^T(t)(Z_1+Z_3)\dot{z}(t) + h^2 z^T(t) Z_2 z(t) - h \int_{t-h}^t e^{2k(s-t)} z^T(s) Z_2 z(s) ds \right. \\
+                     & \left. - h \int_{t-h}^t e^{2k(s-t)} \dot{z}^T(s) Z_3 \dot{z}(s) ds \right] - h \int_{t-h}^t e^{2ks} \dot{z}^T(s) Z_1 \dot{z}(s) ds.
+\end{align*}
+利用\cref{Liu2017}，有
+\begin{equation*}
+    -h \int_{t-h}^t e^{2ks} \dot{z}^T(s) Z_1 \dot{z}(s) ds \le e^{2k(t-h)} \eta^T(t) \left\{ \frac{1}{\alpha}\gamma(1) Z_{13} \gamma^T(1) + \frac{1}{\beta}\gamma(2) Z_{13} \gamma^T(2) \right\} \eta(t).
+\end{equation*}
+接下来使用 \eqref{eq:lemma24} 得到：
+\begin{align*}
+    & -h \int_{t-h}^t e^{2k(s-t)} z^T(s) Z_2 z(s) ds \\
+    & \le -\frac{h}{q_0} \left[\int_{t-h}^t z^T(s)ds\right] Z_2 \left[\int_{t-h}^t z(s)ds\right] - \frac{h}{q_1} \left[ c_1 \int_{t-h}^t z(s)ds + \int_{-h}^0 \int_{t+u}^t z(s)ds du \right]^T \\
+    & \quad \times Z_2 \left[ c_1 \int_{t-h}^t z(s)ds + \int_{-h}^0 \int_{t+u}^t z(s)ds du \right] \\
+    & = -\eta^T(t) \left\{ \frac{h^3}{q_0} e_6 Z_2 e_6^T + \frac{h^5}{4q_1} \left( \frac{2c_1}{h} e_6 + e_9 \right) Z_2 \left( \frac{2c_1}{h} e_6 + e_9 \right)^T \right\} \eta(t), \\[1.5em]
+    & -h \int_{t-h}^t e^{2k(s-t)} \dot{z}^T(s) Z_3 \dot{z}(s) ds \\
+    & \le -\frac{h}{q_0}[z(t)-z(t-h)]^T Z_3 [z(t)-z(t-h)] \\
+    & \quad - \frac{h}{q_1}\bigg[ (c_1+h)z(t) - c_1 z(t-h) - \int_{t-h}^t z(s)ds \bigg]^T Z_3 \nonumber \\
+    & \quad \quad \times \bigg[ (c_1+h)z(t) - c_1 z(t-h) - \int_{t-h}^t z(s)ds \bigg] \\
+    & \quad - \frac{h}{q_2}\bigg[ (h^2+c_2h+c_3)z(t) - c_3 z(t-h) - c_2 \int_{t-h}^t z(s)ds - 2\int_{-h}^0 \int_{t+u}^t z(s)ds du \bigg]^T Z_3 \nonumber \\
+    & \quad \quad \times \bigg[ (h^2+c_2h+c_3)z(t) - c_3 z(t-h) - c_2 \int_{t-h}^t z(s)ds - 2\int_{-h}^0 \int_{t+u}^t z(s)ds du \bigg] \\
+    & \quad - \frac{h}{q_3}\bigg[ \Big(1-\frac{(h+c_1)q_{13}}{q_1}\Big)z(t) - \Big(1+c_4-\frac{c_1 q_{13}}{q_1}\Big)z(t-h) \nonumber \\
+    & \quad \quad \quad + c_4 z(t-\xi) + \frac{q_{13}}{q_1} \int_{t-h}^t z(s)ds \bigg]^T Z_3 \nonumber \\
+    & \quad \quad \times \bigg[ \Big(1-\frac{(h+c_1)q_{13}}{q_1}\Big)z(t) - \Big(1+c_4-\frac{c_1 q_{13}}{q_1}\Big)z(t-h) \nonumber \\
+    & \quad \quad \quad + c_4 z(t-\xi) + \frac{q_{13}}{q_1} \int_{t-h}^t z(s)ds \bigg] \\
+    &= \eta^T(t) \Bigg\{ \gamma(3) Z_{14} \gamma^T(3) + \bigg[ \Big(1-\frac{(h+c_1)q_{13}}{q_1}\Big)e_1 - \Big(1+c_4-\frac{c_1 q_{13}}{q_1}\Big)e_3 \nonumber \\
+    & \quad \quad \quad + \frac{q_{13}}{q_1}e_6 + c_4 e_{12} \bigg]^T Z_3 \bigg[ \Big(1-\frac{(h+c_1)q_{13}}{q_1}\Big)e_1 - \Big(1+c_4-\frac{c_1 q_{13}}{q_1}\Big)e_3 \nonumber \\
+    & \quad \quad \quad + \frac{q_{13}}{q_1}e_6 + c_4 e_{12} \bigg] \Bigg\} \eta(t).
+\end{align*}
+
+因此
+\begin{equation*}
+    \dot{V}_3(z(t)) \le e^{2kt} \eta^T(t) \left\{ \Xi_3 - e^{-2kh} \left[ \frac{1}{\alpha}\gamma(1) Z_{13} \gamma^T(1) + \frac{1}{\beta}\gamma(2) Z_{13} \gamma^T(2) \right] \right\} \eta(t).
+\end{equation*}
+
+由于 $h'(t)$ 可能发生符号改变，估计 $V_5(z(t))$ 的时间导数为
+\begin{align*}
+    \dot{V}_5(z(t)) =& e^{2kt} \alpha \Big[ 2k z^T(t) M_1 z(t) + 2 z^T(t) M_1 \dot{z}(t) \Big] + \frac{\dot{h}(t)}{h} e^{2kt} z^T(t) M_1 z(t) \\
+                     & + e^{2kt} \beta \Big[ 2k z^T(t) M_2 z(t) + 2 z^T(t) M_2 \dot{z}(t) \Big] - \frac{\dot{h}(t)}{h} e^{2kt} z^T(t) M_2 z(t) \\
+    \le & e^{2kt} \eta^T(t) \Big\{ \alpha \mathrm{sym}(k e_1 M_1 e_1^T + e_1 M_1 e_s^T) \nonumber \\
+        & \quad + \beta \mathrm{sym}(k e_1 M_2 e_1^T + e_1 M_2 e_s^T) + \frac{\mu}{h} e_1(M_1 - M_2) e_1^T \Big\} \eta(t) \\
+    =& e^{2kt} \eta^T(t) \{ \Xi_5 + \alpha \varphi_2 + \beta \psi_2 \} \eta(t).
+\end{align*}
+
+考虑 $z(t)$ 和 $z(t-h(t))$ 处的假设 \eqref{eq:lipschitz_f}，对于任意对角矩阵 $R_1 > 0, R_2 > 0$, 有
+\begin{equation} \label{eq:bound_31}
+\begin{split}
+    0 \le & 2 e^{2kt} \left[ z^T(t) L R_1 f(z(t)) - f^T(z(t)) R_1 f(z(t)) \right. \\
+          & \left. + z^T(t-h(t)) L R_2 f(z(t-h(t))) - f^T(z(t-h(t))) R_2 f(z(t-h(t))) \right] \\
+    = & e^{2kt} \eta^T(t) \Pi \eta(t),
+\end{split}
+\end{equation}
+
+使用\cref{lemma:Park2011}，可得
+\begin{align*}
+    & -e^{-2kh} \eta^T(t) \left\{ \frac{1}{\alpha}\gamma(1) Z_{13} \gamma^T(1) + \frac{1}{\beta}\gamma(2) Z_{13} \gamma^T(2) \right. \\
+    & \quad \left. + \frac{1}{\alpha}\gamma(1) N_{14} \gamma^T(1) + \frac{1}{\beta}\gamma(2) N_{15} \gamma^T(2) - \gamma(1) N_{14} \gamma^T(1) - \gamma(2) N_{15} \gamma^T(2) \right\} \eta(t) \\
+    \le & \eta^T(t) \{ -e^{-2kh} \gamma \Omega \gamma^T \} \eta(t) = \eta^T(t) \Psi \eta(t).
+\end{align*}
+
+因此，可得：
+\begin{equation*}
+    \dot{V}(z(t)) \le e^{2kt} \eta^T(t) \{ \Phi + \alpha \Theta_1 + \beta \Theta_2 \} \eta(t).
+\end{equation*}
+由于 $\Phi + \Theta_1 < 0$ 且 $\Phi + \Theta_2 < 0$, 并且 $\alpha + \beta = 1$, 利用凸组合性质可得：
+\begin{equation*}
+    \Phi + \alpha \Theta_1 + \beta \Theta_2 < 0.
+\end{equation*}
+因此，对于任意 $\eta(t) \neq 0$, 均有 $\dot{V}(z(t)) < 0$.
+
+可以验证
+\begin{equation*}
+    V(z(0)) \le \Lambda ||\phi||^2
+\end{equation*}
+且
+\begin{align*}
+    \Lambda =& \lambda_{\max}(P)(1+2h^2) + 2\lambda_{\max}(D_1 L) + 2\lambda_{\max}(D_2 L) + h e^{2kh} \lambda_{\max}(Q) \\
+             & \times [1+\lambda_{\max}(L^2)] + h e^{2kh} (\lambda_{\max}(U_1) + \lambda_{\max}(U_2) + \lambda_{\max}(U_3)) \\
+             & + \left[ \frac{h^3}{2}\lambda_{\max}(Z_1) + \frac{h^3}{2}\lambda_{\max}(Z_3) + \frac{h^3}{6}\lambda_{\max}(N_1) + \frac{h^3}{2}\lambda_{\max}(N_2) \right] \\
+             & \times \left[ \lambda_{\max}(C^T C) + \lambda_{\max}(A^T A)\lambda_{\max}(L^2) + \lambda_{\max}(B^T B)\lambda_{\max}(L^2) \right] \\
+             & + h \lambda_{\max}(M_1 + M_2) + \frac{h^3}{2}\lambda_{\max}(Z_2).
+\end{align*}
+同时，有
+\begin{equation*}
+    V(z(t)) \ge e^{2kt} \alpha^T(t) P \alpha(t) \ge e^{2kt} \lambda_{\max}(P)||\alpha(t)||^2 \ge e^{2kt} \lambda_{\max}(P)||z(t)||^2.
+\end{equation*}
+因此，
+\begin{equation*}
+    ||z(t)|| \le \sqrt{\frac{\Lambda}{\lambda_{\max}(P)}} ||\phi|| e^{-kt}.
+\end{equation*}
+
+证明完毕。
+
+\begin{remark}
+在文献(Liu et al., 2017)中分析 $V_5$ 时，假设了 $\dot{h}(t) \ge 0$. 本文的证明并未施加此项限制。此外，在处理激活函数的不等式时，本文仅考虑了 $z(t), f(z(t))$ 与 $z(t-h(t)), f(z(t-h(t)))$ 之间的关系，而移除了文献 (Liu et al., 2017)分析中所包含的 $f(z(t-h)), z(t-h)$ 之间的关系。数值仿真表明，这不仅不会影响稳定性判据的性能，还能有效减少决策变量的数量。
+\end{remark}
+
+\section{数值实验与结果分析}
+
+本节通过三个数值算例及其仿真结果，来验证本文所提判据在保守性和决策变量数量方面的优势与有效性。
+
+\subsection{固定时滞下的最大指数收敛率估算}
+考虑具有以下参数的时滞神经网络（参见文献(Wu et al., 2008; Ji et al., 2014; Ji et al., 2015; Liu et al., 2017)）\eqref{eq:error_sys}: 
+\begin{equation*}
+    A = \begin{bmatrix} -1 & 0.5 \\ 0.5 & -1 \end{bmatrix}, \quad B = \begin{bmatrix} -0.5 & 0.5 \\ 0.5 & 0.5 \end{bmatrix},
+\end{equation*}
+\begin{equation*}
+    C = \mathrm{diag}\{2, 3.5\}, \quad L_1 = 1, \quad L_2 = 1.
+\end{equation*}
+
+针对不同的时滞导数上限 $\mu$ 以及固定的时滞上限 $h=1$, 表 \ref{tab:example1} 记录了系统所允许的最大指数收敛率 $k$. 从表中可以看出，与文献 (Wu et al., 2008; Ji et al., 2014; Ji et al., 2015; Liu et al., 2017) 中的结果相比，本文提出的判据能够获得更大的容许收敛率，且决策变量数量（NoDVs）略少于文献(Wu et al., 2008; Ji et al., 2014; Ji et al., 2015; Liu et al., 2017)，这表明本文定理更为有效。
+
+\begin{table}[htbp]
+    \centering
+    \caption{不同 $\mu$ 及 $h=1$ 下系统允许的最大收敛率 $k$ 值（算例 1）}
+    \label{tab:example1}
+    \begin{tabular}{l c c c c}
+        \toprule
+        文献 & $\mu=0$ & $\mu=0.8$ & $\mu=0.9$ & NoDVs \\
+        \midrule
+        文献1 (Wu et al., 2008) & 1.1500 & 0.8643 & 0.8344 & $3n^2+12n$ \\
+        文献2 (Ji et al., 2014) & 1.1540 & 0.8696 & 0.8354 & $13n^2+6n$ \\
+        文献3 (Ji et al., 2015) & 1.1544 & 0.8784 & 0.8484 & $7n^2+8n$ \\
+        文献4 (Liu et al., 2017) & 1.2147 & 0.9382 & 0.9104 & $20.5n^2+12.5n$ \\
+        本文\cref{main_theorem}   & 1.2477 & 1.0299 & 1.0115 & $20.5n^2+11.5n$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{多维网络的最大容许时滞分析}
+文献(Wu et al., 2008; Zheng et al., 2009; Ji et al., 2014; Ji et al., 2015; Liu et al., 2017) 研究了具有 4 个神经元节点的时滞网络 \eqref{eq:error_sys}，其参数矩阵如下：
+\begin{align*}
+    A &= \begin{bmatrix}
+        -0.0373 &  0.4852 & -0.3351 &  0.2336 \\
+        -1.6033 &  0.5988 & -0.3224 &  1.2352 \\
+         0.3394 & -0.0860 & -0.3824 & -0.5785 \\
+        -0.1311 &  0.3253 & -0.9534 & -0.5015
+    \end{bmatrix}, \\
+    B &= \begin{bmatrix}
+         0.8674 & -1.2405 & -0.5325 & -0.0220 \\
+         0.0474 & -0.9164 &  0.0360 &  0.9816 \\
+         1.8495 &  2.6117 & -0.3788 &  0.0824 \\
+        -2.0413 &  0.5179 &  1.1734 & -0.2775
+    \end{bmatrix},
+\end{align*}
+\begin{equation*}
+    C = \mathrm{diag}\{1.2769, 0.6231, 0.9230, 0.4480\},
+\end{equation*}
+\begin{equation*}
+    L_1 = 0.1137, \quad L_2 = 0.1279, \quad L_3 = 0.7994, \quad L_4 = 0.2368.
+\end{equation*}
+
+对于该算例，与文献(Wu et al., 2008; Zheng et al., 2009; Ji et al., 2014; Ji et al., 2015; Liu et al., 2017)类似，本文设定极小的衰减率 $k=10^{-6}$ 进行对比。针对不同的 $\mu$, 最大容许时滞上限 $h$ 及其对应的决策变量数量如表 \ref{tab:example2} 所示。从结果中可以看到本文方法在拓宽系统稳定参数边界方面的改进。
+
+\begin{table}[htbp]
+    \centering
+    \caption{不同 $\mu$ 下系统允许的最大时滞上限 $h$（算例 2）}
+    \label{tab:example2}
+    \begin{tabular}{l c c c c}
+        \toprule
+        文献 & $\mu=0.5$ & $\mu=0.8$ & $\mu=0.9$ & NoDVs \\
+        \midrule
+        文献1 (Wu et al., 2008) & 2.5379 & 2.1766 & 2.0853 & $3n^2+12n$ \\
+        文献2 (Zheng et al., 2009) & 2.6711 & 2.2977 & 2.1783 & $4.5n^2+17.5n$ \\
+        文献3 (Ji et al., 2014) & 3.4311 & 2.5710 & 2.4147 & $13n^2+6n$ \\
+        文献4 (Ji et al., 2015) & 3.6954 & 2.7711 & 2.5795 & $7n^2+8n$ \\
+        文献5 (Liu et al., 2017) 定理 3.1 ($k=10^{-6}$) & 3.8709 & 3.3442 & 3.1291 & $20.5n^2+12.5n$ \\
+        本文\cref{main_theorem} ($k=10^{-6}$)          & 4.2050 & 3.6674 & 3.5170 & $20.5n^2+11.5n$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+设定初始状态 $z(0) = [-1, -0.5, 0.5, 1]^T$, 时变时滞 $h(t) = 2.8674 + 0.8 \sin(t)$, 且激活函数取为：
+\begin{equation*}
+    f(z(t)) = \begin{bmatrix} 
+        0.1137 \tanh(z_1(t)) \\ 
+        0.1279 \tanh(z_2(t)) \\ 
+        0.7994 \tanh(z_3(t)) \\ 
+        0.2368 \tanh(z_4(t))
+    \end{bmatrix}.
+\end{equation*}
+此时系统 \eqref{eq:error_sys} 的状态轨迹如图 \ref{fig:example2_traj} 所示。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{ex2.png} 
+    \caption{系统\eqref{eq:error_sys}在算例 2 参数下的状态轨迹}
+    \label{fig:example2_traj}
+\end{figure}
+
+\subsection{快变时滞条件下的最大容许时滞上限分析}
+考虑具有以下参数的时滞神经网络 \eqref{eq:error_sys}（参见文献(Chen and Zheng, 2008; He et al., 2005; Hua et al., 2006; He et al., 2007; Liu et al., 2017)）：
+\begin{equation*}
+    A = \begin{bmatrix} 1 & 1 \\ -1 & -1 \end{bmatrix}, \quad B = \begin{bmatrix} 0.88 & 1 \\ 1 & 1 \end{bmatrix},
+\end{equation*}
+\begin{equation*}
+    C = \mathrm{diag}\{2, 2\}, \quad L_1 = 0.4, \quad L_2 = 0.8.
+\end{equation*}
+
+该算例曾在文献(Chen and Zheng, 2008)中被研究。表 \ref{tab:example3} 列出了在固定 $k=10^{-6}$ 以及不同 $\mu$ 的极端网络时滞波动环境下，所求解出的最大容许时滞上限 $h$. 显然，由本文\cref{main_theorem}得到的结果优于以往文献中的结果。这些改进表明了本文方法的有效性、优越性与鲁棒性。
+
+\begin{table}[htbp]
+    \centering
+    \caption{不同 $\mu$ 下系统允许的最大时滞上限 $h$（算例 3）}
+    \label{tab:example3}
+    \begin{tabular}{l c c c c}
+        \toprule
+        文献 & $\mu=0.77$ & $\mu=0.80$ & $\mu=0.90$ & NoDVs \\
+        \midrule
+        文献1 (He et al., 2005) & 2.3368 & 1.2281 & 0.8636 & $3.5n^2+15.5n$ \\
+        文献2 (Hua et al., 2006) & 2.3368 & 1.2281 & 0.8636 & $14.5n^2+7.5n$ \\
+        文献3 (He et al., 2007) & 3.2681 & 1.6831 & 1.1493 & $2.5n^2+15.5n$ \\
+        文献4 (Chen and Zheng, 2008) 定理 2 ($N=1$) & 3.4373 & 1.8496 & 1.0904 & $22n^2+8n$ \\
+        文献4 (Chen and Zheng, 2008) 定理 2 ($N=2$) & 3.5423 & 1.9149 & 1.1786 & $23.5n^2+9.5n$ \\
+        文献5 (Liu et al., 2017) 定理 3.1 ($k=10^{-6}$) & 5.8372 & 3.3805 & 2.1714 & $20.5n^2+12.5n$ \\
+        本文\cref{main_theorem} ($k=10^{-6}$)          & 7.0739 & 3.5641 & 2.2092 & $20.5n^2+11.5n$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+设定初始状态 $z(0) = [-1, 1]^T$. 在时滞 $h(t) = 6.3039 + 0.77 \sin(t)$ 以及激活函数
+\begin{equation*}
+    f(z(t)) = \begin{bmatrix} 0.4 \tanh(z_1(t)) \\ 0.8 \tanh(z_2(t)) \end{bmatrix}
+\end{equation*}
+的情况下，系统 \eqref{eq:error_sys} 的状态轨迹如图 \ref{fig:example3_traj} 所示。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{ex3.png}
+    \caption{系统\eqref{eq:error_sys}在算例 3 参数下的状态轨迹}
+    \label{fig:example3_traj}
+\end{figure}
+
+\section{总结与展望}
+
+\subsection{全文工作总结}
+本文研究了一类具有时变时滞的神经网络的指数稳定性问题。通过拓展基于辅助函数的积分不等式并优化泛函结构，提出了一种低保守性的稳定性判据。全文的主要工作与创新点总结如下：
+
+\begin{enumerate}
+    \item 建立新型加权积分不等式：推广了文献 (Park et al., 2015) 中基于辅助函数的积分不等式，构建了一种引入指数权重函数的新型积分不等式。该加权不等式能够对含有指数衰减项的积分进行更紧致的放缩，为推导时滞系统改进的指数稳定性判据提供了有力的数学工具。
+    
+    \item 放宽时滞导数限制并降低保守性：结合新型加权积分不等式，构造并深入分析了 Lyapunov-Krasovskii 泛函，获得了一个更加精确的全局指数稳定性判据。值得注意的是，本文放宽了对时变时滞的常规限制，不再要求时滞函数必须是非递减的（即移除了文献 (Liu et al., 2017) 证明中对 $\dot{h}(t) \ge 0$ 的假设），从而使所得结论具有更广的适用范围。
+    
+    \item 精简决策变量数量：通过对文献 (Liu et al., 2017) 中的泛函结构进行重新审视与优化，本文发现并移除了原 LKF 中的部分冗余项（如放缩过程中的某些交叉关系项）。理论分析与后续计算表明，此举在完全不影响稳定性判据性能的前提下，有效减少了LMI求解过程中的决策变量数量，提升了算法的计算效率。
+    
+    \item 数值仿真验证：通过三个不同参数配置的典型神经网络算例测试，充分展示并证实了本文提出的新判据在计算最大容许时滞上限及容许指数收敛率方面的显著优势与有效性。
+\end{enumerate}
+
+\subsection{未来展望}
+虽然本文通过优化泛函结构成功削减了部分决策变量，但为了追求更低的保守性，本文采用的多重积分结构（包含双重、三重积分）不可避免地使LMI的整体维度依然保持在较高水平。当面对包含大量神经元节点的大规模网络模型时，求解 LMI 的计算成本与耗时仍是一个亟待解决的问题。
+
+针对这一局限性，未来的研究工作可从以下几个方向展开：首先，将继续探索泛函结构的极简表达形式或其他新型松弛技术，以寻求在保证系统稳定边界精度的同时，进一步大幅度降低 LMI 维度的更优方案；其次，可以尝试将本文提出的加权积分不等式推广应用至具有马尔可夫跳变参数、脉冲效应或受到外部随机扰动的复杂神经网络系统的稳定性与同步控制分析中。
+
+% --------------------参考文献--------------------
+\clearpage
+\phantomsection
+\addcontentsline{toc}{section}{参考文献}
+\centerline{\zihao{4}\heiti 参\hspace{1em}考\hspace{1em}文\hspace{1em}献}
+\vspace{1em}
+
+% 重新定义参考文献环境：取消数字编号，设置悬挂缩进
+\makeatletter
+\renewcommand{\@biblabel}[1]{} % 取消方括号和数字编号
+\renewenvironment{thebibliography}[1]
+     {\list{}{\usecounter{enumiv}
+              \setlength{\labelwidth}{0pt}
+              \setlength{\leftmargin}{2em}    % 整体向右缩进（第二行及之后的缩进量）
+              \setlength{\itemindent}{-2em}   % 首行反向缩进，形成悬挂效果
+              \setlength{\labelsep}{0pt}      
+              \setlength{\itemsep}{0ex}       % 条目之间的垂直间距
+              \setlength{\parsep}{0pt}}
+      \sloppy
+      \clubpenalty4000
+      \widowpenalty4000}
+     {\endlist}
+\makeatother
+
+{\zihao{-4}\songti\rmfamily
+\begin{thebibliography}{0}
+\vspace{-1.7em}
+
+\bibitem{Boyd1994} Boyd S, El Ghaoui L, Feron E, et al. Linear matrix inequalities in system and control theory[M]. Philadelphia: SIAM, 1994.
+
+\bibitem{Chen2008} Chen W H, Zheng W X. Improved delay-dependent asymptotic stability criteria for delayed neural networks[J]. IEEE Trans Neural Netw, 2008, 19(12): 2154-2161.
+
+\bibitem{Dai2011} Dai X, Huang Y, Xiao M. Periodically switched stability induces exponential stability of discrete-time linear switched systems in the sense of Markovian probabilities[J]. Automatica, 2011, 47(7): 1512-1519.
+
+\bibitem{Fridman2014} Fridman E. Tutorial on Lyapunov-based methods for time-delay systems[J]. European Journal of Control, 2014, 20: 271-283.
+
+\bibitem{Gu2003} Gu K, Kharitonov V.L., Chen J. Stability of time-delay systems[M]. Boston: Birkhauser, 2003.
+
+\bibitem{He2007} He Y, Liu G, Rees D. New delay-dependent stability criteria for neural networks with time-varying delay[J]. IEEE Trans Neural Netw, 2007, 18(1): 310-314.
+
+\bibitem{He2017} He Y, Liu G P, Rees D, Wu M. Stability analysis for neural networks with time-varying interval delay[J]. IEEE Trans Neural Netw, 2017, 18(6): 1850-1854.
+
+\bibitem{He2005} He Y, Wang Q G, Wu M. LMI-based stability criteria for neural networks with multiple time-varying delays[J]. Physica D, 2005, 212(1-2): 126-136.
+
+\bibitem{Hien2016a} Hien L.V, Trinh H. Exponential stability of time-delay systems via new weighted integral inequalities[J]. Applied Mathematics and Computation, 2016, 275: 335-344.
+
+\bibitem{Hien2016b} Hien L.V, Trinh H. New finite-sum inequalities and their applications to discrete-time delay systems[J]. Automatica, 2016, 71: 197-201.
+
+\bibitem{Hien2015} Hien L.V, Trinh H. Refined Jensen-based inequality approach to stability analysis of time-delay systems[J]. IET Control Theory Appl, 2015, 9(14): 2188-2194.
+
+\bibitem{Hua2006} Hua C C, Long C N, Guan X P. New results on stability analysis of neural networks with time-varying delays[J]. Phys Lett A, 2006, 352(4-5): 335-340.
+
+\bibitem{Ji2015} Ji M D, He Y, Wu M, Zhang C.K. Further result on exponential stability of neural network with time-varying delay[J]. Appl Math Comput, 2015, 256: 175-182.
+
+\bibitem{Ji2014} Ji M D, He Y, Wu M, Zhang C.K. New exponential stability criterion for neural networks with time-varying delay[C] Proceedings of the 33rd Chinese Control Conference, Nanjing, China, 2014.
+
+\bibitem{Li2019a} Li W, Wang S, Rehbock V. Numerical solution of fractional optimal control[J]. Journal of Optimization Theory and Applications, 2019, 180(2): 556-573.
+
+\bibitem{Li2019b} Li Z, Yan H, Zhang H, Peng Y, Park J, He Y. Stability analysis of linear systems with time-varying delay via intermediate polynomial-based functions[J]. Automatica, 2019, 110: 108756.
+
+\bibitem{Li2010} Li Z, Yan H, Zhang H, Sun J, Lam H. Stability and stabilization with additive freedom for delayed Takagi-Sugeno fuzzy systems by intermediary polynomial-based functions[J]. IEEE Transactions on Fuzzy Systems, 2010, 28: 692-705.
+
+\bibitem{Li2019c} Li Z, Yan H, Zhang H, Zhan X, Huang C. Improved inequality-based functions approach for stability analysis of time delay system[J]. Automatica, 2019, 107: 108581.
+
+\bibitem{Li2019d} Li Z, Yan H, Zhang H, Zhan X, Huang C. Stability analysis for delayed neural networks via improved auxiliary polynomial-based functions[J]. IEEE Transactions on Neural Networks and Learning Systems, 2019, 30(8): 2562-2568.
+
+\bibitem{Liu2014} Liu C, Loxton R, Teo K L. A computational method for solving time-delay optimal control problems with free terminal time[J]. Systems \& Control Letters, 2014, 72: 53-60.
+
+\bibitem{Liu2017} Liu X.F., Liu X G, Tang M.L., Wang F.X. Improved exponential stability criterion for neural networks with time-varying delay[J]. Neurocomputing, 2017, 234: 154-163.
+
+\bibitem{Liu2016a} Liu Y, Xu P, Lu J, Liang J. Global stability of Clifford-valued recurrent neural networks with time delays[J]. Nonlinear Dynamics, 2016, 84(2): 767-777.
+
+\bibitem{Liu2016b} Liu Y, Zhang D, Lu J, Cao J. Global $\mu$-stability criteria for quaternion-valued neural networks with unbounded time-varying delays[J]. Information Sciences, 2016, 360: 273-288.
+
+\bibitem{Marcus1989} Marcus C, Westervelt R. Stability of analog neural networks with delay[J]. Phys Rev A, 1989, 39(1): 347-359.
+
+\bibitem{Park2011} Park P, Ko J W, Jeong C. Reciprocally convex approach to stability of systems with time-varying delays[J]. Automatica, 2011, 47(1): 235-238.
+
+\bibitem{Park2015} Park P, Lee W I, Lee S Y. Auxiliary function-based integral inequalities for quadratic functions and their applications to time-delay systems[J]. Journal of the Franklin Institute, 2015, 352(4): 1378-1396.
+
+\bibitem{Shen2017} Shen H, Zhu Y, Zhang L, Park J H. Extended dissipative state estimation for Markov jump neural networks with unreliable links[J]. IEEE Trans Neural Netw Learn Syst, 2017, 28(2): 346-358.
+
+\bibitem{Shi2020} Shi C, Vong S. Finite-time stability for discrete-time systems with time-varying delay and nonlinear perturbations by weighted inequalities[J]. J Frankl Inst, 2020.
+
+\bibitem{Vong2018} Vong S W, Shi C Y, Liu D D. Improved exponential stability criteria of time-delay systems via weighted integral inequalities[J]. Applied Mathematics Letters, 2018, 86: 14-21.
+
+\bibitem{Vong2020} Vong S, Shi C, Yao Z. Exponential synchronization of coupled inertial neural networks with mixed delays via weighted integral inequalities.[J] Robust Nonlinear Control. 2020, 30: 7341–7354.
+
+\bibitem{Wang2012} Wang J, Yang Z, Huang T, Xiao M. Synchronization criteria in complex dynamical networks with nonsymmetric coupling and multiple time-varying delays[J]. Applicable Analysis, 2012, 91(5): 923-935.
+
+\bibitem{Wang2015} Wang Z, Liu L, Shan Q.H., Zhang H. Stability criteria for recurrent neural networks with time-varying delay based on secondary delay partitioning method[J]. IEEE Trans Neural Netw Learn Syst, 2015, 26(10): 2589-2595.
+
+\bibitem{Wen2015} Wen S, Zeng Z, Huang T, Yu X, Xiao M. New criteria of passivity analysis for fuzzy time-delay systems with parameter uncertainties[J]. IEEE Transactions on Fuzzy Systems, 2015, 23(6): 2284-2301.
+
+\bibitem{Wu2008} Wu M, Liu F, Shi P, He Y, Yokoyama R. Exponential stability analysis for neural networks with time-varying delay[J]. IEEE Trans Syst Man Cybern B Cybern, 2008, 38(4): 1152-1156.
+
+\bibitem{Yan2018} Yan H, Zhang H, Yang F, Zhan X, Peng C. Event-triggered asynchronous guaranteed cost control for Markov jump discrete-time neural networks with distributed delay and channel fading[J]. IEEE Trans Neural Netw Learn Syst, 2018, 29(8): 3588-3598.
+
+\bibitem{Yang2015} Yang R, Wu B, Liu Y. A Halanay-type inequality approach to the stability analysis of discrete-time neural networks with delays[J]. Applied Mathematics and Computation, 2015, 265: 696-707.
+
+\bibitem{Zhang2016} Zhang L, Zhu Y, Zheng W X. Synchronization and state estimation of a class of hierarchical hybrid neural networks with time-varying delays[J]. IEEE Trans Neural Netw Learn Syst, 2016, 27(2): 459-470.
+
+\bibitem{Zhang2015} Zhang W, Li C, Huang T, Xiao M. Synchronization of neural networks with stochastic perturbation via aperiodically intermittent control[J]. Neural networks, 2015, 71: 105-111.
+
+\bibitem{Zhang2014} Zhang Y, Wang M, Xu H, Teo K.L. Global stabilization of switched control systems with time delay[J]. Nonlinear Analysis: Hybrid Systems, 2014, 14: 86-98.
+
+\bibitem{Zhang2019} Zhang X.M., Han Q.L., Seuret A., Gouaisbaut F., He Y. Overview of recent advances in stability of linear systems with time-varying delays[J]. IET Control Theory \& Applications, 2019, 13(1): 1-16.
+
+\bibitem{Zheng2009} Zheng C.D., Zhang H, Wang Z. New delay-dependent global exponential stability criteria for cellular-type neural networks with time-varying delays[J]. IEEE Trans Circuits Syst II, 2009, 56(3): 250-254.
+
+\end{thebibliography}
+}
+
+% --------------------致谢--------------------
+\clearpage
+\phantomsection
+\addcontentsline{toc}{section}{致谢}
+\centerline{\zihao{4}\heiti 致\hspace{4em}谢}
+\vspace{1em}
+{\zihao{-4}\songti
+笔者要感谢史晨阳老师。她对本篇文章进行了不可或缺的指导。她是我本科一年级和二年级《数学分析》系列课程的授课教师。在此之后，我作为她的助理继续向她学习。她带我入门了Lyapunov稳定性领域的研究，对我本篇毕业论文和日后的学习生涯产生了深远的积极影响。
+
+笔者还要感谢陈泽睿同学，他与我同为史晨阳老师指导毕业论文的学生，我们之间交流了不少有用的知识和信息。
+}
+
+% --------------------成绩评定表--------------------
+\clearpage
+\thispagestyle{empty}
+\vspace{1em}
+
+\begin{center}
+    {\zihao{3}\heiti 华南农业大学本科毕业论文评分参考标准}
+\end{center}
+
+{\zihao{5}\songti
+\linespread{1}\selectfont 
+\renewcommand{\arraystretch}{1.6} 
+\renewcommand{\tabularxcolumn}[1]{m{#1}} 
+
+\noindent 
+\begin{tabularx}{\textwidth}{|m{2.2cm}<{\centering}|X|m{1.2cm}<{\centering}|}
+    \hline
+    \textbf{评价项目} & \multicolumn{1}{c|}{\textbf{评价指标}} & \textbf{分值} \\
+    \hline
+    \multicolumn{3}{|c|}{\textbf{指导教师评阅}} \\
+    \hline
+    学习态度\newline 与工作量 & 学习态度认真，工作作风严谨务实；工作量饱满，按期圆满完成规定的任务。 &  \\
+    \hline
+    资料收集\newline 与分析 & 具有一定的查阅、整理、分析中外文文献的能力；能较好理解课题任务并提出实施方案；查阅文献有一定广泛性，资料收集充分。 &  \\
+    \hline
+    研究水平\newline 与能力 & 能熟练掌握和运用所学专业基本理论、基本知识和基本技能分析解决相关理论和实际问题；论点鲜明，论据充分；实验设计合理，数据准确可靠，理论分析与计算正确；具有从事科学研究工作或专门技术工作的初步能力。 &  \\
+    \hline
+    论文撰写\newline 质\qquad 量 & 论文结构严谨，逻辑性强，层次清晰，技术用语准确；行文流畅，语句通顺；论文格式符合规范要求。 &  \\
+    \hline
+    学术水平\newline 与创新 & 具有一定的学术水平或实践应用价值；对与课题相关的理论或实际问题有较深刻的认识，有新的见解，有一定的创新。 &  \\
+    \hline
+    
+    \multicolumn{3}{|c|}{\textbf{评阅教师评阅}} \\
+    \hline
+    选 题 质 量 & 选题符合专业培养目标要求；与科学研究、生产实际或社会实践问题紧密结合；工作量饱满，难度适中，综合训练强。 &  \\
+    \hline
+    资料收集\newline 与分析 & 具有一定的查阅、整理、分析中外文文献的能力；能较好理解课题任务并提出实施方案；查阅文献有一定广泛性，资料收集充分。 &  \\
+    \hline
+    研究水平\newline 与能力 & 能熟练掌握和运用所学专业基本理论、基本知识和基本技能分析解决相关理论和实际问题；论点鲜明，论据充分；实验设计合理，数据准确可靠，理论分析与计算正确；具有从事科学研究工作或专门技术工作的初步能力。 &  \\
+    \hline
+    论文撰写\newline 质\qquad 量 & 论文结构严谨，逻辑性强，层次清晰，技术用语准确；行文流畅，语句通顺；论文格式符合规范要求。 &  \\
+    \hline
+    学术水平\newline 与创新 & 具有一定的学术水平或实践应用价值；对与课题相关的理论或实际问题有较深刻的认识，有新的见解，有一定的创新。 &  \\
+    \hline
+    
+    \multicolumn{3}{|c|}{\textbf{答辩小组评阅}} \\
+    \hline
+    选 题 质 量 & 选题符合专业培养目标要求；与科学研究、生产实际或社会实践问题紧密结合；工作量饱满，难度适中，综合训练强。 &  \\
+    \hline
+    研究水平\newline 与能力 & 能熟练掌握和运用所学专业基本理论、基本知识和基本技能分析解决相关理论和实际问题；论点鲜明，论据充分；实验设计合理，数据准确可靠，理论分析与计算正确；具有从事科学研究工作或专门技术工作的初步能力。 &  \\
+    \hline
+    论文撰写\newline 质\qquad 量 & 论文结构严谨，逻辑性强，层次清晰，技术用语准确；行文流畅，语句通顺；论文格式符合规范要求。 &  \\
+    \hline
+    学术水平\newline 与创新 & 具有一定的学术水平或实践应用价值；对与课题相关的理论或实际问题有较深刻的认识，有新的见解，有一定的创新。 &  \\
+    \hline
+    答\qquad 辩 & 能简明扼要阐述论文主要内容，思路清晰，语言表达准确、顺畅；回答问题有理论根据，基本概念清楚，逻辑性强，对主要问题回答准确、有深度。 &  \\
+    \hline
+\end{tabularx}
+\par}
+
+\end{document}
