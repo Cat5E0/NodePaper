@@ -200,7 +200,7 @@ try {
         }
     }
     if ($Fixture -eq "layout-stress") {
-        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}", "\input{figures/tikz-diagram.tex}")) {
+        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}", "\input{figures/tikz-diagram.tex}", "\input{figures/mpl-plot.pgf}")) {
             if (-not $texText.Contains($required)) {
                 throw "layout-stress LaTeX contract is missing: $required"
             }

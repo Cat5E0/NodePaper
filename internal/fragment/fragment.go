@@ -54,6 +54,16 @@ var commandPatterns = []struct {
 	{CodeCommandExecution, "TeX I/O, command execution, or command obfuscation is not allowed", regexp.MustCompile(`(?i)\\(?:write18|shellescape|pdfshellescape|immediate|openin|openout|read|write|catcode|csname|scantokens|special|directlua|endlinechar|escapechar)\b`)},
 }
 
+// fragmentExtensions is the set of extensions a declared fragment may carry.
+//
+// .pgf is accepted alongside .tex because it is what the tools users actually
+// reach for emit: matplotlib's own pgf backend writes figure.pgf, and requiring
+// a rename before the file can be declared bought nothing - the extension never
+// selected any behaviour here, and every content rule below applies to both.
+// The match stays case-sensitive, as it always was; widening the extension set
+// is the change being made, not the strictness about how it is spelled.
+var fragmentExtensions = map[string]bool{".tex": true, ".pgf": true}
+
 // Inspect resolves, validates, reads and hashes declared fragments. It never
 // writes project files.
 func Inspect(projectRoot string, declarations []string) ([]File, []Issue) {
@@ -72,8 +82,8 @@ func Inspect(projectRoot string, declarations []string) ([]File, []Issue) {
 	for _, declaration := range declarations {
 		rel := filepath.Clean(filepath.FromSlash(strings.TrimSpace(declaration)))
 		key := strings.ToLower(rel)
-		if strings.TrimSpace(declaration) == "" || rel == "." || filepath.IsAbs(rel) || filepath.Ext(rel) != ".tex" {
-			issues = append(issues, Issue{Code: CodeInvalidDeclaration, Path: declaration, Message: "fragment must be a non-empty relative .tex path"})
+		if strings.TrimSpace(declaration) == "" || rel == "." || filepath.IsAbs(rel) || !fragmentExtensions[filepath.Ext(rel)] {
+			issues = append(issues, Issue{Code: CodeInvalidDeclaration, Path: declaration, Message: "fragment must be a non-empty relative .tex or .pgf path"})
 			continue
 		}
 		if seen[key] {

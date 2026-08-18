@@ -1,0 +1,30 @@
+%% Creator: Matplotlib, PGF backend （形态取自 matplotlib pgf 后端的真实输出）
+% 本 Fragment 有两个回归职责：
+%   ① 声明为 .pgf 的 Fragment 必须被接受（matplotlib 的 savefig('f.pgf') 直接产出
+%      这个扩展名，不应强迫用户先改名）；
+%   ② 低层 pgfpicture 命令由 Profile 加载的 tikz 提供（tikz 带 pgf），不需要
+%      pgfplots——后者不能加进模板，实测会让所有构建报 NP6105。
+% 图内故意含中文标签，让既有的「零 Missing character:」护栏一并覆盖 pgf 文本。
+\begingroup%
+\makeatletter%
+\begin{pgfpicture}%
+\pgfpathrectangle{\pgfpointorigin}{\pgfqpoint{3.000000in}{2.000000in}}%
+\pgfusepath{use as bounding box, clip}%
+\begin{pgfscope}%
+\pgfsetbuttcap%
+\definecolor{currentstroke}{rgb}{0.121569,0.466667,0.705882}%
+\pgfsetstrokecolor{currentstroke}%
+\pgfsetlinewidth{1.505625pt}%
+\pgfpathmoveto{\pgfqpoint{0.400000in}{0.300000in}}%
+\pgfpathlineto{\pgfqpoint{1.200000in}{1.100000in}}%
+\pgfpathlineto{\pgfqpoint{2.000000in}{0.700000in}}%
+\pgfpathlineto{\pgfqpoint{2.700000in}{1.600000in}}%
+\pgfusepath{stroke}%
+\end{pgfscope}%
+\begin{pgfscope}%
+\definecolor{textcolor}{rgb}{0.000000,0.000000,0.000000}%
+\pgftext[x=1.550000in,y=0.100000in,,top]{\color{textcolor}\rmfamily\fontsize{9}{10}\selectfont 时间 (s)}%
+\end{pgfscope}%
+\end{pgfpicture}%
+\makeatother%
+\endgroup%

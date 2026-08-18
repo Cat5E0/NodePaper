@@ -55,6 +55,18 @@ func TestInspectRejectsUnsafeDeclarationsAndCommands(t *testing.T) {
 		})
 	}
 
+	// .pgf is accepted with exactly the same content rules as .tex, so a
+	// matplotlib figure can be declared without renaming it first.
+	writeFragment(t, root, "good/plot.pgf", "\\begin{pgfpicture}\\end{pgfpicture}\n")
+	pgfFiles, pgfIssues := Inspect(root, []string{"good/plot.pgf"})
+	if len(pgfIssues) != 0 || len(pgfFiles) != 1 {
+		t.Fatalf(".pgf fragment was rejected: files=%#v issues=%#v", pgfFiles, pgfIssues)
+	}
+	writeFragment(t, root, "bad/plot-doc.pgf", "\\usepackage{pgfplots}\n")
+	if _, issues := Inspect(root, []string{"bad/plot-doc.pgf"}); !hasIssue(issues, CodeDocumentCommand) {
+		t.Fatalf(".pgf fragment escaped the package-command rule: %#v", issues)
+	}
+
 	files, issues := Inspect(root, []string{"bad/commented.tex"})
 	if len(issues) != 0 || len(files) != 1 {
 		t.Fatalf("comment-only command was rejected: files=%#v issues=%#v", files, issues)

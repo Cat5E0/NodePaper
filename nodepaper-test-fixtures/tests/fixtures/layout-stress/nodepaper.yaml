@@ -11,6 +11,7 @@ latexFragments:
   - tables/complex-result.tex
   - equations/long-objective.tex
   - figures/tikz-diagram.tex
+  - figures/mpl-plot.pgf
 appendix:
   numbering: alpha
 output:
