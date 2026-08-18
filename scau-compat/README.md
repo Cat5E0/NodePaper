@@ -2,6 +2,10 @@
 
 > 本文保存迁移前的 SCAU PowerShell 使用说明。它不是当前 CUMCM Project CLI 的主 README，也不表示 SCAU 模板已经迁移为正式 Profile。命令和模板在迁移完成前按现有兼容行为保留。
 
+> 下面的命令都**从仓库根目录**运行：`Build-Paper.ps1`、`Bootstrap-Tools.ps1` 和内置的 `tools/` 与 NodePaper CLI 共用，留在根目录；SCAU 专属的脚本、模板、过滤器和示例在 `scau-compat/` 下。
+>
+> 注意两个脚本的 `-Input` 基准目录不同，各自相对**脚本所在目录**解析：`Build-Paper.ps1` 在仓库根，所以写 `.\scau-compat\examples\paper.md`；`Convert-MarkdownToScauLatex.ps1` 在 `scau-compat\` 里，所以写 `.\examples\paper.md`。
+
 这个项目用于把一个 Markdown 论文文件转换成华南农业大学本科毕业论文 LaTeX 模板格式，并在本机存在 LaTeX 编译环境时自动生成 PDF。
 
 项目优先面向 Windows x64 分发。Pandoc 和 pandoc-crossref 可以放在项目自己的 `tools/windows-x64` 目录中，普通用户不需要手动配置系统 PATH。
@@ -17,19 +21,19 @@
 只生成 LaTeX：
 
 ```powershell
-.\Convert-MarkdownToScauLatex.ps1 -Input .\examples\paper.md
+.\scau-compat\Convert-MarkdownToScauLatex.ps1 -Input .\examples\paper.md
 ```
 
 生成 LaTeX 并尝试编译 PDF：
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md
 ```
 
 使用作业模板：
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\assignment.md -TemplateName assignment
+.\Build-Paper.ps1 -Input .\scau-compat\examples\assignment.md -TemplateName assignment
 ```
 
 使用实验报告模板：
@@ -52,41 +56,43 @@
 使用毕业论文模板：
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md -TemplateName thesis
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md -TemplateName thesis
 ```
 
 如果你的机器已经安装了 Pandoc 和 pandoc-crossref，也可以在开发时允许使用系统工具：
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md -AllowSystemPandoc
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md -AllowSystemPandoc
 ```
 
 ## 项目结构
 
 ```text
-NodePaper/
-  Build-Paper.ps1
-  Convert-MarkdownToScauLatex.ps1
-  Bootstrap-Tools.ps1
-  README.md
-  README.en.md
-  examples/
-    paper.md
-    assignment.md
-    assignment-no-references.md
-  filters/
-    scau-blocks.lua
-  templates/
-    scau-thesis.template.tex
-    scau-assignment.template.tex
-    scau-experiment.template.tex
-  tools/
-    windows-x64/
-      pandoc/
-        pandoc.exe
-      pandoc-crossref/
-        pandoc-crossref.exe
-  build/
+NodePaper/                       仓库根目录
+  Build-Paper.ps1                入口（同时服务 CUMCM 路线）
+  Bootstrap-Tools.ps1            下载内置 pandoc
+  tools/windows-x64/
+    pandoc/pandoc.exe
+    pandoc-crossref/pandoc-crossref.exe
+  logs/                          构建日志
+  scau-compat/                   本目录：迁移前的 SCAU 工具链
+    Convert-MarkdownToScauLatex.ps1
+    SCAU-Thesis-Template-2026.tex  独立可编译的 2026 版论文模板
+    references.bib
+    README.md / README.en.md
+    examples/
+      paper.md
+      assignment.md
+      assignment-no-references.md
+    filters/
+      scau-blocks.lua
+    templates/
+      scau-thesis.template.tex
+      scau-assignment.template.tex
+      scau-experiment.template.tex
+    image/
+      SCAU-LOGO.jpg
+      SCAU-LOGO.png
 ```
 
 ## Markdown 文件格式
@@ -338,7 +344,7 @@ eig(A)
 ```
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md
 ```
 ```
 

@@ -228,7 +228,9 @@ else {
     if ($ExportMode) {
         throw "ExportMode requires the CUMCM Profile route (SourceManifest); the legacy SCAU templates have no compile-time font cascade."
     }
-    $convertScript = Join-Path $PSScriptRoot "Convert-MarkdownToScauLatex.ps1"
+    # The legacy converter lives in scau-compat/ together with its own
+    # templates, filters and examples; only the CUMCM route stays at the root.
+    $convertScript = Join-Path $PSScriptRoot "scau-compat\Convert-MarkdownToScauLatex.ps1"
     $convertParams = @{
         MarkdownPath = (Resolve-ProjectPath $MarkdownPath)
         Output = $outputPath

@@ -414,10 +414,7 @@ latexFragments:
 - does not upload paper content;
 - does not convert isolated Markdown files directly.
 
-The SCAU PowerShell templates retained in this repository have not been migrated into formal NodePaper Profiles. See:
-
-- [`README.SCAU-COMPAT.md`](README.SCAU-COMPAT.md)
-- [`README.SCAU-COMPAT.zh-CN.md`](README.SCAU-COMPAT.zh-CN.md)
+The pre-migration SCAU PowerShell toolchain is kept in its entirety under [`scau-compat/`](scau-compat/). It has not been migrated into formal NodePaper Profiles and is unrelated to the rest of this document. See [`scau-compat/README.en.md`](scau-compat/README.en.md).
 
 ## License
 

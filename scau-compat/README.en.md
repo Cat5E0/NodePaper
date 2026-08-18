@@ -2,6 +2,10 @@
 
 > This document preserves the pre-migration SCAU PowerShell workflow. It is not the main README for the CUMCM Project CLI and does not mean that the SCAU templates have been migrated into formal Profiles.
 
+> Run the commands below **from the repository root**: `Build-Paper.ps1`, `Bootstrap-Tools.ps1` and the bundled `tools/` are shared with the NodePaper CLI and stay at the root, while the SCAU-specific script, templates, filter and examples live under `scau-compat/`.
+>
+> Note that the two scripts resolve `-Input` against **their own directory**, so the paths differ: `Build-Paper.ps1` sits at the repository root and takes `.\scau-compat\examples\paper.md`, while `Convert-MarkdownToScauLatex.ps1` sits inside `scau-compat\` and takes `.\examples\paper.md`.
+
 This project converts one Markdown thesis file into a complete SCAU-style LaTeX file and, when a LaTeX toolchain is available, builds a PDF.
 
 The project targets Windows x64 for distribution. Pandoc and pandoc-crossref can be bundled in the project's own `tools/windows-x64` directory, so users don't need to configure the system PATH.
@@ -17,19 +21,19 @@ Prepare bundled tools once:
 Generate LaTeX only:
 
 ```powershell
-.\Convert-MarkdownToScauLatex.ps1 -Input .\examples\paper.md
+.\scau-compat\Convert-MarkdownToScauLatex.ps1 -Input .\examples\paper.md
 ```
 
 Generate LaTeX and compile PDF:
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md
 ```
 
 Use the assignment template:
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\assignment.md -TemplateName assignment
+.\Build-Paper.ps1 -Input .\scau-compat\examples\assignment.md -TemplateName assignment
 ```
 
 Use the experiment report template:
@@ -52,41 +56,43 @@ Optional cover and last-page PDFs:
 Use the thesis template:
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md -TemplateName thesis
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md -TemplateName thesis
 ```
 
 If your machine already has Pandoc and pandoc-crossref installed, you can allow system tools during development:
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md -AllowSystemPandoc
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md -AllowSystemPandoc
 ```
 
 ## Project Structure
 
 ```text
-NodePaper/
-  Build-Paper.ps1
-  Convert-MarkdownToScauLatex.ps1
-  Bootstrap-Tools.ps1
-  README.md
-  README.en.md
-  examples/
-    paper.md
-    assignment.md
-    assignment-no-references.md
-  filters/
-    scau-blocks.lua
-  templates/
-    scau-thesis.template.tex
-    scau-assignment.template.tex
-    scau-experiment.template.tex
-  tools/
-    windows-x64/
-      pandoc/
-        pandoc.exe
-      pandoc-crossref/
-        pandoc-crossref.exe
-  build/
+NodePaper/                       repository root
+  Build-Paper.ps1                entry point (also serves the CUMCM route)
+  Bootstrap-Tools.ps1            downloads the bundled pandoc
+  tools/windows-x64/
+    pandoc/pandoc.exe
+    pandoc-crossref/pandoc-crossref.exe
+  logs/                          build logs
+  scau-compat/                   this directory: the pre-migration SCAU toolchain
+    Convert-MarkdownToScauLatex.ps1
+    SCAU-Thesis-Template-2026.tex  standalone, directly compilable 2026 thesis template
+    references.bib
+    README.md / README.en.md
+    examples/
+      paper.md
+      assignment.md
+      assignment-no-references.md
+    filters/
+      scau-blocks.lua
+    templates/
+      scau-thesis.template.tex
+      scau-assignment.template.tex
+      scau-experiment.template.tex
+    image/
+      SCAU-LOGO.jpg
+      SCAU-LOGO.png
 ```
 
 ## Markdown File Format
@@ -330,7 +336,7 @@ eig(A)
 ```
 
 ```powershell
-.\Build-Paper.ps1 -Input .\examples\paper.md
+.\Build-Paper.ps1 -Input .\scau-compat\examples\paper.md
 ```
 ```
 

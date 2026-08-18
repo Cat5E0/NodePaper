@@ -38,7 +38,10 @@ function Find-Executable {
         [switch]$AllowSystem
     )
 
-    $projectPath = Join-Path $PSScriptRoot $ProjectRelativePath
+    # The bundled pandoc lives in the repository's tools/ directory, one level
+    # above this script: this directory holds only the SCAU toolchain, while
+    # tools/ is shared with the NodePaper CLI and its release payload.
+    $projectPath = Join-Path (Split-Path -Parent $PSScriptRoot) $ProjectRelativePath
     if (Test-Path -LiteralPath $projectPath -PathType Leaf) {
         return (Resolve-Path -LiteralPath $projectPath).Path
     }
@@ -50,7 +53,7 @@ function Find-Executable {
         }
     }
 
-    throw "Missing $CommandName. Expected project tool at '$projectPath'. Run .\Bootstrap-Tools.ps1 or pass -AllowSystemPandoc for development."
+    throw "Missing $CommandName. Expected project tool at '$projectPath'. Run ..\Bootstrap-Tools.ps1 or pass -AllowSystemPandoc for development."
 }
 
 function Invoke-Checked {

@@ -417,10 +417,7 @@ latexFragments:
 - 不上传论文内容；
 - 不支持直接转换孤立 Markdown 文件。
 
-仓库中保留的 SCAU PowerShell 模板尚未迁移为正式 NodePaper Profile，详见：
-
-- [`README.SCAU-COMPAT.zh-CN.md`](README.SCAU-COMPAT.zh-CN.md)
-- [`README.SCAU-COMPAT.md`](README.SCAU-COMPAT.md)
+迁移前的 SCAU PowerShell 工具链整套保留在 [`scau-compat/`](scau-compat/) 目录里，尚未迁移为正式 NodePaper Profile，与本文其余内容无关。用法见 [`scau-compat/README.md`](scau-compat/README.md)。
 
 ## 许可证
 
