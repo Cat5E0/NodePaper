@@ -8,19 +8,30 @@
 
       1. registering an older release and building a real Project with it;
       2. registering a newer release extracted beside it, asserting the older
-         folder's PATH entry is dropped so only one survives;
+         folder's PATH entry is dropped so only one survives and that the older
+         folder itself is left byte for byte as it was;
       3. re-registering the same folder (repair);
       4. rejecting a silent downgrade, matching the Setup's silent default;
-      5. unregistering, asserting the PATH entry is gone, the registration is
-         cleared, and both the folder and the Project's PDF are left alone;
+      5. unregistering from inside the folder with no arguments, asserting the
+         PATH entry is gone and both the folder and the Project's PDF are left
+         alone;
       6. the same round on a Chinese/space path;
       7. registering a payload whose bundled example has been built once --
          the case that used to abort with "Unverified extra file in payload";
       8. registering while a Setup-style installation exists, asserting its
-         directory and uninstaller are untouched.
+         directory and uninstaller are untouched;
+      9. a Setup-marked folder on PATH: registering must not take its entry
+         away, and running the uninstall script inside it must refuse;
+     10. a leftover HKCU\Software\NodePaper\PortablePath from a pre-release
+         script: registering deletes the whole key and reads nothing from it.
+
+    A portable installation is identified by its own directory throughout --
+    nodepaper.exe present, unins000.exe absent - and no global record of one
+    exists any more, so these checks read PATH rather than the registry.
 
     Runs use Process PATH scope so the real user PATH is never modified. The
-    HKCU registration is real, so it is saved and restored around the run.
+    obsolete HKCU key is real, so whether it existed is saved and restored
+    around the run.
 
 .PARAMETER OldZip
     Path to an older release ZIP (for example rc.7 or rc.8).
@@ -39,8 +50,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-zip-upgrade-" + [Guid]::NewGuid().ToString("N"))
-$RegistrationKey = 'HKCU:\Software\NodePaper'
-$RegistrationValue = 'PortablePath'
+# The key the pre-release scripts wrote their single global PortablePath into.
+# Nothing writes or reads it any more; the gate only checks that a leftover one
+# is deleted and that registering never recreates it.
+$LegacyKey = 'HKCU:\Software\NodePaper'
+$LegacyValue = 'PortablePath'
 $passed = $false
 
 function Assert-True {
@@ -64,11 +78,45 @@ function Test-PathContains {
     return $false
 }
 
-function Get-RegisteredPath {
-    if (-not (Test-Path -LiteralPath $RegistrationKey)) { return "" }
-    $item = Get-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -ErrorAction SilentlyContinue
-    if ($null -eq $item) { return "" }
-    return [string]$item.$RegistrationValue
+# The judgement the installer and the uninstaller both use: a folder holding a
+# nodepaper.exe and no Setup uninstaller is a portable release.
+function Test-PortableDirectory {
+    param([string]$Directory)
+    if ([string]::IsNullOrWhiteSpace($Directory)) { return $false }
+    try {
+        if (-not (Test-Path -LiteralPath (Join-Path $Directory "nodepaper.exe") -PathType Leaf)) { return $false }
+        return (-not (Test-Path -LiteralPath (Join-Path $Directory "unins000.exe") -PathType Leaf))
+    }
+    catch { return $false }
+}
+
+# The portable folders on the process PATH that this run created, in PATH order.
+# Scoped to the work directory on purpose: the machine running this may have a
+# NodePaper of its own on PATH, and that one is none of the gate's business.
+function Get-PortableDirsUnderWorkRoot {
+    $prefix = (Get-NormalizedPathEntry $workRoot) + [System.IO.Path]::DirectorySeparatorChar
+    $found = @()
+    foreach ($entry in @([Environment]::GetEnvironmentVariable("Path", "Process") -split ';' |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+        $directory = $entry.Trim().Trim('"')
+        $normalized = Get-NormalizedPathEntry $directory
+        if ($normalized -eq "" -or -not $normalized.StartsWith($prefix)) { continue }
+        if (Test-PortableDirectory $directory) { $found += $normalized }
+    }
+    return $found
+}
+
+function Test-LegacyKeyExists {
+    return (Test-Path -LiteralPath $LegacyKey)
+}
+
+# Every file under a folder with its hash: the upgrade must take the older
+# folder off PATH without touching a byte inside it.
+function Get-DirectorySnapshot {
+    param([string]$Root)
+    return @(Get-ChildItem -LiteralPath $Root -Recurse -File | Sort-Object FullName | ForEach-Object {
+        $_.FullName.Substring($Root.Length).TrimStart('\') + " " + (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    }) -join "`n"
 }
 
 function Expand-Package {
@@ -99,12 +147,27 @@ function Invoke-Installer {
     return @{ Exit = $exit; Error = $callError }
 }
 
+# No -InstallRoot by default: the folder the script sits in is the folder it
+# unregisters, which is the normal way a user runs it. -ExplicitRoot exercises
+# the parameter, which has to pass the same ownership check.
 function Invoke-Uninstaller {
-    param([string]$PackageDir)
+    param([string]$PackageDir, [switch]$ExplicitRoot, [switch]$Show)
     $uninstaller = Join-Path $PackageDir "Uninstall-NodePaper.ps1"
-    if (Test-Path -LiteralPath $uninstaller -PathType Leaf) {
-        try { & $uninstaller -InstallRoot $PackageDir -PathScope Process 2>&1 | Out-Null } catch { }
+    if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) { return @{ Exit = 0 } }
+    $exit = 0
+    try {
+        if ($ExplicitRoot) {
+            $output = & $uninstaller -InstallRoot $PackageDir -PathScope Process 2>&1
+        }
+        else {
+            $output = & $uninstaller -PathScope Process 2>&1
+        }
+        $exit = $LASTEXITCODE
+        if ($null -eq $exit) { $exit = 0 }
+        if ($Show) { $output | ForEach-Object { Write-Host "    $_" } }
     }
+    catch { $exit = 1 }
+    return @{ Exit = $exit }
 }
 
 function Get-PackageVersion {
@@ -114,8 +177,10 @@ function Get-PackageVersion {
     return ((& $exe --version 2>&1 | Out-String).Trim())
 }
 
-# The registration lives in the real HKCU, so preserve whatever is there.
-$savedRegistration = Get-RegisteredPath
+# The obsolete key lives in the real HKCU. Nothing here writes a PortablePath
+# except the leftover-value check below, but that check and the installer both
+# delete the key, so whether it existed is recorded and put back afterwards.
+$legacyKeyExisted = Test-LegacyKeyExists
 
 try {
     New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
@@ -128,7 +193,13 @@ try {
     $oldVersion = Get-PackageVersion $oldDir
     Assert-True ($oldVersion -like "nodepaper 0.1.0-rc.*") "old candidate version: $oldVersion"
     Assert-True (Test-PathContains $oldDir) "old candidate folder is on PATH"
-    Assert-True ((Get-NormalizedPathEntry (Get-RegisteredPath)) -eq (Get-NormalizedPathEntry $oldDir)) "registration records the old folder"
+    $onPath = @(Get-PortableDirsUnderWorkRoot)
+    Assert-True ($onPath.Count -eq 1 -and $onPath[0] -eq (Get-NormalizedPathEntry $oldDir)) "the old folder is the only portable NodePaper this run put on PATH"
+    # No key assertion here on purpose: -OldZip is an arbitrary earlier release,
+    # and the ones that predate M4-14 register HKCU\Software\NodePaper by
+    # design. Asserting its absence after the old installer runs tests the old
+    # package, not this change. The absence is asserted after the upgrade below,
+    # where the new installer is the one that had to hold to it.
 
     $oldExe = Join-Path $oldDir "nodepaper.exe"
     $projectDir = Join-Path $workRoot "project"
@@ -147,15 +218,20 @@ try {
 
     # 2. Register the newer release extracted beside it. Upgrading by extracting
     # a second copy must leave one PATH entry, not two whose order decides which
-    # nodepaper.exe wins.
+    # nodepaper.exe wins: one folder owns the command and switching is explicit.
+    # The old folder is only taken off PATH -- not a byte inside it may change.
+    $oldSnapshot = Get-DirectorySnapshot $oldDir
     $installNew = Invoke-Installer $newDir "register-new"
     Assert-True ($installNew.Exit -eq 0) "new candidate registered (exit 0)$($installNew.Error)"
     $newVersion = Get-PackageVersion $newDir
     Assert-True ($newVersion -ne $oldVersion) "version changed: $oldVersion -> $newVersion"
     Assert-True (Test-PathContains $newDir) "new candidate folder is on PATH"
     Assert-True (-not (Test-PathContains $oldDir)) "old candidate folder dropped from PATH"
-    Assert-True ((Get-NormalizedPathEntry (Get-RegisteredPath)) -eq (Get-NormalizedPathEntry $newDir)) "registration moved to the new folder"
+    $onPath = @(Get-PortableDirsUnderWorkRoot)
+    Assert-True ($onPath.Count -eq 1 -and $onPath[0] -eq (Get-NormalizedPathEntry $newDir)) "the new folder is now the only portable NodePaper this run has on PATH"
+    Assert-True (-not (Test-LegacyKeyExists)) "the upgrade needed no global registration key"
     Assert-True (Test-Path -LiteralPath (Join-Path $oldDir "nodepaper.exe")) "old folder still on disk (registration removes no files)"
+    Assert-True ((Get-DirectorySnapshot $oldDir) -eq $oldSnapshot) "old folder unchanged file for file after losing its PATH entry"
     Assert-True (Test-Path -LiteralPath $pdfBefore -PathType Leaf) "existing Project PDF preserved"
 
     # 3. Re-register the same folder (repair).
@@ -180,11 +256,15 @@ try {
         Set-Content -LiteralPath $registeredManifest -Value $manifestBackup -Encoding UTF8 -NoNewline
     }
 
-    # 5. Unregister. The folder and the Project must both survive: this script
-    # never owned either of them.
-    Invoke-Uninstaller $newDir
+    # 5. Unregister the way a user does it: run the script sitting in the folder,
+    # with no arguments. The folder it runs from is the folder it unregisters,
+    # and only that one. The folder and the Project must both survive: this
+    # script never owned either of them.
+    $removeNew = Invoke-Uninstaller $newDir
+    Assert-True ($removeNew.Exit -eq 0) "unregistering from inside the folder succeeded (exit 0)"
     Assert-True (-not (Test-PathContains $newDir)) "PATH entry removed by unregistration"
-    Assert-True ((Get-RegisteredPath) -eq "") "registration record cleared"
+    Assert-True (@(Get-PortableDirsUnderWorkRoot).Count -eq 0) "no portable NodePaper of this run is left on PATH"
+    Assert-True (-not (Test-LegacyKeyExists)) "unregistering left no registration key behind"
     Assert-True (Test-Path -LiteralPath (Join-Path $newDir "nodepaper.exe")) "folder kept after unregistration"
     Assert-True (Test-Path -LiteralPath $pdfBefore -PathType Leaf) "Project PDF kept after unregistration"
 
@@ -196,7 +276,10 @@ try {
     $installCustom = Invoke-Installer $customDir "register-custom"
     Assert-True ($installCustom.Exit -eq 0) "custom path registered$($installCustom.Error)"
     Assert-True (Test-PathContains $customDir) "custom path is on PATH"
-    Invoke-Uninstaller $customDir
+    # -InstallRoot names the same folder explicitly; it has to pass the same
+    # ownership check the default does.
+    $removeCustom = Invoke-Uninstaller $customDir -ExplicitRoot
+    Assert-True ($removeCustom.Exit -eq 0) "-InstallRoot unregistered the custom path (exit 0)"
     Assert-True (-not (Test-PathContains $customDir)) "custom path removed from PATH"
 
     # 7. Regression: a payload whose bundled example has been built once. The
@@ -208,7 +291,7 @@ try {
     $dirty = Invoke-Installer $newDir "register-after-example-build"
     Assert-True ($dirty.Exit -eq 0) "registration succeeded despite build output in the bundled example$($dirty.Error)"
     Assert-True (Test-PathContains $newDir) "dirty payload registered onto PATH"
-    Invoke-Uninstaller $newDir
+    $null = Invoke-Uninstaller $newDir
 
     # 8. Regression: a Setup-style installation must survive untouched. Setup
     # keeps its uninstaller in its install directory, and the previous copying
@@ -231,12 +314,59 @@ try {
             Assert-True (Test-Path -LiteralPath $uninsPath) "Setup's uninstaller still present"
             Assert-True ((Get-FileHash -LiteralPath $uninsPath -Algorithm SHA256).Hash -eq $uninsHash) "Setup's uninstaller unmodified"
             Assert-True ((Get-Content -LiteralPath (Join-Path $setupDir "nodepaper.exe") -Raw) -eq "setup copy") "Setup's nodepaper.exe untouched"
-            Invoke-Uninstaller $newDir
+            $null = Invoke-Uninstaller $newDir
         }
         finally {
             Remove-Item -LiteralPath $setupDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
+
+    # 9. A Setup-marked folder that is on PATH is another channel's entry. It
+    # must survive a registration untouched, and the uninstall script must
+    # refuse to run inside it -- taking that entry away would leave a Setup
+    # installation listed in Settings with no command, which is the defect
+    # M4-13 was opened for.
+    $fakeSetupDir = Join-Path $workRoot "setup-marked"
+    Copy-Item -LiteralPath $newDir -Destination $fakeSetupDir -Recurse
+    Set-Content -LiteralPath (Join-Path $fakeSetupDir "unins000.exe") -Value "setup uninstaller" -NoNewline
+    [Environment]::SetEnvironmentVariable("Path",
+        ([Environment]::GetEnvironmentVariable("Path", "Process") + ";" + $fakeSetupDir), "Process")
+    Assert-True (Test-PathContains $fakeSetupDir) "a Setup-marked folder is on PATH"
+
+    $besideSetup = Invoke-Installer $newDir "register-beside-setup-marked-entry"
+    Assert-True ($besideSetup.Exit -eq 0) "registration succeeded with a Setup-marked folder on PATH$($besideSetup.Error)"
+    Assert-True (Test-PathContains $fakeSetupDir) "the Setup-marked folder kept its PATH entry"
+    Assert-True (Test-PathContains $newDir) "the portable folder was registered"
+
+    $refuseSetup = Invoke-Uninstaller $fakeSetupDir -Show
+    Assert-True ($refuseSetup.Exit -eq 1) "the uninstall script refuses to run inside a Setup-marked folder (exit 1)"
+    Assert-True (Test-PathContains $fakeSetupDir) "the refused run left the Setup-marked PATH entry alone"
+    Assert-True (Test-PathContains $newDir) "the refused run left the portable PATH entry alone"
+
+    $removeBeside = Invoke-Uninstaller $newDir
+    Assert-True ($removeBeside.Exit -eq 0) "the portable folder unregisters itself normally afterwards"
+    Assert-True (-not (Test-PathContains $newDir)) "portable PATH entry removed"
+    Assert-True (Test-PathContains $fakeSetupDir) "the Setup-marked entry still stands after the portable one went"
+
+    # A folder with no nodepaper.exe is nobody's: reported, not acted on.
+    $emptyDir = Join-Path $workRoot "not-a-release"
+    New-Item -ItemType Directory -Force -Path $emptyDir | Out-Null
+    Copy-Item -LiteralPath (Join-Path $newDir "Uninstall-NodePaper.ps1") -Destination $emptyDir
+    $notARelease = Invoke-Uninstaller $emptyDir -Show
+    Assert-True ($notARelease.Exit -eq 0) "a folder holding no nodepaper.exe is reported, not acted on (exit 0)"
+    Assert-True (Test-PathContains $fakeSetupDir) "that run changed no PATH entry either"
+
+    # 10. A leftover PortablePath from a pre-release script. Nothing reads it;
+    # registering deletes the whole key, which is all the migration this needs.
+    New-Item -Path $LegacyKey -Force | Out-Null
+    Set-ItemProperty -LiteralPath $LegacyKey -Name $LegacyValue -Value $oldDir -Type String
+    Assert-True (Test-LegacyKeyExists) "a leftover PortablePath was planted"
+    $selfHeal = Invoke-Installer $newDir "register-with-leftover-key"
+    Assert-True ($selfHeal.Exit -eq 0) "registration succeeded with a leftover key present$($selfHeal.Error)"
+    Assert-True (-not (Test-LegacyKeyExists)) "the leftover HKCU\Software\NodePaper key was deleted"
+    Assert-True (Test-PathContains $newDir) "the leftover key did not divert the registration"
+    Assert-True (Test-PathContains $fakeSetupDir) "the leftover key's directory was not confused with a Setup-marked one"
+    $null = Invoke-Uninstaller $newDir
 
     $passed = $true
     Write-Host ""
@@ -245,17 +375,16 @@ try {
 }
 finally {
     foreach ($dir in @($oldDir, $newDir, (Join-Path $workRoot "中文 安装\NodePaper"))) {
-        if ($dir -and (Test-Path -LiteralPath $dir)) { Invoke-Uninstaller $dir }
+        if ($dir -and (Test-Path -LiteralPath $dir)) { $null = Invoke-Uninstaller $dir }
     }
-    # Restore whatever registration the machine had before this run.
-    if ([string]::IsNullOrWhiteSpace($savedRegistration)) {
-        if (Test-Path -LiteralPath $RegistrationKey) {
-            Remove-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -ErrorAction SilentlyContinue
-        }
+    # Put the obsolete key back exactly as the machine had it: absent if it was
+    # absent, and present but empty if it was present. No value is restored --
+    # this run only ever plants one itself, and nothing writes one any more.
+    if ($legacyKeyExisted) {
+        if (-not (Test-Path -LiteralPath $LegacyKey)) { New-Item -Path $LegacyKey -Force | Out-Null }
     }
-    else {
-        if (-not (Test-Path -LiteralPath $RegistrationKey)) { New-Item -Path $RegistrationKey -Force | Out-Null }
-        Set-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -Value $savedRegistration -Type String
+    elseif (Test-Path -LiteralPath $LegacyKey) {
+        Remove-Item -LiteralPath $LegacyKey -Recurse -Force -ErrorAction SilentlyContinue
     }
     if (-not $passed -and -not $KeepWorkDirectory) {
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue

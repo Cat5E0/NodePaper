@@ -57,13 +57,14 @@ It installs into your user profile without administrator rights. Uninstall from 
 
 - **Do not delete or move the folder** — the command stops working if you do;
 - to relocate it, move the whole folder and run `.\Install-NodePaper.ps1` again from its new location; the old entry is removed from PATH automatically;
-- to upgrade, extract the new release elsewhere and run its `.\Install-NodePaper.ps1`; the old folder leaves PATH automatically and you can then delete it;
-- to uninstall, run `.\Uninstall-NodePaper.ps1` from the same folder. It removes the PATH entry only and **keeps the folder**; delete it yourself if you want it gone.
+- to upgrade, extract the new release elsewhere and run its `.\Install-NodePaper.ps1`; the old folder leaves PATH automatically (its files are not touched) and you can then delete it;
+- to uninstall, run `.\Uninstall-NodePaper.ps1` from the same folder. It unregisters the folder it sits in, removes the PATH entry only and **keeps the folder**; delete it yourself if you want it gone;
+- keeping several extracted folders is fine, but only one of them can answer to `nodepaper`: PATH is searched left to right, so running a folder's `.\Install-NodePaper.ps1` hands the command to that folder and takes the other one off PATH.
 
 You can also skip the script entirely: run `nodepaper.exe` from the extracted folder by full path, or add it to PATH yourself as shown below.
 
 > Note: double-clicking `nodepaper.exe` only opens a window with guidance text and **installs nothing**; press Enter to close it.
-> Version behaviour: `Install-NodePaper.ps1` compares against the folder registered last time. Upgrade and re-registering the same version continue directly; if this package is older than the registered one (downgrade), it asks for confirmation in an owned console and is rejected in non-interactive (piped/CI) runs.
+> Version behaviour: `Install-NodePaper.ps1` compares against the portable folder your PATH finds first, which is the copy `nodepaper` currently runs. Upgrade and re-registering the same version continue directly; if this package is older than that one (downgrade), it asks for confirmation in an owned console and is rejected in non-interactive (piped/CI) runs.
 
 <details>
 <summary>Adding it to PATH by hand</summary>

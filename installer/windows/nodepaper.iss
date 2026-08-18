@@ -107,8 +107,7 @@ chinesesimplified.ExistingHeading=现有安装：
 chinesesimplified.ExistingReinstall=已安装 %1，将重新安装（修复）。
 chinesesimplified.ExistingUpgrade=已安装 %1，将升级为 %2。
 chinesesimplified.ExistingDowngrade=已安装 %1，将降级为 %2。
-chinesesimplified.PortableHere=该目录当前登记为便携安装，安装后将由本程序接管。
-chinesesimplified.PortableElsewhere=另有一份便携安装登记在 %1，它在 PATH 中可能优先于本次安装。
+chinesesimplified.PortableHere=该目录当前是一份便携安装（解压式），安装后将由本程序接管。
 english.LaunchNodePaper=Launch NodePaper
 english.UninstallShortcut=Uninstall NodePaper
 english.DesktopIcon=Create a desktop shortcut
@@ -120,8 +119,7 @@ english.ExistingHeading=Existing installation:
 english.ExistingReinstall=NodePaper %1 is installed; it will be reinstalled (repair).
 english.ExistingUpgrade=NodePaper %1 is installed; it will be upgraded to %2.
 english.ExistingDowngrade=NodePaper %1 is installed; it will be downgraded to %2.
-english.PortableHere=This directory is currently registered as a portable installation; this installation takes it over.
-english.PortableElsewhere=Another portable installation is registered at %1; it may come before this installation on Path.
+english.PortableHere=This directory currently holds a portable (extracted ZIP) installation; this installation takes it over.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; Flags: unchecked
@@ -161,11 +159,10 @@ Filename: "{cmd}"; Parameters: "/K ""set PATH={app};%PATH% && ""{app}\nodepaper.
 const
   EnvironmentKey = 'Environment';
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#NodePaperAppId}_is1';
-  { The ZIP channel's own registration (Install-NodePaper.ps1 writes it, and
-    Uninstall-NodePaper.ps1 reads it to know what to unregister). Setup only
-    reads it, and only ever deletes it when it names Setup's own directory. }
-  PortableKey = 'Software\NodePaper';
-  PortableValueName = 'PortablePath';
+  { Setup's own uninstaller. UninstallFilesDir puts it in the installation
+    directory, so its absence beside a nodepaper.exe is what marks a directory
+    as the ZIP channel's; see PortableInstallationAt. }
+  SetupUninstallerName = 'unins000.exe';
 
 var
   PathEntryAdded: Boolean;
@@ -440,32 +437,25 @@ begin
     Result := '';
 end;
 
-{ ---------- ZIP channel registration ------------------------------------ }
+{ ---------- ZIP channel detection --------------------------------------- }
 
-function RegisteredPortablePath: String;
+{ Whether the directory currently holds a portable (extracted ZIP) NodePaper.
+  A portable installation is described by its own directory and is recorded
+  nowhere else: it has a nodepaper.exe and no unins000.exe. Setup used to read a
+  global registry value instead (HKCU\Software\NodePaper\PortablePath) and had
+  to delete it when it took a directory over; there is nothing to take over any
+  more, because installing here writes Setup's own uninstaller into the
+  directory and that is precisely what stops the ZIP channel's scripts from
+  claiming it afterwards. }
+function PortableInstallationAt(const Directory: String): Boolean;
+var
+  Base: String;
 begin
-  if not RegQueryStringValue(HKEY_CURRENT_USER, PortableKey, PortableValueName, Result) then
-    Result := '';
-  Result := Trim(Result);
-end;
-
-{ NormalizeEntry is the same comparison the Path code uses: quotes stripped,
-  trailing backslashes dropped, case folded. Reusing it keeps "is this the
-  registered directory" and "is this the Path entry" from ever disagreeing. }
-function PortablePathIs(const Registered, Directory: String): Boolean;
-begin
-  Result := (Registered <> '') and (NormalizeEntry(Registered) = NormalizeEntry(Directory));
-end;
-
-{ Setup owns this directory from now on, so the ZIP channel's bookkeeping for
-  it has to go: leaving it behind has both channels claiming one directory, and
-  Uninstall-NodePaper.ps1 would later take the Path entry of a Setup
-  installation away. A registration naming any other directory is a real
-  portable installation of its own and is never touched. }
-procedure ReleasePortableRegistration(const Directory: String);
-begin
-  if PortablePathIs(RegisteredPortablePath, Directory) then
-    RegDeleteValue(HKEY_CURRENT_USER, PortableKey, PortableValueName);
+  Result := False;
+  if Trim(Directory) = '' then
+    Exit;
+  Base := AddBackslash(Directory);
+  Result := FileExists(Base + 'nodepaper.exe') and not FileExists(Base + SetupUninstallerName);
 end;
 
 { ---------- payload verification ---------------------------------------- }
@@ -649,7 +639,7 @@ end;
 function UpdateReadyMemo(const Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
   MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 var
-  Installed, Registered, Directory, Details: String;
+  Installed, Directory, Details: String;
   Compared: Integer;
 begin
   { The stock memo first, unchanged. }
@@ -685,15 +675,11 @@ begin
         FmtMessage(CustomMessage('ExistingDowngrade'), [Installed, '{#NodePaperVersion}']) + NewLine;
   end;
 
-  Registered := RegisteredPortablePath;
-  if Registered <> '' then
-  begin
-    if PortablePathIs(Registered, Directory) then
-      Details := Details + Space + CustomMessage('PortableHere') + NewLine
-    else
-      Details := Details + Space +
-        FmtMessage(CustomMessage('PortableElsewhere'), [Registered]) + NewLine;
-  end;
+  { Only what this directory shows for itself. A portable installation
+    elsewhere on the machine used to be reported here from the global registry
+    value; nothing records one any more, and there is nothing to read. }
+  if PortableInstallationAt(Directory) then
+    Details := Details + Space + CustomMessage('PortableHere') + NewLine;
 
   { Nothing detected: the memo stays exactly as it was. }
   if Details <> '' then
@@ -734,10 +720,10 @@ begin
   end;
   AddUserPathEntry(ExpandConstant('{app}'));
   PathEntryAdded := True;
-  { Only after the Path entry exists: until then this installation is not yet
-    reachable, and dropping the ZIP registration first would leave the
-    directory unaccounted for by either channel if the step above failed. }
-  ReleasePortableRegistration(ExpandConstant('{app}'));
+  { Nothing else to release: a portable installation in this directory is
+    described by the directory alone, and this Setup has already written its own
+    unins000.exe into it, which is what tells Install-NodePaper.ps1 and
+    Uninstall-NodePaper.ps1 that the directory is no longer theirs. }
 end;
 
 function InitializeUninstall: Boolean;
@@ -758,13 +744,7 @@ begin
   { Remove only the exact installation directory entry. Projects, PDFs, TeX,
     Pandoc, Node.js, Git and unrelated Path entries are never touched. }
   if CurUninstallStep = usUninstall then
-  begin
     RemoveUserPathEntry(ExpandConstant('{app}'));
-    { A registration naming this directory can only be one this Setup took
-      over, or one left pointing at a directory that is about to be emptied.
-      Either way it would outlive the installation it describes. }
-    ReleasePortableRegistration(ExpandConstant('{app}'));
-  end;
 end;
 
 [UninstallDelete]

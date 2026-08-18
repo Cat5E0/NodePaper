@@ -1,24 +1,25 @@
 <#
 .SYNOPSIS
-    Remove the registered NodePaper folder from the current user's Path.
+    Take this portable NodePaper folder off the current user's Path.
 
 .DESCRIPTION
-    Removes the exact Path entry registered by Install-NodePaper.ps1 and clears
-    the registration under HKCU\Software\NodePaper. The folder itself is kept:
-    NodePaper runs from where it was extracted, so that directory belongs to
-    the user rather than to this script.
+    Removes this folder's Path entry, the one Install-NodePaper.ps1 added when
+    it was run here. The folder itself is kept: NodePaper runs from where it was
+    extracted, so that directory belongs to the user rather than to this script.
 
-    Only a directory this script's own channel registered is touched. An
-    installation created by Setup has its own uninstaller and is refused here,
-    and without a registration nothing is removed at all.
+    Only a portable release is touched, and the folder shows that for itself: it
+    holds a nodepaper.exe and none of Setup's marks. An installation created by
+    Setup has its own uninstaller and is refused here, and a folder that is no
+    portable release at all is reported rather than acted on.
 
     Projects, TeX, Pandoc installations and unrelated Path entries are not
     touched, and neither is anything installed by Setup.
 
 .PARAMETER InstallRoot
-    Folder to remove from Path. Normally omitted: the folder registered by
-    Install-NodePaper.ps1 is used. Pass it explicitly to clean up a leftover
-    entry whose registration is already gone.
+    Folder to unregister instead of the one this script sits in. Normally
+    omitted. It goes through the same two checks as this folder does: a Setup
+    installation is refused, and a folder holding no nodepaper.exe has nothing
+    here to remove.
 
 .PARAMETER PathScope
     User (default) updates the current user's persistent Path. Process exists
@@ -141,33 +142,91 @@ if (Test-SetupInstallation $PSScriptRoot) {
     exit 1
 }
 
-$RegistrationKey = 'HKCU:\Software\NodePaper'
-$RegistrationValue = 'PortablePath'
-
-if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
-    # Only ever remove what Install-NodePaper.ps1 registered. Falling back to
-    # $PSScriptRoot used to look helpful, but it made an unregistered copy of
-    # this script remove the Path entry of whatever directory it happened to
-    # sit in -- including a Setup installation's -- and then report success.
-    $registered = ""
-    if (Test-Path -LiteralPath $RegistrationKey) {
-        $item = Get-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -ErrorAction SilentlyContinue
-        if ($null -ne $item) { $registered = [string]$item.$RegistrationValue }
+# A portable release is described by its own directory: a nodepaper.exe of its
+# own, and none of the marks Test-SetupInstallation looks for. Nothing about it
+# is recorded anywhere else, which is why this script needs no registry at all.
+function Test-PortableInstallation {
+    param([string]$Directory)
+    if ([string]::IsNullOrWhiteSpace($Directory)) { return $false }
+    try {
+        if (-not (Test-Path -LiteralPath (Join-Path $Directory "nodepaper.exe") -PathType Leaf)) { return $false }
+        return (-not (Test-SetupInstallation $Directory))
     }
-    if ([string]::IsNullOrWhiteSpace($registered)) {
-        Write-Host "No portable NodePaper installation is registered for the current user,"
-        Write-Host "so there is no Path entry to remove. Nothing was changed."
-        Write-Host ""
-        Write-Host "If NodePaper was installed with Setup, uninstall it through"
-        Write-Host "Start menu > NodePaper > Uninstall NodePaper, or Settings > Apps."
-        Write-Host "If you know a stale entry is left on your Path, name the folder explicitly:"
-        Write-Host "  .\Uninstall-NodePaper.ps1 -InstallRoot <folder>"
-        Wait-CloseWindow
-        exit 0
-    }
-    $InstallRoot = $registered
+    catch { return $false }
 }
+
+# Releases up to rc.9 recorded the registered directory in HKCU\Software\
+# NodePaper\PortablePath. Nothing reads it any more, so a leftover value is
+# deleted rather than migrated, and the key goes with it because it existed only
+# to carry that value. A key holding anything else is left alone.
+$LegacyRegistrationKey = 'HKCU:\Software\NodePaper'
+$LegacyRegistrationValue = 'PortablePath'
+
+function Remove-LegacyRegistration {
+    try {
+        if (-not (Test-Path -LiteralPath $LegacyRegistrationKey)) { return }
+        if (@(Get-ChildItem -LiteralPath $LegacyRegistrationKey -ErrorAction SilentlyContinue).Count -gt 0) { return }
+        $properties = Get-ItemProperty -LiteralPath $LegacyRegistrationKey -ErrorAction SilentlyContinue
+        if ($null -ne $properties) {
+            $unexpected = @($properties.PSObject.Properties |
+                Where-Object { $_.Name -notlike 'PS*' -and $_.Name -ne $LegacyRegistrationValue })
+            if ($unexpected.Count -gt 0) { return }
+        }
+        Remove-Item -LiteralPath $LegacyRegistrationKey -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    catch { }
+}
+
+# Which folder to unregister: the one this script sits in.
+#
+# M4-13 deliberately removed a $PSScriptRoot fallback, and this is not a return
+# to it. What it removed was a blind fallback: the script read a global registry
+# value, and when there was none it unregistered $PSScriptRoot anyway -- which
+# took the Path entry away from whatever directory this script happened to sit
+# in, a Setup installation included, and then reported success. Ownership was
+# being guessed. It is now checked: the directory has to show that it is a
+# portable release before anything is removed, a Setup installation is refused
+# above, and an explicitly named folder goes through both checks too. Under that
+# rule $PSScriptRoot is evidence rather than a guess -- a portable release ships
+# this script inside the very folder Install-NodePaper.ps1 registers, so the
+# folder this script runs from is the folder to unregister -- and it gives the
+# natural semantics as well: run the uninstall script in a portable folder and
+# that one folder is unregistered.
+$explicitRoot = -not [string]::IsNullOrWhiteSpace($InstallRoot)
+if (-not $explicitRoot) { $InstallRoot = $PSScriptRoot }
 $InstallRoot = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\', '/')
+
+Remove-LegacyRegistration
+
+# The guard above already covered $PSScriptRoot; an explicitly named folder gets
+# the same refusal rather than a quieter one.
+if ($explicitRoot -and (Test-SetupInstallation $InstallRoot)) {
+    Write-Host "That folder holds a NodePaper installation created by Setup:"
+    Write-Host "  $InstallRoot"
+    Write-Host ""
+    Write-Host "This script only unregisters a portable ZIP release. Nothing was changed."
+    Write-Host "Uninstall through one of these instead:"
+    Write-Host "  Start menu > NodePaper > Uninstall NodePaper"
+    Write-Host "  Settings > Apps > Installed apps > NodePaper > Uninstall"
+    Wait-CloseWindow
+    exit 1
+}
+
+if (-not (Test-PortableInstallation $InstallRoot)) {
+    Write-Host "This folder holds no portable NodePaper release:"
+    Write-Host "  $InstallRoot"
+    Write-Host ""
+    Write-Host "A portable release is the folder a NodePaper ZIP was extracted to, with"
+    Write-Host "nodepaper.exe next to this script. Nothing was changed."
+    Write-Host ""
+    Write-Host "If NodePaper was installed with Setup, uninstall it through"
+    Write-Host "Start menu > NodePaper > Uninstall NodePaper, or Settings > Apps."
+    Write-Host "To unregister a portable release, run this script from inside its folder, or"
+    Write-Host "name that folder: .\Uninstall-NodePaper.ps1 -InstallRoot <folder>"
+    Wait-CloseWindow
+    exit 0
+}
+
 $oldPath = Get-PathValue $PathScope
 $oldProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
 $newPath = Remove-PathEntry $oldPath $InstallRoot
@@ -176,9 +235,6 @@ try {
     Set-PathValue $PathScope $newPath
     if ($PathScope -eq "User") {
         [Environment]::SetEnvironmentVariable("Path", (Remove-PathEntry $oldProcessPath $InstallRoot), "Process")
-    }
-    if (Test-Path -LiteralPath $RegistrationKey) {
-        Remove-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -ErrorAction SilentlyContinue
     }
 }
 catch {

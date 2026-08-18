@@ -17,8 +17,8 @@ import (
 // characters - the Chinese paths this project is built for - comes back
 // mojibake and would be reported to the user that way, or compared against a
 // correctly spelled path and found different. The API returns UTF-16, which
-// leaves nothing to guess, and it also keeps doctor from spawning a process
-// for two values.
+// leaves nothing to guess, and it also keeps doctor from spawning a process for
+// a single value.
 func readRegistryString(subKey, valueName string) (string, bool) {
 	subKeyPtr, err := syscall.UTF16PtrFromString(subKey)
 	if err != nil {

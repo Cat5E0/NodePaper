@@ -60,23 +60,54 @@ func TestSameDirectoryIgnoresTrailingSeparatorAndCase(t *testing.T) {
 	}
 }
 
+// A directory only counts as a portable release when it carries neither of
+// Setup's marks. Both marks have to exclude it: a folder Setup installed into
+// holds its uninstaller, and a folder Setup's uninstall entry names is its own
+// even if that uninstaller is missing.
+func TestPortableDirsAmongExcludesSetupDirectories(t *testing.T) {
+	portable := filepath.Join("root", "portable")
+	markedByUninstaller := filepath.Join("root", "taken-over")
+	markedByRegistry := filepath.Join("programs", "NodePaper")
+
+	exists := func(path string) bool {
+		return filepath.Base(path) == setupUninstallerName &&
+			normalizeDirectory(filepath.Dir(path)) == normalizeDirectory(markedByUninstaller)
+	}
+
+	dirs := portableDirsAmong(
+		[]string{markedByUninstaller, portable, markedByRegistry},
+		markedByRegistry+string(filepath.Separator), exists)
+	if len(dirs) != 1 || !sameDirectory(dirs[0], portable) {
+		t.Fatalf("dirs = %#v, want only %q", dirs, portable)
+	}
+}
+
 func TestInstallationResultPassesWithoutConflict(t *testing.T) {
 	only := filepath.Join("root", "NodePaper")
 	cases := []struct {
-		name        string
-		pathDirs    []string
-		runningDir  string
-		portableDir string
-		setupDir    string
+		name         string
+		pathDirs     []string
+		runningDir   string
+		portableDirs []string
+		setupDir     string
 	}{
 		{name: "nothing on PATH", runningDir: filepath.Join("build", "bin")},
 		{name: "one copy", pathDirs: []string{only}, runningDir: only},
 		{
-			name:        "one directory claimed by both channels",
-			pathDirs:    []string{only},
-			runningDir:  only,
-			portableDir: only,
-			setupDir:    only + string(filepath.Separator),
+			// Setup installed over the extracted folder: its uninstaller now
+			// sits there, so the folder is no longer a portable installation
+			// and there is no second channel to report.
+			name:       "one directory taken over by Setup",
+			pathDirs:   []string{only},
+			runningDir: only,
+			setupDir:   only + string(filepath.Separator),
+		},
+		{
+			// A portable release and no Setup installation anywhere.
+			name:         "portable release only",
+			pathDirs:     []string{only},
+			runningDir:   only,
+			portableDirs: []string{only},
 		},
 		{
 			// A development build run by full path is not a second
@@ -97,7 +128,7 @@ func TestInstallationResultPassesWithoutConflict(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			check := installationResult(tc.pathDirs, tc.runningDir, tc.portableDir, tc.setupDir)
+			check := installationResult(tc.pathDirs, tc.runningDir, tc.portableDirs, tc.setupDir)
 			if check.Status != StatusPass {
 				t.Fatalf("Status = %v, want StatusPass; check = %#v", check.Status, check)
 			}
@@ -122,7 +153,7 @@ func TestInstallationResultWarnsAboutShadowing(t *testing.T) {
 	winner := filepath.Join("root", "Old")
 	running := filepath.Join("root", "New")
 
-	check := installationResult([]string{winner, running}, running, "", "")
+	check := installationResult([]string{winner, running}, running, []string{winner, running}, "")
 	if check.Status != StatusWarning {
 		t.Fatalf("Status = %v, want StatusWarning; check = %#v", check.Status, check)
 	}
@@ -143,8 +174,9 @@ func TestInstallationResultWarnsAboutTwoChannels(t *testing.T) {
 	portable := filepath.Join("root", "portable")
 	setup := filepath.Join("programs", "NodePaper")
 
-	// Only the Setup directory is on PATH, so it is the one that answers.
-	check := installationResult([]string{setup}, setup, portable, setup+string(filepath.Separator))
+	// Only the Setup directory is on PATH, so it is the one that answers. The
+	// portable folder is not on PATH at all, which is still two channels.
+	check := installationResult([]string{setup}, setup, []string{portable}, setup+string(filepath.Separator))
 	if check.Status != StatusWarning {
 		t.Fatalf("Status = %v, want StatusWarning; check = %#v", check.Status, check)
 	}
@@ -175,11 +207,11 @@ func TestDisplayDirectoryDropsTrailingSeparators(t *testing.T) {
 }
 
 func TestInstallationResultPrintsOneSpellingPerDirectory(t *testing.T) {
-	// Setup records InstallLocation with a trailing separator and the portable
-	// registration does not; the message must not expose that difference.
+	// Setup records InstallLocation with a trailing separator and a Path entry
+	// usually does not; the message must not expose that difference.
 	setup := filepath.Join("programs", "NodePaper")
 	portable := filepath.Join("root", "portable")
-	check := installationResult([]string{setup}, setup, portable, setup+string(filepath.Separator))
+	check := installationResult([]string{setup}, setup, []string{portable}, setup+string(filepath.Separator))
 	if strings.Contains(check.Message, setup+string(filepath.Separator)) {
 		t.Fatalf("Message shows a trailing separator: %q", check.Message)
 	}
@@ -190,7 +222,7 @@ func TestInstallationResultReportsBothConflictsAtOnce(t *testing.T) {
 	setup := filepath.Join("programs", "NodePaper")
 	running := filepath.Join("root", "third")
 
-	check := installationResult([]string{portable, setup, running}, running, portable, setup)
+	check := installationResult([]string{portable, setup, running}, running, []string{portable, running}, setup)
 	if check.Status != StatusWarning {
 		t.Fatalf("Status = %v, want StatusWarning", check.Status)
 	}

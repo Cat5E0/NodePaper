@@ -14,15 +14,24 @@ const installationCheckName = "NodePaper installation"
 // nodePaperExeName is the command Windows resolves on PATH.
 const nodePaperExeName = "nodepaper.exe"
 
-// Registry locations of the two installation channels. Setup records its
-// directory as InstallLocation under its own AppId; Install-NodePaper.ps1
-// records the extracted folder it registered as PortablePath. Both are
-// per-user (HKCU) because neither channel needs administrator rights.
+// How the two installation channels are recognised.
+//
+// Setup records its directory as InstallLocation under its own AppId in HKCU
+// (per-user: it needs no administrator rights) and writes its uninstaller into
+// that directory.
+//
+// The portable ZIP channel records nothing anywhere. A directory holding a
+// nodepaper.exe and no unins000.exe is an extracted release, and that is the
+// whole of its identity: Install-NodePaper.ps1 used to write the one directory
+// it had registered to HKCU\Software\NodePaper\PortablePath, a single global
+// value that could describe only one folder, went stale when Setup took the
+// folder over or the folder was emptied, and did not travel with a folder copied
+// to another drive. Reading PATH back instead cannot go stale, and it reports
+// the folders that actually answer to `nodepaper`.
 const (
-	setupUninstallKey  = `Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E1B5C6A-6C2F-4D4B-9A62-2C7E60C0A5F1}_is1`
-	setupLocationValue = "InstallLocation"
-	portableKey        = `Software\NodePaper`
-	portableValue      = "PortablePath"
+	setupUninstallKey    = `Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E1B5C6A-6C2F-4D4B-9A62-2C7E60C0A5F1}_is1`
+	setupLocationValue   = "InstallLocation"
+	setupUninstallerName = "unins000.exe"
 )
 
 // checkInstallation reports whether more than one NodePaper answers to
@@ -33,8 +42,8 @@ const (
 //     left to right, so the first one wins and any later one is shadowed -
 //     which is what `where nodepaper` shows and what registration cannot fix,
 //     because a Path entry is appended, never promoted.
-//   - Both channels are registered at different directories: a Setup
-//     installation and a portable ZIP registration. Each is internally
+//   - Both channels are installed at different directories: a Setup
+//     installation, and a portable ZIP release on PATH. Each is internally
 //     consistent, so neither channel notices the other.
 //
 // This lives in doctor rather than in the installers on purpose: it is a
@@ -63,15 +72,34 @@ func checkInstallation() []Check {
 	pathDirs := nodePaperDirsOnPath(os.Getenv("PATH"), fileExists)
 
 	setupDir, _ := readRegistryString(setupUninstallKey, setupLocationValue)
-	portableDir, _ := readRegistryString(portableKey, portableValue)
+	portableDirs := portableDirsAmong(pathDirs, setupDir, fileExists)
 
-	return []Check{installationResult(pathDirs, runningDir, portableDir, setupDir)}
+	return []Check{installationResult(pathDirs, runningDir, portableDirs, setupDir)}
+}
+
+// portableDirsAmong keeps the directories that hold an extracted ZIP release,
+// in the order they were given. Setup's directory is excluded by either of its
+// marks - its uninstaller sitting in the directory, or its uninstall entry
+// naming the directory - which is the same pair of marks Install-NodePaper.ps1
+// and Uninstall-NodePaper.ps1 refuse to act on.
+func portableDirsAmong(dirs []string, setupDir string, exists func(string) bool) []string {
+	var portable []string
+	for _, dir := range dirs {
+		if sameDirectory(dir, setupDir) {
+			continue
+		}
+		if exists(filepath.Join(dir, setupUninstallerName)) {
+			continue
+		}
+		portable = append(portable, dir)
+	}
+	return portable
 }
 
 // installationResult renders the collected state into a Check. It is kept free
 // of PATH and registry access so every combination can be exercised directly
 // in tests.
-func installationResult(pathDirs []string, runningDir, portableDir, setupDir string) Check {
+func installationResult(pathDirs []string, runningDir string, portableDirs []string, setupDir string) Check {
 	var conflicts, suggestions []string
 
 	// Shadowing: PATH holds more than one NodePaper and the one that wins is
@@ -88,12 +116,18 @@ func installationResult(pathDirs []string, runningDir, portableDir, setupDir str
 			displayDirectory(pathDirs[0])))
 	}
 
-	// Two channels claiming two different directories. The same directory in
-	// both is not a conflict: that is the moment a Setup installation takes a
-	// portable registration over, and Setup drops the registration itself.
-	if portableDir != "" && setupDir != "" && !sameDirectory(portableDir, setupDir) {
+	// Two channels installed at two different directories: a portable release
+	// on PATH plus a Setup installation. One directory claimed by both is not a
+	// conflict and cannot arise any more: installing over a portable folder puts
+	// Setup's uninstaller in it, which stops that folder from counting as
+	// portable at all.
+	//
+	// The first portable directory that is not Setup's is the one named, because
+	// it is the one the suggestion acts on; PATH order decides which that is.
+	if setupDir != "" && len(portableDirs) > 0 {
+		portableDir := portableDirs[0]
 		conflict := fmt.Sprintf(
-			"two channels are installed: a portable ZIP registration in %s and a Setup installation in %s",
+			"two channels are installed: a portable ZIP release in %s and a Setup installation in %s",
 			displayDirectory(portableDir), displayDirectory(setupDir))
 		if winner := firstDirOnPath(pathDirs, portableDir, setupDir); winner != "" {
 			conflict += fmt.Sprintf("; %s comes first on PATH", displayDirectory(winner))
@@ -172,9 +206,8 @@ func firstDirOnPath(pathDirs []string, candidates ...string) string {
 
 // sameDirectory compares two directories the way the installers do: quotes
 // stripped, trailing separators dropped, case folded. Setup writes
-// InstallLocation with a trailing backslash and Install-NodePaper.ps1 writes
-// PortablePath without one, so the two channels would otherwise look like
-// different directories whenever they name the same one.
+// InstallLocation with a trailing backslash while a Path entry usually has
+// none, so the same directory would otherwise look like two.
 func sameDirectory(left, right string) bool {
 	if left == "" || right == "" {
 		return false
@@ -191,11 +224,11 @@ func normalizeDirectory(dir string) string {
 }
 
 // displayDirectory spells a directory the way the message should read. The
-// two channels record their directory differently - Setup's InstallLocation
-// ends in a backslash, PortablePath does not, and a Path entry may do either -
-// and printing them verbatim made one machine's two installations look like
-// three different spellings. Only the presentation is affected; comparison
-// still goes through normalizeDirectory.
+// spellings in hand differ - Setup's InstallLocation ends in a backslash, a
+// Path entry may or may not, and either may be quoted - and printing them
+// verbatim made one machine's two installations look like three different
+// spellings. Only the presentation is affected; comparison still goes through
+// normalizeDirectory.
 func displayDirectory(dir string) string {
 	dir = strings.TrimSpace(strings.Trim(strings.TrimSpace(dir), `"`))
 	for len(dir) > 0 && os.IsPathSeparator(dir[len(dir)-1]) {

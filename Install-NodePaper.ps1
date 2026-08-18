@@ -5,12 +5,15 @@
 .DESCRIPTION
     Verifies every payload file against payload-manifest.json, then puts this
     folder on the user Path. Nothing is copied: NodePaper runs from where it
-    was extracted, which is why this folder must stay where it is. If a
-    previous run registered a different folder, that entry is removed first.
+    was extracted, which is why this folder must stay where it is. Any other
+    portable NodePaper folder already on the Path is taken off it first: one
+    folder owns the `nodepaper` command and switching is explicit, so extracting
+    a new release beside the old one leaves one entry rather than two whose order
+    decides which one answers. The folders themselves are never touched.
 
     No administrator rights, network access, telemetry, or automatic update is
-    used, and nothing outside the user Path and HKCU\Software\NodePaper is
-    written. Setup installs elsewhere and is left untouched.
+    used, and nothing outside the user Path is written. Setup installs
+    elsewhere, keeps its own uninstaller, and is left untouched.
 
     Reopen the terminal afterwards, then run: nodepaper
 
@@ -141,18 +144,6 @@ function Add-PathEntry {
     return (@($entries) + $Entry) -join ';'
 }
 
-function Remove-PathEntry {
-    param([string]$Current, [string]$Entry)
-    $wanted = Get-NormalizedPathEntry $Entry
-    $kept = @()
-    foreach ($candidate in @($Current -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
-        $matched = $false
-        try { $matched = (Get-NormalizedPathEntry $candidate.Trim().Trim('"')) -eq $wanted } catch { }
-        if (-not $matched) { $kept += $candidate }
-    }
-    return $kept -join ';'
-}
-
 function Assert-Payload {
     param([string]$SourceRoot)
     $manifestPath = Join-Path $SourceRoot "payload-manifest.json"
@@ -203,7 +194,7 @@ function Assert-Payload {
 # uninstaller, Start-menu entry and Windows uninstall registration in that
 # directory; registering it here as a portable installation would leave two
 # channels claiming one folder, which is exactly the state this script exists
-# to avoid (see the note above the HKCU\Software\NodePaper registration below).
+# to avoid (see the note above Test-PortableInstallation below).
 #
 # Both marks are checked because either can be the one present: unins000.exe
 # is written into the installation directory (UninstallFilesDir={app}), and
@@ -262,22 +253,118 @@ $manifest = Assert-Payload $sourceRoot
 # share a location. The cost is that this directory is now load-bearing: it
 # must not be deleted or moved while registered. Move it and re-run this script
 # to change location.
-$RegistrationKey = 'HKCU:\Software\NodePaper'
-$RegistrationValue = 'PortablePath'
 
-function Get-RegisteredPath {
-    if (-not (Test-Path -LiteralPath $RegistrationKey)) { return "" }
-    $item = Get-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -ErrorAction SilentlyContinue
-    if ($null -eq $item) { return "" }
-    return [string]$item.$RegistrationValue
+# A portable installation is described by its own directory, and nowhere else.
+# Two marks tell the two channels apart:
+#
+#   installed by Setup     unins000.exe in the directory, or Setup's uninstall
+#                          entry naming it as InstallLocation
+#   extracted from the ZIP a nodepaper.exe and neither of those marks
+#
+# This replaces a single global registry value, HKCU\Software\NodePaper\
+# PortablePath, which recorded the one directory the last run had registered.
+# That value could describe only one portable installation per machine, it went
+# on describing a directory after Setup took it over or after the directory was
+# emptied, and it did not travel with a folder copied to another drive. A
+# directory that says what it is cannot go stale and needs no bookkeeping: what
+# is on the Path is what a new terminal will find, and probing those entries
+# costs a few file lookups.
+function Test-PortableInstallation {
+    param([string]$Directory)
+    if ([string]::IsNullOrWhiteSpace($Directory)) { return $false }
+    try {
+        if (-not (Test-Path -LiteralPath (Join-Path $Directory "nodepaper.exe") -PathType Leaf)) { return $false }
+        return (-not (Test-SetupInstallation $Directory))
+    }
+    catch { return $false }
 }
 
-function Set-RegisteredPath {
-    param([string]$Value)
-    if (-not (Test-Path -LiteralPath $RegistrationKey)) {
-        New-Item -Path $RegistrationKey -Force | Out-Null
+# Split a Path value into its entries, each with the directory it names. A user
+# Path routinely holds entries that cannot be probed: an unset %VAR%, a
+# disconnected drive, a name Join-Path rejects. Those keep an empty Directory
+# rather than ending the scan, so they are neither inspected nor rewritten.
+function Get-PathEntryList {
+    param([string]$Current)
+    $list = @()
+    foreach ($candidate in @($Current -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+        $directory = ""
+        try {
+            $expanded = [Environment]::ExpandEnvironmentVariables($candidate.Trim().Trim('"'))
+            if (-not [string]::IsNullOrWhiteSpace($expanded)) { $directory = $expanded }
+        }
+        catch { $directory = "" }
+        $list += [pscustomobject]@{ Raw = $candidate; Directory = $directory }
     }
-    Set-ItemProperty -LiteralPath $RegistrationKey -Name $RegistrationValue -Value $Value -Type String
+    return $list
+}
+
+# The portable NodePaper directories on a Path value, in Path order and without
+# repeats. Path order is resolution order: Windows searches left to right and
+# stops at the first hit.
+function Get-PortableDirectoriesOnPath {
+    param([string]$Current)
+    $directories = @()
+    $seen = @{}
+    foreach ($entry in @(Get-PathEntryList $Current)) {
+        if ($entry.Directory -eq "") { continue }
+        $key = ""
+        try { $key = Get-NormalizedPathEntry $entry.Directory } catch { continue }
+        if ($key -eq "" -or $seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+        if (Test-PortableInstallation $entry.Directory) { $directories += $entry.Directory }
+    }
+    return $directories
+}
+
+# Drop every portable NodePaper entry except the one being registered, and
+# report which ones went. Entries are matched by inspecting the directory they
+# name, not by comparing strings with a remembered path: an entry written as
+# %NODEPAPER_HOME% names the same directory as its expansion, and the entry
+# text is what has to be rewritten.
+function Remove-OtherPortableEntries {
+    param([string]$Current, [string]$Keep)
+    $keepKey = Get-NormalizedPathEntry $Keep
+    $kept = @()
+    $removed = @()
+    foreach ($entry in @(Get-PathEntryList $Current)) {
+        $drop = $false
+        if ($entry.Directory -ne "") {
+            try {
+                $drop = (Get-NormalizedPathEntry $entry.Directory) -ne $keepKey -and
+                    (Test-PortableInstallation $entry.Directory)
+            }
+            catch { $drop = $false }
+        }
+        if ($drop) { $removed += $entry.Directory } else { $kept += $entry.Raw }
+    }
+    return @{ Path = ($kept -join ';'); Removed = @($removed) }
+}
+
+# Releases up to rc.9 recorded the registered directory in HKCU\Software\
+# NodePaper\PortablePath. Nothing reads it any more, and a leftover value is
+# worse than no value: it names one directory for the whole machine and outlives
+# whatever it pointed at. It is deleted rather than migrated, and the key goes
+# with it because it existed only to carry that value. A key holding anything
+# else is left alone: that is not this script's to delete.
+$LegacyRegistrationKey = 'HKCU:\Software\NodePaper'
+$LegacyRegistrationValue = 'PortablePath'
+
+function Remove-LegacyRegistration {
+    try {
+        if (-not (Test-Path -LiteralPath $LegacyRegistrationKey)) { return }
+        if (@(Get-ChildItem -LiteralPath $LegacyRegistrationKey -ErrorAction SilentlyContinue).Count -gt 0) { return }
+        $properties = Get-ItemProperty -LiteralPath $LegacyRegistrationKey -ErrorAction SilentlyContinue
+        if ($null -ne $properties) {
+            $unexpected = @($properties.PSObject.Properties |
+                Where-Object { $_.Name -notlike 'PS*' -and $_.Name -ne $LegacyRegistrationValue })
+            if ($unexpected.Count -gt 0) { return }
+        }
+        Remove-Item -LiteralPath $LegacyRegistrationKey -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $LegacyRegistrationKey)) {
+            Write-Host "Removed the obsolete registration key $LegacyRegistrationKey (portable installations are recognised by their own directory now)."
+        }
+    }
+    catch { }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
@@ -285,19 +372,25 @@ if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
 }
 $InstallRoot = $sourceRoot
 
-# Compare against whichever directory is currently registered, so upgrading by
-# extracting a new ZIP next to the old one still reports the version change.
-$previousRoot = Get-RegisteredPath
+# Read the Path this run will rewrite once, so the version comparison below and
+# the pruning further down cannot disagree about what is currently on it.
+$oldPath = Get-PathValue $PathScope
+
+# Compare against the portable installation the Path finds first, so upgrading
+# by extracting a new ZIP next to the old one still reports the version change.
+# First on Path is the copy a new terminal would run, which makes its payload
+# manifest the installed version -- including when that copy is this directory
+# being registered again, which is the repair case.
 $installedVersion = ""
-if (-not [string]::IsNullOrWhiteSpace($previousRoot)) {
-    $previousManifest = Join-Path $previousRoot "payload-manifest.json"
-    if (Test-Path -LiteralPath $previousManifest -PathType Leaf) {
-        try {
-            $parsed = Get-Content -LiteralPath $previousManifest -Raw -Encoding UTF8 | ConvertFrom-Json
-            $installedVersion = [string]$parsed.version
-        }
-        catch { $installedVersion = "" }
+foreach ($candidate in @(Get-PortableDirectoriesOnPath $oldPath)) {
+    $candidateManifest = Join-Path $candidate "payload-manifest.json"
+    if (-not (Test-Path -LiteralPath $candidateManifest -PathType Leaf)) { continue }
+    try {
+        $parsed = Get-Content -LiteralPath $candidateManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+        $installedVersion = [string]$parsed.version
     }
+    catch { $installedVersion = "" }
+    if ($installedVersion -ne "") { break }
 }
 if ($installedVersion -ne "") {
     $versionComparison = Compare-NodePaperVersion ([string]$manifest.version) $installedVersion
@@ -382,33 +475,46 @@ function Get-EffectiveCommandDirectory {
     return ""
 }
 
-$oldPath = Get-PathValue $PathScope
 $oldProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
 $pathChanged = $false
 
+Remove-LegacyRegistration
+
 try {
-    # Drop the directory registered by a previous run before adding this one,
-    # so extracting a new ZIP beside the old one does not leave both on Path
+    # Take every other portable NodePaper folder off the Path before adding this
+    # one, so extracting a new ZIP beside the old one does not leave both on it
     # with the winner decided by ordering.
-    $newPath = $oldPath
-    if (-not [string]::IsNullOrWhiteSpace($previousRoot) -and
-        (Get-NormalizedPathEntry $previousRoot) -ne (Get-NormalizedPathEntry $InstallRoot)) {
-        $newPath = Remove-PathEntry $newPath $previousRoot
-        Write-Host "Removed the previously registered directory from Path: $previousRoot"
+    #
+    # One folder owns the command, and switching is explicit -- this is the rule,
+    # not a limitation waiting to be lifted. Keeping any number of extracted
+    # folders on disk is fine, and each one says for itself what it is, but only
+    # one of them can answer to `nodepaper`: Path is searched left to right, so a
+    # second entry does not add a second command, it hides one. Every tool that
+    # puts a command on Path settles it the same way -- rustup has the one
+    # ~/.cargo/bin, scoop the one shims directory, winget's portable packages the
+    # one Links directory, and nvm switches with an explicit `nvm use`. To hand
+    # the command to another folder, run that folder's Install-NodePaper.ps1.
+    #
+    # (The directory marks that replaced the old registry value are what makes a
+    # folder recognisable in the first place; they are not a licence to register
+    # several at once.)
+    #
+    # A Setup installation's directory is left where it is. That entry belongs
+    # to the other channel, which keeps its own uninstaller, Start-menu entry
+    # and entry in Settings; removing it would leave all of those behind with no
+    # command to go with them.
+    $pruned = Remove-OtherPortableEntries $oldPath $InstallRoot
+    $newPath = Add-PathEntry $pruned.Path $InstallRoot
+    foreach ($dropped in $pruned.Removed) {
+        Write-Host "Removed another portable NodePaper folder from Path: $dropped"
     }
-    $newPath = Add-PathEntry $newPath $InstallRoot
 
     Set-PathValue $PathScope $newPath
     $pathChanged = $true
     if ($PathScope -eq "User") {
-        $newProcessPath = $oldProcessPath
-        if (-not [string]::IsNullOrWhiteSpace($previousRoot)) {
-            $newProcessPath = Remove-PathEntry $newProcessPath $previousRoot
-        }
-        [Environment]::SetEnvironmentVariable("Path", (Add-PathEntry $newProcessPath $InstallRoot), "Process")
+        $prunedProcess = Remove-OtherPortableEntries $oldProcessPath $InstallRoot
+        [Environment]::SetEnvironmentVariable("Path", (Add-PathEntry $prunedProcess.Path $InstallRoot), "Process")
     }
-
-    Set-RegisteredPath $InstallRoot
 }
 catch {
     if ($pathChanged) { try { Set-PathValue $PathScope $oldPath } catch { } }

@@ -83,14 +83,10 @@ function Test-UserInstallation {
     # the folder under test is the release root itself.
     $installRoot = $ReleaseRoot
     $installer = Join-Path $ReleaseRoot "Install-NodePaper.ps1"
+    # Nothing outside the process Path is touched: a portable installation is
+    # described by its own directory, so registering writes no registry value
+    # this function would have to save and put back.
     $originalProcessPath = [Environment]::GetEnvironmentVariable("Path", "Process")
-    $script:RegistrationKey = 'HKCU:\Software\NodePaper'
-    $script:RegistrationValue = 'PortablePath'
-    $savedRegistration = ""
-    if (Test-Path -LiteralPath $script:RegistrationKey) {
-        $existing = Get-ItemProperty -LiteralPath $script:RegistrationKey -Name $script:RegistrationValue -ErrorAction SilentlyContinue
-        if ($null -ne $existing) { $savedRegistration = [string]$existing.$script:RegistrationValue }
-    }
     try {
         Write-Host "Testing user-level registration, tamper rejection and re-registration..."
         & $installer -PathScope Process
@@ -171,17 +167,6 @@ function Test-UserInstallation {
     }
     finally {
         [Environment]::SetEnvironmentVariable("Path", $originalProcessPath, "Process")
-        # PathScope Process keeps the real user Path out of this, but the
-        # registration under HKCU is real and has to be put back as it was.
-        if ([string]::IsNullOrWhiteSpace($savedRegistration)) {
-            if (Test-Path -LiteralPath $script:RegistrationKey) {
-                Remove-ItemProperty -LiteralPath $script:RegistrationKey -Name $script:RegistrationValue -ErrorAction SilentlyContinue
-            }
-        }
-        else {
-            if (-not (Test-Path -LiteralPath $script:RegistrationKey)) { New-Item -Path $script:RegistrationKey -Force | Out-Null }
-            Set-ItemProperty -LiteralPath $script:RegistrationKey -Name $script:RegistrationValue -Value $savedRegistration -Type String
-        }
     }
 }
 
