@@ -10,6 +10,7 @@ sources:
 latexFragments:
   - tables/complex-result.tex
   - equations/long-objective.tex
+  - figures/tikz-diagram.tex
 appendix:
   numbering: alpha
 output:

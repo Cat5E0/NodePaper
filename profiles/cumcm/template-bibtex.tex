@@ -199,6 +199,12 @@ $endif$
 \usepackage{fvextra}
 \usepackage{mdframed}
 \usepackage{xcolor}
+% TikZ。M4-00 D6 把「v0.1 支持 TikZ Fragment」定为验收决策，而 Fragment 内禁止
+% \usepackage（NP2506），宏包只能由本模板加载，否则 Fragment 里的 tikzpicture 会在
+% 编译期报 Environment tikzpicture undefined。位置紧随它依赖的 graphicx/xcolor 且在
+% hyperref 之前。具体的库不在此预判：\usetikzlibrary 在正文中同样生效，由 Fragment
+% 按需自行载入。
+\usepackage{tikz}
 \usepackage{url}
 \usepackage{xurl}
 % gbt7714 pulls in natbib itself, so it has to be loaded before hyperref --

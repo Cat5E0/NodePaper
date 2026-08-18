@@ -33,6 +33,12 @@ $$
 
 式 \eqref{eq:fragment-objective} 是 Fragment 中的稳定标签。
 
+受控 TikZ Fragment：
+
+\input{figures/tikz-diagram.tex}
+
+图 \ref{fig:layout-tikz} 由 Fragment 内的 tikzpicture 绘制，其中的 TikZ 库由 Fragment 自行载入。
+
 ![NP-LAYOUT-IMAGE-01 极端宽高比图片及较长图题，用于确认图片按比例限制在正文区域内且图题可以自然换行](images/extreme-wide.png){#fig:layout-wide width=100%}
 
 图 @fig:layout-wide 与式 @eq:layout-aligned 均应可以解析。

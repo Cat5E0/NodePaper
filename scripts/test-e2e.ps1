@@ -200,10 +200,17 @@ try {
         }
     }
     if ($Fixture -eq "layout-stress") {
-        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}")) {
+        foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}", "\input{figures/tikz-diagram.tex}")) {
             if (-not $texText.Contains($required)) {
                 throw "layout-stress LaTeX contract is missing: $required"
             }
+        }
+        # The Fragment cannot load tikz itself (NP2506 forbids \usepackage), so a
+        # Profile that stopped shipping it would fail compilation with
+        # "Environment tikzpicture undefined". Asserting the preamble here names
+        # the cause instead of leaving a bare LaTeX error.
+        if (-not $texText.Contains("\usepackage{tikz}")) {
+            throw "layout-stress needs tikz in the Profile preamble; the TikZ Fragment cannot load it (NP2506)"
         }
         $appendixText = ([string][char]0x9644) + ([char]0x5F55)
         $multilingualCodeText = ([string][char]0x591A) + ([char]0x8BED) + ([char]0x8A00) + ([char]0x4EE3) + ([char]0x7801)

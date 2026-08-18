@@ -1,0 +1,25 @@
+% TikZ 回归 Fragment。M4-00 D6 承诺 v0.1 支持 TikZ Fragment，而 Fragment 不允许
+% \usepackage（NP2506），因此 tikz 由 Profile 模板加载；此处只验证两件事：
+%   ① tikzpicture 环境与 \draw 在编译期可用；
+%   ② \usetikzlibrary 由 Fragment 自行载入同样生效（它在正文里也能用）。
+% 图中含中文节点，以便既有的「零 Missing character:」护栏同时覆盖 TikZ 里的中文。
+% 引用约定：本 Fragment 内的 \label 只能用原生 \ref{...} 引用，不能用
+% pandoc-crossref 的 @fig: 语法——validate 看不到 Fragment 内部的标签，会报
+% cross-reference target not found。正文里提及这些命令时也必须放进行内代码，
+% 否则不带花括号的命令会把后面第一个汉字当成参数（实测报 Reference '引' undefined）。
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[node distance=1.1cm, every node/.style={font=\small}]
+  \node (input)  [rectangle, draw, rounded corners] {输入数据};
+  \node (model)  [rectangle, draw, below=of input]  {模型求解};
+  \node (check)  [diamond, draw, aspect=2, below=of model] {是否收敛};
+  \node (output) [rectangle, draw, rounded corners, below=of check] {输出结果};
+  \draw[-Stealth] (input) -- (model);
+  \draw[-Stealth] (model) -- (check);
+  \draw[-Stealth] (check) -- node[right] {是} (output);
+  \draw[-Stealth] (check.west) -- ++(-1.6,0) |- node[left] {否} (model.west);
+\end{tikzpicture}
+\caption{NP-LAYOUT-TIKZ-01 受控 TikZ Fragment 绘制的求解流程图}\label{fig:layout-tikz}
+\end{figure}
