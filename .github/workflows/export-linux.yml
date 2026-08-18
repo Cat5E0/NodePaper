@@ -90,7 +90,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             texlive-xetex texlive-lang-chinese texlive-latex-recommended \
-            texlive-latex-extra texlive-bibtex-extra fonts-noto-cjk
+            texlive-latex-extra texlive-bibtex-extra texlive-fonts-recommended fonts-noto-cjk
       - name: Record what the runner has
         run: |
           # Arm three is only meaningful if the earlier arms cannot be taken.
