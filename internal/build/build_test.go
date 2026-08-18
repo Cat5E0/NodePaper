@@ -256,7 +256,44 @@ func TestBuildUsesConfiguredOutputPath(t *testing.T) {
 	}
 }
 
+// withTeXPresent points the build at a script directory that carries a bundled
+// xelatex, so a test about a PowerShell failure gets NP5001 whether or not the
+// machine running it has a TeX distribution. Without this the outcome flipped
+// to NP6002 on any host without TeX -- it passed on the maintainer's machine
+// and failed in CI, the same host dependency M4-13 removed from the fixture
+// contracts.
+func withTeXPresent(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "Build-Paper.ps1")
+	if err := os.WriteFile(script, []byte("exit 7\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bundled := filepath.Join(dir, "tools", "windows-x64", "texlive", "bin", "windows")
+	if err := os.MkdirAll(bundled, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundled, "xelatex.exe"), []byte("stub"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NODEPAPER_BUILD_SCRIPT", script)
+}
+
+// withTeXAbsent does the opposite: an empty script directory and a PATH with
+// nothing on it, so xelatex cannot be found however the host is set up.
+func withTeXAbsent(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	script := filepath.Join(dir, "Build-Paper.ps1")
+	if err := os.WriteFile(script, []byte("exit 7\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NODEPAPER_BUILD_SCRIPT", script)
+	t.Setenv("PATH", t.TempDir())
+}
+
 func TestBuildFailurePreservesOldPDFAndReleasesLock(t *testing.T) {
+	withTeXPresent(t)
 	projectDir := copyBuildFixture(t, "minimal-valid")
 	distDir := filepath.Join(projectDir, "dist")
 	if err := os.MkdirAll(distDir, 0o755); err != nil {
@@ -309,6 +346,7 @@ func TestBuildFailurePreservesOldPDFAndReleasesLock(t *testing.T) {
 }
 
 func TestBuildClassifiesFatalLatexLogAfterPowerShellFailure(t *testing.T) {
+	withTeXPresent(t)
 	projectDir := copyBuildFixture(t, "minimal-valid")
 	executor := &fakeExecutor{behavior: func(_ context.Context, dir, command string, args []string) (process.Result, error) {
 		buildDir := argumentValue(args, "-BuildDirectory")
@@ -852,4 +890,22 @@ func copyBuildTree(source, destination string) error {
 		}
 		return closeErr
 	})
+}
+
+func TestPowerShellFailureNamesTheMissingTeX(t *testing.T) {
+	// The complement of the two tests above: the script rejects the job and no
+	// xelatex can be found, so the reader is told what is missing instead of
+	// being sent to logs that never recorded a compile.
+	withTeXAbsent(t)
+	projectDir := copyBuildFixture(t, "minimal-valid")
+	executor := &fakeExecutor{behavior: func(_ context.Context, dir, command string, args []string) (process.Result, error) {
+		return process.Result{Command: command, Args: args, Dir: dir, ExitCode: 1}, nil
+	}}
+	result := runWithExecutor(context.Background(), projectDir, executor)
+	if result.Success || !hasDiagnosticCode(result, "NP6002") {
+		t.Fatalf("result = %#v, want NP6002 naming the missing TeX", result)
+	}
+	if hasDiagnosticCode(result, "NP5001") {
+		t.Fatalf("a missing TeX should not be reported as an opaque PowerShell failure: %#v", result.Diagnostics)
+	}
 }
