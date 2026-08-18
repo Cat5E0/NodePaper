@@ -2,6 +2,10 @@
 
 # NodePaper
 
+[![ci](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml)
+[![miktex-e2e](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml)
+[![export-linux](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml)
+
 NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepaper.yaml` 的 Markdown Project 构建为 PDF。
 
 当前 v0.1 面向 CUMCM 2026 电子版论文场景，支持中文排版、公式、图表、交叉引用、参考文献、代码块、附录和多文件项目。
@@ -412,6 +416,25 @@ latexFragments:
 - 不支持直接转换孤立 Markdown 文件。
 
 迁移前的 SCAU PowerShell 工具链整套保留在 [`scau-compat/`](scau-compat/) 目录里，尚未迁移为正式 NodePaper Profile，与本文其余内容无关。用法见 [`scau-compat/README.md`](scau-compat/README.md)。
+
+## 仓库结构
+
+| 路径 | 内容 |
+|---|---|
+| `cmd/`、`internal/` | Go 实现：CLI 入口与各内部包 |
+| `profiles/cumcm/` | 冻结的 CUMCM Profile：三份模板、Lua 过滤器、CSL、许可证与元数据 |
+| `Build-Paper.ps1`、`Convert-CumcmProjectToLatex.ps1` | 构建链中仍为 PowerShell 的一段，由 Go 调用 |
+| `Install-NodePaper.ps1`、`Uninstall-NodePaper.ps1` | 便携 ZIP 的注册/注销脚本，随发布包分发 |
+| `Bootstrap-Tools.ps1`、`tools/` | 按固定哈希下载并校验内置的 pandoc 与 pandoc-crossref |
+| `installer/windows/` | Inno Setup 打包脚本 |
+| `scripts/` | 构建、打包与各测试套件 |
+| `nodepaper-test-fixtures/` | 可独立复制的测试素材包，带自己的说明与清单 |
+| `examples/m0-baseline/` | M0 基线项目，保留作历史对照 |
+| `licenses/`、`THIRD_PARTY_NOTICES.md` | 第三方许可证与声明 |
+| `scau-compat/` | 迁移前的 SCAU PowerShell 工具链，与上述 CUMCM 路线无关 |
+| `.github/workflows/` | CI：`ci`、`miktex-e2e`、`export-linux`、`release-build` |
+
+发布包的内容由 `scripts/build-release.ps1` 里的显式白名单决定，不是整仓打包；内置二进制按固定 SHA-256 校验，且随包提供对应源码存档。
 
 ## 许可证
 

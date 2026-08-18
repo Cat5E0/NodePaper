@@ -2,6 +2,10 @@
 
 # NodePaper
 
+[![ci](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml)
+[![miktex-e2e](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml)
+[![export-linux](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml)
+
 NodePaper is a Windows command-line tool that builds a Markdown Project identified by `nodepaper.yaml` into PDF.
 
 The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chinese typesetting, equations, figures, tables, cross-references, citations, code blocks, appendices, and ordered multi-file projects.
@@ -409,6 +413,25 @@ latexFragments:
 - does not convert isolated Markdown files directly.
 
 The pre-migration SCAU PowerShell toolchain is kept in its entirety under [`scau-compat/`](scau-compat/). It has not been migrated into formal NodePaper Profiles and is unrelated to the rest of this document. See [`scau-compat/README.en.md`](scau-compat/README.en.md).
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `cmd/`, `internal/` | The Go implementation: CLI entry point and internal packages |
+| `profiles/cumcm/` | The frozen CUMCM Profile: three templates, Lua filters, CSL, licences and metadata |
+| `Build-Paper.ps1`, `Convert-CumcmProjectToLatex.ps1` | The part of the build chain still written in PowerShell, invoked by Go |
+| `Install-NodePaper.ps1`, `Uninstall-NodePaper.ps1` | Register/unregister scripts for the portable ZIP, shipped in the package |
+| `Bootstrap-Tools.ps1`, `tools/` | Downloads and verifies the bundled pandoc and pandoc-crossref against pinned hashes |
+| `installer/windows/` | The Inno Setup script |
+| `scripts/` | Build, packaging and test suites |
+| `nodepaper-test-fixtures/` | A self-contained test asset pack with its own notes and manifest |
+| `examples/m0-baseline/` | The M0 baseline project, kept for historical comparison |
+| `licenses/`, `THIRD_PARTY_NOTICES.md` | Third-party licences and notices |
+| `scau-compat/` | The pre-migration SCAU PowerShell toolchain, unrelated to the CUMCM route above |
+| `.github/workflows/` | CI: `ci`, `miktex-e2e`, `export-linux`, `release-build` |
+
+What goes into a release package is an explicit allowlist in `scripts/build-release.ps1` rather than an archive of the repository; bundled binaries are verified against pinned SHA-256 values and shipped alongside their corresponding source archives.
 
 ## License
 
