@@ -1,5 +1,5 @@
 ﻿; NodePaper Windows x64 Setup definition (Inno Setup 6, pinned by
-; installer/windows/innosetup-toolchain.json).
+; packaging/windows/innosetup-toolchain.json).
 ;
 ; This file is an installation adapter only. It installs the already built and
 ; already verified release payload; it never compiles nodepaper.exe and never

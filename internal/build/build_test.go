@@ -847,7 +847,7 @@ func copyBuildFixture(t *testing.T, name string) string {
 		t.Fatal(err)
 	}
 	t.Setenv("NODEPAPER_PROFILE_DIR", filepath.Join(repoRoot, "profiles", "cumcm"))
-	source := filepath.Join(repoRoot, "nodepaper-test-fixtures", "tests", "fixtures", name)
+	source := filepath.Join(repoRoot, "tests", "fixtures", name)
 	destination := filepath.Join(t.TempDir(), "project")
 	if err := copyBuildTree(source, destination); err != nil {
 		t.Fatalf("copy fixture %s: %v", name, err)

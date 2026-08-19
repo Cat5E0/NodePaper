@@ -12,7 +12,7 @@
       2. verifies the payload against its own payload-manifest.json
       3. verifies the payload version, source commit and Profile snapshot
       4. writes the ASCII payload checksum list embedded in Setup
-      5. compiles installer/windows/nodepaper.iss with pinned defines
+      5. compiles packaging/windows/nodepaper.iss with pinned defines
       6. records the Setup SHA-256, size and channel data in the release
          manifest next to the ZIP channel
 
@@ -74,7 +74,8 @@ if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
 
 # ---------- 1. pinned Inno Setup toolchain ---------------------------------
 
-$toolchainPath = Join-Path $root "installer\windows\innosetup-toolchain.json"
+$toolchainPath = Join-Path $root "packaging\windows\innosetup-toolchain.json"
+$toolchainsRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains"
 $toolchain = Get-Content -LiteralPath $toolchainPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if ([int]$toolchain.schemaVersion -ne 1) {
     throw "Unsupported innosetup-toolchain.json schemaVersion: $($toolchain.schemaVersion)"
@@ -87,7 +88,7 @@ foreach ($entry in @($toolchain.languageFiles)) {
     $pinnedFiles += @{ Path = [string]$entry.target; SHA256 = [string]$entry.sha256 }
 }
 foreach ($entry in $pinnedFiles) {
-    $path = Join-Path $root ($entry.Path -replace '/', '\')
+    $path = Join-Path $toolchainsRoot ($entry.Path -replace '/', '\')
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Pinned Inno Setup file missing; run .\scripts\bootstrap-innosetup.ps1 first: $($entry.Path)"
     }
@@ -96,7 +97,7 @@ foreach ($entry in $pinnedFiles) {
         throw "Pinned Inno Setup SHA-256 mismatch for $($entry.Path): expected $($entry.SHA256), got $actual"
     }
 }
-$iscc = Join-Path $root (([string]$toolchain.compiler.compilerExecutable) -replace '/', '\')
+$iscc = Join-Path $toolchainsRoot (([string]$toolchain.compiler.compilerExecutable) -replace '/', '\')
 Write-Host "Inno Setup $($toolchain.compiler.version) verified: $iscc"
 
 # ---------- 2. payload verification ----------------------------------------
@@ -201,7 +202,7 @@ $setupPath = Join-Path $OutputDirectory ($outputBaseName + ".exe")
 if (Test-Path -LiteralPath $setupPath) {
     Remove-Item -LiteralPath $setupPath -Force
 }
-$issPath = Join-Path $root "installer\windows\nodepaper.iss"
+$issPath = Join-Path $root "packaging\windows\nodepaper.iss"
 # An Inno [Files] Excludes pattern that contains a backslash is matched against
 # the path relative to the source directory, so the leading backslash pins each
 # name to the payload root instead of every directory below it.
@@ -279,7 +280,7 @@ $ordered["channels"] = @(
         signatureStatus = $signatureStatus
         installerToolchain = "Inno Setup $($toolchain.compiler.version)"
         installerToolchainSHA256 = [string]$toolchain.compiler.downloadSha256
-        installerDefinition = "installer/windows/nodepaper.iss"
+        installerDefinition = "packaging/windows/nodepaper.iss"
         payloadDirectory = [System.IO.Path]::GetFileName($payloadDir)
         payloadManifestSHA256 = $payloadManifestSHA256
         payloadFileCount = $checksumLines.Count

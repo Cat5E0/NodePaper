@@ -176,25 +176,16 @@ try {
     }
     $profileMetadata = Get-Content -LiteralPath $profileMetadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
-    # Bundled third-party binaries and corresponding sources live outside
-    # version control; copy them into the isolated worktree for packaging.
+    # Bundled third-party binaries and corresponding sources live in the
+    # per-user toolchain cache, outside version control and the worktree.
+    $bundledTools = @()
     if (-not $SkipTools) {
         $bundledTools = @(
-            @{ Source = "tools\windows-x64\pandoc\pandoc.exe"; Target = "tools\windows-x64\pandoc\pandoc.exe" },
-            @{ Source = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"; Target = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe" },
-            @{ Source = "tools\windows-x64\sources\pandoc-3.9-source.tar.gz"; Target = "tools\windows-x64\sources\pandoc-3.9-source.tar.gz" },
-            @{ Source = "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz"; Target = "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz" }
+            @{ Source = "windows-x64\pandoc\pandoc.exe"; Target = "tools\windows-x64\pandoc\pandoc.exe" },
+            @{ Source = "windows-x64\pandoc-crossref\pandoc-crossref.exe"; Target = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe" },
+            @{ Source = "windows-x64\sources\pandoc-3.9-source.tar.gz"; Target = "tools\windows-x64\sources\pandoc-3.9-source.tar.gz" },
+            @{ Source = "windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz"; Target = "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz" }
         )
-        foreach ($tool in $bundledTools) {
-            $source = Join-Path $root $tool.Source
-            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-                throw "Bundled tool missing; run .\scripts\dev\Bootstrap-Tools.ps1 first: $source"
-            }
-            $target = Join-Path $worktree $tool.Target
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
-            Copy-Item -LiteralPath $source -Destination $target -Force
-            Write-Host "Bundled: $($tool.Source)"
-        }
     }
 
     # ---------- build the executable -----------------------------------------
@@ -203,6 +194,18 @@ try {
         Remove-Item -LiteralPath $packageDir -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+
+    foreach ($tool in $bundledTools) {
+        $toolchainsRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains"
+        $source = Join-Path $toolchainsRoot $tool.Source
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Bundled tool missing; run .\scripts\dev\Bootstrap-Tools.ps1 first: $source"
+        }
+        $target = Join-Path $packageDir $tool.Target
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+        Copy-Item -LiteralPath $source -Destination $target -Force
+        Write-Host "Bundled: $($tool.Source)"
+    }
 
     $go = Get-NodePaperGo
 
@@ -260,13 +263,13 @@ try {
     $files = @(
         @{ Source = "scripts\build\Build-Paper.ps1"; Target = "Build-Paper.ps1" },
         @{ Source = "scripts\build\Convert-CumcmProjectToLatex.ps1"; Target = "Convert-CumcmProjectToLatex.ps1" },
-        @{ Source = "installer\windows\portable\Install-NodePaper.ps1"; Target = "Install-NodePaper.ps1" },
-        @{ Source = "installer\windows\portable\Uninstall-NodePaper.ps1"; Target = "Uninstall-NodePaper.ps1" },
+        @{ Source = "packaging\windows\portable\Install-NodePaper.ps1"; Target = "Install-NodePaper.ps1" },
+        @{ Source = "packaging\windows\portable\Uninstall-NodePaper.ps1"; Target = "Uninstall-NodePaper.ps1" },
         @{ Source = "README.md"; Target = "README.md" },
         @{ Source = "README.en.md"; Target = "README.en.md" },
         @{ Source = "LICENSE"; Target = "LICENSE" },
         @{ Source = "THIRD_PARTY_NOTICES.md"; Target = "THIRD_PARTY_NOTICES.md" },
-        @{ Source = "tools\versions.json"; Target = "tools\versions.json" }
+        @{ Source = "packaging\toolchains\windows-x64.json"; Target = "tools\versions.json" }
     )
     foreach ($file in $files) {
         $source = Join-Path $worktree $file.Source
@@ -286,16 +289,13 @@ try {
             "tools\windows-x64\sources\pandoc-crossref-0.3.24-source.tar.gz"
         )
         foreach ($relative in $packageTools) {
-            $source = Join-Path $worktree $relative
-            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-                throw "Bundled tool or corresponding source missing in worktree: $relative"
-            }
             $target = Join-Path $packageDir $relative
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
-            Copy-Item -LiteralPath $source -Destination $target -Force
+            if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+                throw "Bundled tool or corresponding source missing from package assembly: $relative"
+            }
         }
 
-        $toolVersionsMetadata = Get-Content -LiteralPath (Join-Path $worktree "tools\versions.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        $toolVersionsMetadata = Get-Content -LiteralPath (Join-Path $worktree "packaging\toolchains\windows-x64.json") -Raw -Encoding UTF8 | ConvertFrom-Json
         $toolHashes = @(
             @{ Path = "tools\windows-x64\pandoc\pandoc.exe"; Expected = [string]$toolVersionsMetadata.pandoc.executable_sha256 },
             @{ Path = "tools\windows-x64\pandoc-crossref\pandoc-crossref.exe"; Expected = [string]$toolVersionsMetadata.pandoc_crossref.executable_sha256 },
@@ -327,7 +327,7 @@ try {
 
     # Runnable CUMCM example: the public fictional complete-single-file
     # Fixture is the only example that passes the current CUMCM Profile.
-    $exampleSource = Join-Path $worktree "nodepaper-test-fixtures\tests\fixtures\complete-single-file"
+    $exampleSource = Join-Path $worktree "tests\fixtures\complete-single-file"
     if (-not (Test-Path -LiteralPath $exampleSource -PathType Container)) {
         throw "Example Fixture missing: $exampleSource"
     }

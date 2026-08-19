@@ -203,7 +203,7 @@ try {
 
     $oldExe = Join-Path $oldDir "nodepaper.exe"
     $projectDir = Join-Path $workRoot "project"
-    $fixture = Join-Path $PSScriptRoot "..\nodepaper-test-fixtures\tests\fixtures\complete-single-file"
+    $fixture = Join-Path $PSScriptRoot "..\tests\fixtures\complete-single-file"
     Copy-Item -LiteralPath $fixture -Destination $projectDir -Recurse
     Push-Location $projectDir
     try {

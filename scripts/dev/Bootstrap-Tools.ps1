@@ -101,9 +101,9 @@ function Copy-FirstExecutable {
 }
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
-$toolsRoot = Join-Path $repoRoot "tools"
-$platformRoot = Join-Path $toolsRoot "windows-x64"
-$cacheRoot = Join-Path $toolsRoot "_downloads"
+$toolchainsRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains"
+$platformRoot = Join-Path $toolchainsRoot "windows-x64"
+$cacheRoot = Join-Path ([System.IO.Path]::GetTempPath()) "NodePaper\toolchain-downloads"
 $sourcesRoot = Join-Path $platformRoot "sources"
 $pandocTarget = Join-Path $platformRoot "pandoc\pandoc.exe"
 $crossrefTarget = Join-Path $platformRoot "pandoc-crossref\pandoc-crossref.exe"
@@ -176,24 +176,24 @@ $versions = [ordered]@{
         url = $pandocUrl
         archive_sha256 = $PandocArchiveSHA256
         executable_sha256 = $PandocExecutableSHA256
-        target = "tools/windows-x64/pandoc/pandoc.exe"
+        target = "windows-x64/pandoc/pandoc.exe"
         source_url = $pandocSourceUrl
         source_sha256 = $PandocSourceSHA256
-        source_target = "tools/windows-x64/sources/pandoc-$PandocVersion-source.tar.gz"
+        source_target = "windows-x64/sources/pandoc-$PandocVersion-source.tar.gz"
     }
     pandoc_crossref = [ordered]@{
         version = $PandocCrossrefVersion
         url = $crossrefUrl
         archive_sha256 = $PandocCrossrefArchiveSHA256
         executable_sha256 = $PandocCrossrefExecutableSHA256
-        target = "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe"
+        target = "windows-x64/pandoc-crossref/pandoc-crossref.exe"
         source_url = $crossrefSourceUrl
         source_sha256 = $PandocCrossrefSourceSHA256
-        source_target = "tools/windows-x64/sources/pandoc-crossref-$PandocCrossrefVersion-source.tar.gz"
+        source_target = "windows-x64/sources/pandoc-crossref-$PandocCrossrefVersion-source.tar.gz"
     }
 }
 
-$versionsPath = Join-Path $toolsRoot "versions.json"
+$versionsPath = Join-Path $repoRoot "packaging\toolchains\windows-x64.json"
 $versionsJSON = ($versions | ConvertTo-Json -Depth 5) -replace "`r`n", "`n"
 [System.IO.File]::WriteAllText($versionsPath, $versionsJSON + "`n", (New-Object System.Text.UTF8Encoding($false)))
 

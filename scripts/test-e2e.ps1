@@ -31,7 +31,7 @@ if ([string]::IsNullOrWhiteSpace($Fixture)) {
 
 . (Join-Path $PSScriptRoot "test-common.ps1")
 $root = Get-NodePaperRepoRoot
-$fixtureRoot = Join-Path $root "nodepaper-test-fixtures\tests\fixtures\$Fixture"
+$fixtureRoot = Join-Path $root "tests\fixtures\$Fixture"
 if (-not (Test-Path -LiteralPath $fixtureRoot -PathType Container)) {
     throw "Fixture not found: $fixtureRoot"
 }
@@ -118,8 +118,8 @@ try {
     }
 
     $toolPaths = @(
-        (Join-Path $root "tools\windows-x64\pandoc"),
-        (Join-Path $root "tools\windows-x64\pandoc-crossref")
+        (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains\windows-x64\pandoc"),
+        (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains\windows-x64\pandoc-crossref")
     )
     $env:PATH = ($toolPaths -join ';') + ';' + $env:PATH
 

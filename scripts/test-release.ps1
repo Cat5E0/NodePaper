@@ -28,7 +28,7 @@
     Public Fixture name to copy (default complete-single-file).
 .PARAMETER FixtureDirectory
     Directory of the Fixture project to copy. Defaults to the repository's
-    nodepaper-test-fixtures copy of -Fixture.
+    tests/fixtures copy of -Fixture.
 .PARAMETER ManualGatesFile
     JSON file with confirmed manual gate evidence:
     { "schemaVersion": 1,
@@ -438,7 +438,7 @@ try {
 
     $fixtureDir = $FixtureDirectory
     if ([string]::IsNullOrWhiteSpace($fixtureDir)) {
-        $fixtureDir = Join-Path $PSScriptRoot "..\nodepaper-test-fixtures\tests\fixtures\$Fixture"
+        $fixtureDir = Join-Path $PSScriptRoot "..\tests\fixtures\$Fixture"
         if (-not (Test-Path -LiteralPath $fixtureDir -PathType Container)) {
             throw "FAIL: Fixture not found: $fixtureDir. Pass -FixtureDirectory to use a copied fixture."
         }

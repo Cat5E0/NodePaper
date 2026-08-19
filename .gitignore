@@ -1,16 +1,19 @@
 # Build outputs. Anchored so internal/build/ (Go sources) stays tracked.
 /build/
 **/.nodepaper/
-**/dist/
+/dist/
 
 # Lock-state Fixture inputs are source test data, not generated artifacts.
-!nodepaper-test-fixtures/tests/fixtures/damaged-lock/.nodepaper/
-!nodepaper-test-fixtures/tests/fixtures/damaged-lock/.nodepaper/build.lock
-!nodepaper-test-fixtures/tests/fixtures/stale-lock/.nodepaper/
-!nodepaper-test-fixtures/tests/fixtures/stale-lock/.nodepaper/build.lock
+!tests/fixtures/damaged-lock/.nodepaper/
+!tests/fixtures/damaged-lock/.nodepaper/build.lock
+!tests/fixtures/stale-lock/.nodepaper/
+!tests/fixtures/stale-lock/.nodepaper/build.lock
 
 # Logs
-logs/
+/logs/
+/cache/
+/temp/
+/tmp/
 
 # LaTeX auxiliary files
 *.aux
@@ -32,9 +35,7 @@ logs/
 
 # Bundled third-party binaries and pinned build toolchains (fetched, verified
 # and never committed)
-tools/windows-x64/
-tools/_downloads/
-!tools/versions.json
+/tools/
 
 # Python
 __pycache__/

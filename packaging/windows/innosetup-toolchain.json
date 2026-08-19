@@ -9,30 +9,30 @@
     "downloadSha256": "9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732",
     "downloadSize": 10592232,
     "extraction": "portable: /PORTABLE=1 /VERYSILENT /SUPPRESSMSGBOXES /NOICONS /DIR=<installRoot>; no registry, service, PATH or shortcut change on the build machine",
-    "installRoot": "tools/windows-x64/innosetup",
-    "compilerExecutable": "tools/windows-x64/innosetup/ISCC.exe",
+    "installRoot": "windows-x64/innosetup",
+    "compilerExecutable": "windows-x64/innosetup/ISCC.exe",
     "license": "Inno Setup License (Jordan Russell / Martijn Laan), redistribution of the compiler is not required and not performed",
-    "licenseFile": "tools/windows-x64/innosetup/license.txt",
+    "licenseFile": "windows-x64/innosetup/license.txt",
     "licenseUrl": "https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_3/license.txt",
     "files": [
       {
-        "path": "tools/windows-x64/innosetup/ISCC.exe",
+        "path": "windows-x64/innosetup/ISCC.exe",
         "sha256": "0a8757031b33777e4c9cbffee40f11a5062b36d25cbe144c1db73b6102b80ad7"
       },
       {
-        "path": "tools/windows-x64/innosetup/ISCmplr.dll",
+        "path": "windows-x64/innosetup/ISCmplr.dll",
         "sha256": "85a1e3090d3a5b85319f001b7c8f9ecfad45f37eff030a67bbe29ef58b7aa2c3"
       },
       {
-        "path": "tools/windows-x64/innosetup/ISPP.dll",
+        "path": "windows-x64/innosetup/ISPP.dll",
         "sha256": "bde04be7f4a55ca56afb6b06600d7cbe8326fac468ac3f2885b80eefb3ed2a7a"
       },
       {
-        "path": "tools/windows-x64/innosetup/Default.isl",
+        "path": "windows-x64/innosetup/Default.isl",
         "sha256": "42a5f6f7dbbddf26cc278f67db5d894235ce1d126a6856702e31bd02023a1316"
       },
       {
-        "path": "tools/windows-x64/innosetup/license.txt",
+        "path": "windows-x64/innosetup/license.txt",
         "sha256": "2e5346868c2a18434489824e11d65c3031620f792fefc415d05f19cd441abf5c"
       }
     ]
@@ -44,7 +44,7 @@
       "downloadUrl": "https://raw.githubusercontent.com/jrsoftware/issrc/is-6_7_3/Files/Languages/Unofficial/ChineseSimplified.isl",
       "sha256": "7d544b9bb1d142cfa11f2e5d3cc8abe2e55f8e066c5124e3772675aa236e1278",
       "size": 20905,
-      "target": "tools/windows-x64/innosetup/Languages/ChineseSimplified.isl"
+      "target": "windows-x64/innosetup/Languages/ChineseSimplified.isl"
     }
   ]
 }

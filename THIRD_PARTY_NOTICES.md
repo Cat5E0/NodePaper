@@ -17,7 +17,7 @@ The following are original NodePaper works licensed under the MIT License
   `scripts/build/Convert-CumcmProjectToLatex.ps1`;
 - the CUMCM Profile under `profiles/cumcm/` (`profile.json`, `template.tex`,
   `crossref.yaml`, `warning-allowlist.json`, `filters/*.lua`);
-- `scripts/`, `installer/windows/`, `README.md` (Simplified Chinese),
+- `scripts/`, `packaging/windows/`, `README.md` (Simplified Chinese),
   `README.en.md` (English) and `examples/cumcm-single-file`
   (fictional test content generated for this project; no real persons,
   schools, teams or papers).
@@ -91,9 +91,9 @@ The Windows Setup channel
 Inno Setup 6.7.3 compiler and therefore contains Inno Setup installer code,
 copyright (C) 1997-2026 Jordan Russell and (C) 2000-2026 Martijn Laan. The
 license text of the pinned version is in
-`installer/windows/INNO-SETUP-LICENSE.txt`; the pinned download URL, SHA-256
+`packaging/windows/INNO-SETUP-LICENSE.txt`; the pinned download URL, SHA-256
 values and license location are recorded in
-`installer/windows/innosetup-toolchain.json`. Upstream:
+`packaging/windows/innosetup-toolchain.json`. Upstream:
 <https://github.com/jrsoftware/issrc> (tag `is-6_7_3`).
 
 The Inno Setup compiler itself is a build tool. It is not part of the release
@@ -113,7 +113,8 @@ machine paths.
 - The bundled GPL executables (Pandoc, pandoc-crossref) are redistributed
   under the GPL-2.0-or-later terms. Their exact-version source archives,
   SHA-256 values, upstream notices and GPL text are distributed in the same
-  package; `tools/versions.json` records the binary/source download URLs and
+  package; the tracked `packaging/toolchains/windows-x64.json` manifest records
+  the binary/source download URLs and
   checksums.
 - The CSL style is redistributed under CC BY-SA 3.0 terms; modifications must
   preserve attribution and comply with ShareAlike.

@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Downloads the Inno Setup version pinned in
-    installer/windows/innosetup-toolchain.json, verifies its SHA-256, extracts
-    it in portable mode into tools/windows-x64/innosetup (outside version
+    packaging/windows/innosetup-toolchain.json, verifies its SHA-256, extracts
+    it in portable mode into %LOCALAPPDATA%/NodePaper/toolchains/windows-x64/innosetup (outside version
     control) and verifies the compiler files and the pinned Simplified Chinese
     language file.
 
@@ -17,7 +17,7 @@
     Re-download and re-extract even when the pinned files already verify.
 
 .PARAMETER KeepDownloads
-    Keep tools/_downloads after a successful bootstrap.
+    Keep the temporary %TEMP%/NodePaper toolchain download after a successful bootstrap.
 #>
 param(
     [switch]$Force,
@@ -28,7 +28,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$metadataPath = Join-Path $root "installer\windows\innosetup-toolchain.json"
+$metadataPath = Join-Path $root "packaging\windows\innosetup-toolchain.json"
 if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
     throw "Pinned Inno Setup metadata not found: $metadataPath"
 }
@@ -51,13 +51,13 @@ function Assert-FileSHA256 {
 function Test-PinnedFiles {
     $ok = $true
     foreach ($entry in @($metadata.compiler.files)) {
-        $path = Join-Path $root (([string]$entry.path) -replace '/', '\')
+        $path = Join-Path $toolchainsRoot (([string]$entry.path) -replace '/', '\')
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
         $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne ([string]$entry.sha256).ToLowerInvariant()) { $ok = $false }
     }
     foreach ($entry in @($metadata.languageFiles)) {
-        $path = Join-Path $root (([string]$entry.target) -replace '/', '\')
+        $path = Join-Path $toolchainsRoot (([string]$entry.target) -replace '/', '\')
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
         $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne ([string]$entry.sha256).ToLowerInvariant()) { $ok = $false }
@@ -65,8 +65,9 @@ function Test-PinnedFiles {
     return $ok
 }
 
-$installRoot = Join-Path $root (([string]$metadata.compiler.installRoot) -replace '/', '\')
-$cacheRoot = Join-Path $root "tools\_downloads"
+$toolchainsRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains"
+$installRoot = Join-Path $toolchainsRoot (([string]$metadata.compiler.installRoot) -replace '/', '\')
+$cacheRoot = Join-Path ([System.IO.Path]::GetTempPath()) "NodePaper\toolchain-downloads"
 
 if (-not $Force -and (Test-PinnedFiles)) {
     Write-Host "Pinned Inno Setup $($metadata.compiler.version) already present: $installRoot"
@@ -98,7 +99,7 @@ else {
     $languageDir = Join-Path $installRoot "Languages"
     New-Item -ItemType Directory -Force -Path $languageDir | Out-Null
     foreach ($entry in @($metadata.languageFiles)) {
-        $target = Join-Path $root (([string]$entry.target) -replace '/', '\')
+        $target = Join-Path $toolchainsRoot (([string]$entry.target) -replace '/', '\')
         Write-Host "Downloading $($entry.downloadUrl)"
         Invoke-WebRequest -Uri ([string]$entry.downloadUrl) -OutFile $target
         Assert-FileSHA256 $target ([string]$entry.sha256) "Inno Setup language file $($entry.name)"
@@ -106,12 +107,12 @@ else {
 }
 
 foreach ($entry in @($metadata.compiler.files)) {
-    $path = Join-Path $root (([string]$entry.path) -replace '/', '\')
+    $path = Join-Path $toolchainsRoot (([string]$entry.path) -replace '/', '\')
     Assert-FileSHA256 $path ([string]$entry.sha256) "Pinned Inno Setup file"
     Write-Host "Verified: $($entry.path)"
 }
 foreach ($entry in @($metadata.languageFiles)) {
-    $path = Join-Path $root (([string]$entry.target) -replace '/', '\')
+    $path = Join-Path $toolchainsRoot (([string]$entry.target) -replace '/', '\')
     Assert-FileSHA256 $path ([string]$entry.sha256) "Pinned Inno Setup language file"
     Write-Host "Verified: $($entry.target)"
 }
@@ -121,5 +122,5 @@ if (-not $KeepDownloads -and (Test-Path -LiteralPath $cacheRoot)) {
 }
 
 Write-Host ""
-Write-Host "Inno Setup $($metadata.compiler.version) ready: $(Join-Path $root (([string]$metadata.compiler.compilerExecutable) -replace '/', '\'))"
-Write-Host "License: $(Join-Path $root (([string]$metadata.compiler.licenseFile) -replace '/', '\'))"
+Write-Host "Inno Setup $($metadata.compiler.version) ready: $(Join-Path $toolchainsRoot (([string]$metadata.compiler.compilerExecutable) -replace '/', '\'))"
+Write-Host "License: $(Join-Path $toolchainsRoot (([string]$metadata.compiler.licenseFile) -replace '/', '\'))"

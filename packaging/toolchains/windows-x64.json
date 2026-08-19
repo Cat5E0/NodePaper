@@ -5,19 +5,19 @@
                    "url":  "https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-windows-x86_64.zip",
                    "archive_sha256":  "edccdaa95b5a33b3320187f0e291d58a232e21318a8081750bd31f847e598d18",
                    "executable_sha256":  "3a3f58602ee7bc1237e314e764df07806ea6bb28c24bb9026cd9d09e4e166020",
-                   "target":  "tools/windows-x64/pandoc/pandoc.exe",
+                   "target":  "windows-x64/pandoc/pandoc.exe",
                    "source_url":  "https://codeload.github.com/jgm/pandoc/tar.gz/refs/tags/3.9",
                    "source_sha256":  "d8da16e1ad1f685123fbc1a5a83b74766bcfd939dc6989484822f023bb70438f",
-                   "source_target":  "tools/windows-x64/sources/pandoc-3.9-source.tar.gz"
+                   "source_target":  "windows-x64/sources/pandoc-3.9-source.tar.gz"
                },
     "pandoc_crossref":  {
                             "version":  "0.3.24",
                             "url":  "https://github.com/lierdakil/pandoc-crossref/releases/download/v0.3.24/pandoc-crossref-Windows-X64.7z",
                             "archive_sha256":  "f5be3abd946e44184cc8f2a813210e870767379fbaaa03be56c72a637d5a50e7",
                             "executable_sha256":  "6393ed0b495416bfce08a94f6a40d30791aedcb07067d04eba2920d47a4ec280",
-                            "target":  "tools/windows-x64/pandoc-crossref/pandoc-crossref.exe",
+                            "target":  "windows-x64/pandoc-crossref/pandoc-crossref.exe",
                             "source_url":  "https://codeload.github.com/lierdakil/pandoc-crossref/tar.gz/refs/tags/v0.3.24",
                             "source_sha256":  "ea9e06e5f95dee428d48005a4776bffa4d02c4936097aff269cafe81ec39105b",
-                            "source_target":  "tools/windows-x64/sources/pandoc-crossref-0.3.24-source.tar.gz"
+                            "source_target":  "windows-x64/sources/pandoc-crossref-0.3.24-source.tar.gz"
                         }
 }

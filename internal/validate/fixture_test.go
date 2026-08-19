@@ -28,7 +28,7 @@ type fixtureContract struct {
 
 func TestValidateFixtureContracts(t *testing.T) {
 	repoRoot := repositoryRoot(t)
-	assetRoot := filepath.Join(repoRoot, "nodepaper-test-fixtures", "tests")
+	assetRoot := filepath.Join(repoRoot, "tests")
 	manifest := readFixtureManifest(t, filepath.Join(assetRoot, "fixture-manifest.json"))
 	if manifest.SchemaVersion != 2 {
 		t.Fatalf("fixture manifest schemaVersion = %d, want 2", manifest.SchemaVersion)

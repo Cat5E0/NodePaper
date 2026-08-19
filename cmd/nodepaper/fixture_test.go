@@ -42,7 +42,7 @@ func TestFixtureJSONContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("NODEPAPER_PROFILE_DIR", filepath.Join(repoRoot, "profiles", "cumcm"))
-	assetRoot := filepath.Join(repoRoot, "nodepaper-test-fixtures", "tests")
+	assetRoot := filepath.Join(repoRoot, "tests")
 	manifestData, err := os.ReadFile(filepath.Join(assetRoot, "fixture-manifest.json"))
 	if err != nil {
 		t.Fatal(err)

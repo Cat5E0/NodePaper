@@ -218,7 +218,7 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $script:InstallRoot "nodepaper.exe") -PathType Leaf) "nodepaper.exe was installed"
 
     # Setup installs the payload minus the ZIP channel's own registration
-    # scripts (installer/windows/nodepaper.iss Excludes, list owned by
+    # scripts (packaging/windows/nodepaper.iss Excludes, list owned by
     # scripts/build-setup.ps1). The payload manifest describes the ZIP, so it
     # still lists them; under {app} they must be absent. A file named
     # Uninstall-NodePaper.ps1 inside a Setup installation directory invites the

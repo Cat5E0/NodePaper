@@ -97,7 +97,7 @@ func fragmentProject(t *testing.T, configSuffix string) string {
 	t.Helper()
 	repo := repositoryRoot(t)
 	projectDir := filepath.Join(t.TempDir(), "project")
-	copyTree(t, filepath.Join(repo, "nodepaper-test-fixtures", "tests", "fixtures", "minimal-valid"), projectDir)
+	copyTree(t, filepath.Join(repo, "tests", "fixtures", "minimal-valid"), projectDir)
 	config := "version: 1\nprofile: cumcm\nsource: paper.md\n" + configSuffix
 	if err := os.WriteFile(filepath.Join(projectDir, "nodepaper.yaml"), []byte(config), 0o644); err != nil {
 		t.Fatal(err)
