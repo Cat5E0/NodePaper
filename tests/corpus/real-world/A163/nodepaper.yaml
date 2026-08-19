@@ -1,5 +1,6 @@
 version: 1
 profile: cumcm
+abstractLinespread: 0.90
 sources:
   - sections/01-frontmatter-abstract.md
   - sections/02-problem-background.md

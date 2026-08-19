@@ -1,7 +1,7 @@
 # Build outputs. Anchored so internal/build/ (Go sources) stays tracked.
 /build/
 **/.nodepaper/
-/dist/
+**/dist/
 
 # Lock-state Fixture inputs are source test data, not generated artifacts.
 !tests/fixtures/damaged-lock/.nodepaper/
