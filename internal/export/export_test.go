@@ -1,6 +1,8 @@
 package export
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -170,6 +172,102 @@ func TestExportWritesTheDeliverable(t *testing.T) {
 	// .nodepaper/build must be left exactly as the last build left it.
 	if _, err := os.Stat(filepath.Join(projectDir, ".nodepaper", "export")); !os.IsNotExist(err) {
 		t.Errorf("export intermediates remain: %v", err)
+	}
+}
+
+func TestExportWritesAnOverleafReadyZipWithoutAWrapperDirectory(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "latex-project.zip")
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true}, &fakeExecutor{})
+	if !result.Success {
+		t.Fatalf("export failed: %#v", result.Diagnostics)
+	}
+	if result.ExportPath != target || result.ExportDir != "" || !result.Zipped {
+		t.Fatalf("zip result = %#v", result)
+	}
+	reader, err := zip.OpenReader(target)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer reader.Close()
+	want := map[string]bool{
+		"paper.tex":               false,
+		"references.bib":          false,
+		"README.txt":              false,
+		"images/demand-trend.png": false,
+	}
+	for _, file := range reader.File {
+		if _, ok := want[file.Name]; ok {
+			want[file.Name] = true
+		}
+		if strings.HasPrefix(file.Name, "latex-project/") {
+			t.Errorf("zip entry has a wrapper directory: %s", file.Name)
+		}
+	}
+	for name, found := range want {
+		if !found {
+			t.Errorf("zip is missing %s", name)
+		}
+	}
+}
+
+func TestZipExportIsDeterministic(t *testing.T) {
+	projectDir := fixtureProject(t)
+	first := filepath.Join(t.TempDir(), "first.zip")
+	second := filepath.Join(t.TempDir(), "second.zip")
+
+	for _, target := range []string{first, second} {
+		result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true}, &fakeExecutor{})
+		if !result.Success {
+			t.Fatalf("export %s failed: %#v", target, result.Diagnostics)
+		}
+	}
+	firstBytes, err := os.ReadFile(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondBytes, err := os.ReadFile(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstBytes, secondBytes) {
+		t.Fatal("ZIP exports of the same project differ")
+	}
+}
+
+func TestZipExportRefusesAnExistingFileWithoutForce(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "latex-project.zip")
+	if err := os.WriteFile(target, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true}, &fakeExecutor{})
+	if result.Success || !hasCode(result.Diagnostics, CodeTargetNotEmpty) {
+		t.Fatalf("result = %#v, want %s", result, CodeTargetNotEmpty)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || string(data) != "keep" {
+		t.Fatalf("existing archive changed: data=%q err=%v", data, err)
+	}
+}
+
+func TestZipExportWithForceReplacesTheExistingFile(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "latex-project.zip")
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true, Force: true}, &fakeExecutor{})
+	if !result.Success {
+		t.Fatalf("export failed: %#v", result.Diagnostics)
+	}
+	reader, err := zip.OpenReader(target)
+	if err != nil {
+		t.Fatalf("replacement is not a zip: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close replacement zip: %v", err)
 	}
 }
 

@@ -107,58 +107,9 @@ $$
 ![t = 300s时舞龙队位置示意图](images/1002aba1bcd9da25e446dc91289304c7abb15e6d09640e5200bb6a99ade990d4.jpg){#fig:a163-4-10 width=50%}
 
 
-\begingroup\footnotesize\setlength{\tabcolsep}{3pt}
-\begin{longtable}[c]{>{\centering\arraybackslash}p{2.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm}}
-\caption{位置结果}\label{tbl:a163-4-2}\tabularnewline
-\toprule\noalign{}
-& 0s & 60s & 120s & 180s & 240s & 300s \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
-& 0s & 60s & 120s & 180s & 240s & 300s \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-龙头x (m) & 8.800000 & 5.799209 & -4.084887 & -2.963609 & 2.594494 & 4.420274 \\
-龙头y (m) & 0.000000 & -5.771092 & -6.304479 & 6.094780 & -5.356743 & 2.320429 \\
-第1节龙身x (m) & 8.363824 & 7.456758 & -1.445473 & -5.237118 & 4.821221 & 2.459489 \\
-第1节龙身y(m) & 2.826544 & -3.440399 & -7.405883 & 4.359627 & -3.561949 & 4.402476 \\
-第51节龙身x (m) & -9.518732 & -8.686317 & -5.543149 & 2.890455 & 5.980011 & -6.301346 \\
-第51节龙身y(m) & 1.341137 & 2.540108 & 6.377946 & 7.249289 & -3.827758 & 0.465829 \\
-第101节龙身x(m) & 2.913983 & 5.687116 & 5.361939 & 1.898795 & -4.917371 & -6.237722 \\
-第101节龙身y(m) & -9.918311 & -8.001384 & -7.557638 & -8.471614 & -6.379874 & 3.936008 \\
-第151节龙身x (m) & 10.861726 & 6.682312 & 2.388757 & 1.005154 & 2.965378 & 7.040740 \\
-第151节龙身y(m) & 1.828753 & 8.134544 & 9.727411 & 9.424751 & 8.399721 & 4.393013 \\
-第201节龙身x (m) & 4.555102 & -6.619664 & -10.627210 & -9.287720 & -7.457151 & -7.458662 \\
-第201节龙身y(m) & 10.725118 & 9.025570 & 1.359848 & -4.246673 & -6.180726 & -5.263384 \\
-龙尾（后）x(m) & -5.305444 & 7.364557 & 10.974348 & 7.383895 & 3.241051 & 1.785033 \\
-龙尾（后）y(m) & -10.676584 & -8.797992 & 0.843473 & 7.492371 & 9.469336 & 9.301164 \\
-\end{longtable}
-\endgroup
+\input{tables/a163-4-2-position.tex}
 
-\begingroup\footnotesize\setlength{\tabcolsep}{3pt}
-\begin{longtable}[c]{>{\centering\arraybackslash}p{2.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm} >{\centering\arraybackslash}p{1.9cm}}
-\caption{速度结果}\label{tbl:a163-4-3}\tabularnewline
-\toprule\noalign{}
- & 0s & 60s & 120s & 180s & 240s & 300s \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
- & 0s & 60s & 120s & 180s & 240s & 300s \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-龙头$\mathrm { ( m / s ) }$ & 1.000000 & 1.000000 & 1.000000 & 1.000000 & 1.000000 & 1.000000 \\
-第1节龙身$\mathrm { ( m / s ) }$ & 0.999971 & 0.999961 & 0.999945 & 0.999917 & 0.999859 & 0.999709 \\
-第51节龙身$\mathrm { ( m / s ) }$ & 0.999742 & 0.999662 & 0.999538 & 0.999331 & 0.998941 & 0.998065 \\
-第101节龙身$\mathrm { ( m / s ) }$ & 0.999575 & 0.999453 & 0.999269 & 0.998971 & 0.998435 & 0.997302 \\
-第151节龙身$\mathrm { ( m / s ) }$ & 0.999448 & 0.999299 & 0.999078 & 0.998727 & 0.998115 & 0.996861 \\
-第201节龙身(m/s) & 0.999348 & 0.999180 & 0.998935 & 0.998551 & 0.997894 & 0.996574 \\
-龙尾（后）(m/s) & 0.999311 & 0.999136 & 0.998883 & 0.998489 & 0.997816 & 0.996478 \\
-\end{longtable}
-\endgroup
+\input{tables/a163-4-3-speed.tex}
 
 ## 问题二模型的建立与求解
 
@@ -779,58 +730,9 @@ $$
 ![t = 20s时舞龙队位置示意图](images/0f1a3761c60168dfefaf917401ef4a7dfb5a915635b751808bb92013d5965926.jpg){#fig:a163-4-26 width=45%}
 
 
-\begingroup\footnotesize\setlength{\tabcolsep}{3pt}
-\begin{longtable}[c]{>{\centering\arraybackslash}p{2.9cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm}}
-\caption{位置结果}\label{tbl:a163-4-6}\tabularnewline
-\toprule\noalign{}
- & -100s & -50s & 0s & 50s & 100s \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
- & -100s & -50s & 0s & 50s & 100s \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-龙头x (m) & 7.778034 & 6.608301 & -2.711855 & 1.332696 & -3.157228 \\
-龙头y (m) & 3.717164 & 1.898865 & -3.591077 & 6.175324 & 7.548511 \\
-第1节龙身x (m) & 6.209273 & 5.366911 & -0.063533 & 3.862265 & -0.346889 \\
-第1节龙身y(m) & 6.108521 & 4.475403 & -4.670887 & 4.840828 & 8.079166 \\
-第51节龙身x (m) & -10.608037 & -3.629945 & 2.459962 & -1.665659 & 2.095033 \\
-第51节龙身y(m) & 2.831492 & -8.963799 & -7.778145 & -6.078552 & 4.033787 \\
-第101节龙身x (m) & -11.922761 & 10.125787 & 3.008493 & -7.595340 & -7.288774 \\
-第101节龙身y(m) & -4.802377 & -5.972246 & 10.108539 & 5.170626 & 2.063875 \\
-第151节龙身x (m) & -14.351032 & 12.974784 & -7.002788 & -4.599737 & 9.462514 \\
-第151节龙身y(m) & -1.980992 & -3.810357 & 10.337482 & -10.389549 & -3.540356 \\
-第201节龙身x(m) & -11.952942 & 10.522508 & -6.872841 & 0.342952 & 8.524374 \\
-第201节龙身y(m) & 10.566998 & -10.807425 & 12.382609 & -13.177577 & 8.606933 \\
-龙尾（后）x(m) & -1.011058 & 0.189810 & -1.933627 & 5.853703 & -10.980157 \\
-龙尾（后）y(m) & -16.527572 & 15.720588 & -14.713128 & 12.615526 & -6.770006 \\
-\end{longtable}
-\endgroup
+\input{tables/a163-4-6-position.tex}
 
-\begingroup\footnotesize\setlength{\tabcolsep}{3pt}
-\begin{longtable}[c]{>{\centering\arraybackslash}p{2.9cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm} >{\centering\arraybackslash}p{2.2cm}}
-\caption{速度结果}\label{tbl:a163-4-7}\tabularnewline
-\toprule\noalign{}
- & -100s & -50s & 0s & 50s & 240s \\
-\midrule\noalign{}
-\endfirsthead
-\toprule\noalign{}
- & -100s & -50s & 0s & 50s & 240s \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-龙头(m/s) & 1.000000 & 1.000000 & 1.000000 & 1.000000 & 1.000000 \\
-第1节龙身(m/s) & 0.999904 & 0.999762 & 0.998686 & 1.000363 & 1.000124 \\
-第51节龙身(m/s) & 0.999346 & 0.998641 & 0.995134 & 0.949698 & 1.003966 \\
-第101节龙身(m/s) & 0.999091 & 0.998248 & 0.994448 & 0.948246 & 1.096263 \\
-第151节龙身(m/s) & 0.998944 & 0.998047 & 0.994156 & 0.947802 & 1.095306 \\
-第201节龙身(m/s) & 0.998849 & 0.997925 & 0.993994 & 0.947587 & 1.094934 \\
-龙尾（后）(m/s) & 0.998817 & 0.997885 & 0.993944 & 0.947524 & 1.094833 \\
-\end{longtable}
-\endgroup
+\input{tables/a163-4-7-speed.tex}
 
 ## 问题五模型的建立与求解
 

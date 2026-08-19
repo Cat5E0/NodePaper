@@ -423,6 +423,7 @@ func exportRequest(inv cli.Invocation) app.ExportRequest {
 		Bib:        inv.Bib,
 		Verify:     inv.Verify,
 		Force:      inv.Force,
+		Zip:        inv.Zip,
 	}
 }
 

@@ -88,6 +88,113 @@ end
 -- paths and identifiers can still wrap instead of overflowing the text area.
 local CODE_BREAK_AFTER = "[/\\\\:;,._-]"
 
+-- Pandoc decides whether pipe-table columns are natural-width or fixed-width
+-- from its output wrapping threshold. That makes a harmless Markdown edit able
+-- to stretch a compact table across the page. NodePaper table attributes turn
+-- the choice into an explicit author contract while keeping ordinary tables in
+-- Markdown:
+--
+--   : Caption {#tbl:sample width=auto}
+--   : Caption {#tbl:sample width=80%}
+--   : Caption {#tbl:sample width=full}
+--   : Caption {#tbl:sample width=80% ratios="1:4"}
+--
+-- Percentage widths use an explicit ratios attribute when present, otherwise
+-- preserve Pandoc's parsed relative column ratios. When neither is available,
+-- columns share the requested width equally. The explicit form matters because
+-- Pandoc discards pipe-table separator lengths for short, natural-width tables.
+local function requested_table_width(value)
+  value = value:lower():gsub("^%s+", ""):gsub("%s+$", "")
+  if value == "auto" then
+    return "auto"
+  end
+  if value == "full" then
+    return 1
+  end
+  local percent = tonumber(value:match("^(%d+%.?%d*)%%$"))
+  if percent ~= nil and percent > 0 and percent <= 100 then
+    return percent / 100
+  end
+  return nil
+end
+
+local function requested_table_ratios(value, column_count)
+  local ratios = {}
+  local total = 0
+  for item in value:gmatch("[^,:]+") do
+    local ratio = tonumber(item:match("^%s*(.-)%s*$"))
+    if ratio == nil or ratio <= 0 then
+      return nil, nil
+    end
+    ratios[#ratios + 1] = ratio
+    total = total + ratio
+  end
+  if #ratios ~= column_count or total <= 0 then
+    return nil, nil
+  end
+  return ratios, total
+end
+
+function Table(tbl)
+  local value = tbl.attributes.width
+  if value == nil then
+    if tbl.attributes.ratios ~= nil then
+      error("table ratios requires width=full or a percentage width")
+    end
+    return nil
+  end
+
+  local requested = requested_table_width(value)
+  if requested == nil then
+    error("table width must be auto, full, or a percentage greater than 0% and at most 100%: " .. value)
+  end
+
+  local specs = {}
+  if requested == "auto" then
+    if tbl.attributes.ratios ~= nil then
+      error("table ratios cannot be combined with width=auto")
+    end
+    for index, spec in ipairs(tbl.colspecs) do
+      specs[index] = { spec[1] }
+    end
+  else
+    local explicit_ratios = nil
+    local explicit_total = nil
+    if tbl.attributes.ratios ~= nil then
+      explicit_ratios, explicit_total = requested_table_ratios(tbl.attributes.ratios, #tbl.colspecs)
+      if explicit_ratios == nil then
+        error("table ratios must contain one positive number per column, separated by ':' or ','")
+      end
+    end
+
+    local parsed_total = 0
+    local parsed_count = 0
+    for _, spec in ipairs(tbl.colspecs) do
+      if type(spec[2]) == "number" and spec[2] > 0 then
+        parsed_total = parsed_total + spec[2]
+        parsed_count = parsed_count + 1
+      end
+    end
+
+    for index, spec in ipairs(tbl.colspecs) do
+      local ratio
+      if explicit_ratios ~= nil then
+        ratio = explicit_ratios[index] / explicit_total
+      elseif parsed_count == #tbl.colspecs and parsed_total > 0 then
+        ratio = spec[2] / parsed_total
+      else
+        ratio = 1 / #tbl.colspecs
+      end
+      specs[index] = { spec[1], requested * ratio }
+    end
+  end
+
+  tbl.colspecs = specs
+  tbl.attributes.width = nil
+  tbl.attributes.ratios = nil
+  return tbl
+end
+
 function Code(inline)
   local text = inline.text
   if text == "" then

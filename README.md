@@ -160,12 +160,12 @@ nodepaper validate
 ### 5. 出成品：导出后在 Overleaf 编译
 
 ```powershell
-nodepaper export . --to ..\paper-latex
+nodepaper export . --to ..\paper-latex.zip --zip
 ```
 
 导出的不是 PDF，而是一份可独立编译的 LaTeX 工程：`paper.tex`、`references.bib`、论文实际用到的图片、`\input{}` 的 Fragment，以及一份写明编译步骤和所需宏包的 `README.txt`。
 
-把 `..\paper-latex` 整个文件夹打包成 zip 上传到 Overleaf，然后：
+`--zip` 会把这些文件直接放在 ZIP 根目录，不套多余文件夹，可以在 Overleaf 选择 **New Project → Upload Project** 直接上传。若希望检查或继续编辑导出结果，省略 `--zip` 并把 `--to` 指向一个文件夹。
 
 - 在 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出真实原因；
 - 中文字体按编译环境自动切换：Overleaf 上用 Noto CJK，你自己的 Windows 上用宋体/黑体。**版面会有细微差别，但不会掉字**。
@@ -276,7 +276,7 @@ nodepaper validate [project-directory]
 nodepaper build [project-directory]
 nodepaper clean [project-directory]
 nodepaper clean [project-directory] --all
-nodepaper export [project-directory] --to <dir> [--bib bibtex|biblatex|inline] [--verify] [--force]
+nodepaper export [project-directory] --to <path> [--zip] [--bib bibtex|biblatex|inline] [--verify] [--force]
 nodepaper --help
 nodepaper --version
 ```
@@ -333,6 +333,8 @@ abstractLinespread: 0.95
 mathFont: cm
 ```
 
+`abstractLinespread` 可单独调整摘要与关键词的行距；摘要刚好把关键词挤到第二页时，优先小幅降低它并重新检查首页，而不要先改动正文行距。其他容易踩坑的写法与后续完整指南主题见 [用户指南索引](docs/guides/README.md)。
+
 ## Markdown 示例
 
 第一个 Source 使用 YAML Front Matter：
@@ -374,6 +376,18 @@ $$ {#eq:model}
 
 见式 @eq:model。
 ```
+
+普通 Markdown 表格可以在表题后直接控制总宽度，无需改写为 LaTeX：
+
+```markdown
+| 符号 | 说明 |
+| :---: | :---: |
+| $x$ | 决策变量 |
+
+: 参数说明 {#tbl:variables width=80% ratios="1:3"}
+```
+
+`width` 可取 `auto`、`full` 或 `80%` 这样的百分比；可选的 `ratios` 按列给出相对比例，数值数量必须与列数一致。分隔行的横杠长度只是 Pandoc 的启发式提示，短表中不保证生效。只有 Markdown 无法表达的合并单元格、局部字号等结构才需要下面的 LaTeX Fragment。
 
 复杂表格或公式可以使用 LaTeX Fragment。使用时必须完成两步：先在 `nodepaper.yaml` 中声明安全白名单，再在某个 Markdown Source 的目标位置写 `\input{...}`；**仅在配置中声明不会自动插入 PDF**。
 

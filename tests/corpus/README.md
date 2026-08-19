@@ -5,8 +5,8 @@
 ## 边界
 
 - `real-world/A163` 与 `real-world/C063` 只保留 canonical 工程实际需要的白名单文件。
-- `real-world/A163` 是 8 个显式有序 Markdown Source 组成的多文件工程；`real-world/C063` 是单个 Markdown Source，并从正文直接 `\input` 两张已声明的 LaTeX 表格。
-- 原始论文 PDF、MinerU JSON/中间文件、旧私有包、构建产物、日志、缓存、工具脚本、观察记录和结构变体不进入 Git 或公开语料包。
+- `real-world/A163` 是 8 个显式有序 Markdown Source 组成的多文件工程，并直接 `\input` 自己的 4 张定制表格；`real-world/C063` 是单个 Markdown Source，并直接 `\input` 自己的 2 张表格。两个工程配置、资源与 Fragment 完全独立。
+- 原始论文 PDF、MinerU JSON/中间文件、旧私有包、构建产物、日志、缓存、工具脚本、观察记录和结构变体不进入 Git 或公开语料包。这里的构建产物包括 `.nodepaper/`（中间 TeX、日志、锁）和 `dist/`（最终 PDF）；它们应只出现在临时副本中。
 - 正文中的附录程序是排版文本；NodePaper 不执行它们。
 - 原论文及衍生内容的著作权仍属于原权利人。维护者已决定将净化副本用于 NodePaper 的非商业兼容性研究与回归测试；本仓库的 MIT License 不覆盖这些语料内容。
 - 发现来源、许可或个人信息问题时，应先从公开包移除对应文件，再讨论恢复。
@@ -22,7 +22,7 @@ nodepaper build tests/corpus/real-world/C063
 .\scripts\build-test-corpus.ps1 -Version 0.1.0-beta.1
 ```
 
-打包脚本按 `corpus-manifest.json` 的文件白名单生成独立的 `nodepaper-<version>-test-corpus.zip` 与 `.sha256`。程序 ZIP 和 Setup 的发布白名单不包含 `tests/corpus`。
+打包脚本按各工程白名单分别生成 `nodepaper-<version>-test-corpus-A163.zip`、`nodepaper-<version>-test-corpus-C063.zip` 及各自的 `.sha256`；每个 ZIP 只含一个可独立构建的工程。程序 ZIP 和 Setup 的发布白名单不包含 `tests/corpus`。
 
 人工 PDF 抽查至少覆盖首页、目录、公式密集页、宽表/图片页、参考文献和附录；结果记录在发布检查记录中，不把生成 PDF 提交到此目录。
 

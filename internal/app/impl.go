@@ -108,6 +108,7 @@ func (a *appImpl) Export(ctx context.Context, req ExportRequest) (ExportResult, 
 		Bib:        mode,
 		Verify:     req.Verify,
 		Force:      req.Force,
+		Zip:        req.Zip,
 	})
 	var artifacts []Artifact
 	for _, art := range er.Artifacts {
@@ -116,7 +117,9 @@ func (a *appImpl) Export(ctx context.Context, req ExportRequest) (ExportResult, 
 	return ExportResult{
 		Success:         er.Success,
 		ProjectRoot:     er.ProjectRoot,
+		ExportPath:      er.ExportPath,
 		ExportDir:       er.ExportDir,
+		Zipped:          er.Zipped,
 		BibMode:         er.BibMode,
 		Verified:        er.Verified,
 		CompileCommands: er.CompileCommands,

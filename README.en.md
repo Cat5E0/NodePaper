@@ -160,12 +160,12 @@ Fix whatever Validate reports before going on.
 ### 5. Get the finished document: export, then compile on Overleaf
 
 ```powershell
-nodepaper export . --to ..\paper-latex
+nodepaper export . --to ..\paper-latex.zip --zip
 ```
 
 What you get is not a PDF but a self-contained LaTeX project: `paper.tex`, `references.bib`, only the images the paper references, any fragments it `\input{}`s, and a `README.txt` spelling out the compile steps and the packages they need.
 
-Zip the whole `..\paper-latex` folder, upload it to Overleaf, and then:
+`--zip` puts these files directly at the archive root, with no wrapper directory, so the result can be uploaded through **New Project → Upload Project**. Omit `--zip` and point `--to` at a directory when you want to inspect or edit the export first. Then:
 
 - Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the real cause;
 - Chinese fonts follow the machine doing the compiling: Noto CJK on Overleaf, the SimSun families on your own Windows box. **The page differs slightly; no characters are dropped**.
@@ -273,7 +273,7 @@ nodepaper validate [project-directory]
 nodepaper build [project-directory]
 nodepaper clean [project-directory]
 nodepaper clean [project-directory] --all
-nodepaper export [project-directory] --to <dir> [--bib bibtex|biblatex|inline] [--verify] [--force]
+nodepaper export [project-directory] --to <path> [--zip] [--bib bibtex|biblatex|inline] [--verify] [--force]
 nodepaper --help
 nodepaper --version
 ```
@@ -371,6 +371,18 @@ $$ {#eq:model}
 
 See @eq:model.
 ```
+
+Set the total width of an ordinary Markdown table on its caption; no LaTeX rewrite is needed:
+
+```markdown
+| Symbol | Description |
+| :---: | :---: |
+| $x$ | Decision variable |
+
+: Parameters {#tbl:variables width=80% ratios="1:3"}
+```
+
+`width` accepts `auto`, `full`, or a percentage such as `80%`. The optional `ratios` gives one relative weight per column. Separator-line dash counts are only a Pandoc heuristic and are not guaranteed for short tables. Use the LaTeX Fragment route below only for structures Markdown cannot express, such as merged cells or local font-size changes.
 
 Advanced tables or equations can use LaTeX Fragments. Usage has two required steps: declare the safety allowlist in `nodepaper.yaml`, then place `\input{...}` at the intended location in a Markdown Source. **A declaration alone does not insert anything into the PDF.**
 

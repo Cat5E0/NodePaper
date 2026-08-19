@@ -6,14 +6,13 @@
   "separateOpenSourceLicenseGranted": false,
   "sourceMode": "multi-file",
   "markdownSourceCount": 8,
-  "latexFragmentCount": 0,
+  "latexFragmentCount": 4,
   "referencedImageCount": 29,
   "expected": {
     "validateExitCode": 0,
     "buildExitCode": 0,
     "allowedDiagnostics": {
-      "NP2401": 1,
-      "NP6101": 4
+      "NP6101": 3
     },
     "forbiddenDiagnostics": ["NP6102", "NP6105"]
   }

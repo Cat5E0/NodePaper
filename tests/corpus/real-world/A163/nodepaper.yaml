@@ -10,6 +10,11 @@ sources:
   - sections/06-evaluation.md
   - sections/07-references.md
   - sections/08-appendix.md
+latexFragments:
+  - tables/a163-4-2-position.tex
+  - tables/a163-4-3-speed.tex
+  - tables/a163-4-6-position.tex
+  - tables/a163-4-7-speed.tex
 appendix:
   numbering: none
 output:

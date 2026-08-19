@@ -159,8 +159,12 @@ func (tw *TextWriter) Build(result app.BuildResult) {
 // Export renders an ExportResult.
 func (tw *TextWriter) Export(result app.ExportResult) {
 	tw.writeProjectRoot(result.ProjectRoot)
-	if result.ExportDir != "" {
-		fmt.Fprintf(tw.W, "Export: %s\n", result.ExportDir)
+	exportPath := result.ExportPath
+	if exportPath == "" {
+		exportPath = result.ExportDir
+	}
+	if exportPath != "" {
+		fmt.Fprintf(tw.W, "Export: %s\n", exportPath)
 	}
 	if result.BibMode != "" {
 		fmt.Fprintf(tw.W, "Bibliography: %s\n", result.BibMode)
@@ -180,6 +184,11 @@ func (tw *TextWriter) Export(result app.ExportResult) {
 		fmt.Fprintln(tw.W, "TeX packages and fonts still decide that.")
 	}
 	fmt.Fprintln(tw.W, "Next:")
+	if result.Zipped {
+		fmt.Fprintf(tw.W, "  upload \"%s\" with Overleaf > New Project > Upload Project\n", exportPath)
+		fmt.Fprintln(tw.W, "  extract the ZIP and open README.txt for local compile commands")
+		return
+	}
 	fmt.Fprintf(tw.W, "  cd \"%s\"\n", result.ExportDir)
 	// The chain comes from the result rather than from a copy kept here, so
 	// the terminal, README.txt and --verify always name the same commands.

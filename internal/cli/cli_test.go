@@ -23,6 +23,7 @@ func TestParseCommands(t *testing.T) {
 		{"export defaults to bibtex", []string{"export", `D:\papers\a`, "--to", `D:\out`}, Invocation{Command: CommandExport, ProjectDir: `D:\papers\a`, Format: FormatText, ToDir: `D:\out`, Bib: "bibtex"}},
 		{"export biblatex", []string{"export", "--to", `D:\out`, "--bib", "biblatex"}, Invocation{Command: CommandExport, Format: FormatText, ToDir: `D:\out`, Bib: "biblatex"}},
 		{"export inline verify force", []string{"export", "--to=" + `D:\out`, "--bib=inline", "--verify", "--force"}, Invocation{Command: CommandExport, Format: FormatText, ToDir: `D:\out`, Bib: "inline", Verify: true, Force: true}},
+		{"export zip", []string{"export", `D:\papers\a`, "--to", `D:\out\paper.zip`, "--zip"}, Invocation{Command: CommandExport, ProjectDir: `D:\papers\a`, Format: FormatText, ToDir: `D:\out\paper.zip`, Bib: "bibtex", Zip: true}},
 		{"export help needs no destination", []string{"export", "--help"}, Invocation{Command: CommandExport, Format: FormatText, Help: true}},
 		{"clean all", []string{"clean", `D:\papers\a`, "--all"}, Invocation{Command: CommandClean, ProjectDir: `D:\papers\a`, Format: FormatText, CleanAll: true}},
 		{"version", []string{"--version"}, Invocation{Format: FormatText, Version: true}},
@@ -61,14 +62,15 @@ func TestParseRejectsInvalidInvocations(t *testing.T) {
 		{"ai guide on build", []string{"build", "--ai-guide"}, "only valid with init", "nodepaper init"},
 		{"non interactive on build", []string{"build", "--non-interactive"}, "only valid with init", "nodepaper init"},
 		{"version with command", []string{"build", "--version"}, "cannot be combined", "nodepaper --version"},
-		{"export without destination", []string{"export", `D:\papers\a`}, "requires a destination directory", "nodepaper export"},
-		{"missing to value", []string{"export", "--to"}, "--to requires a directory", "nodepaper export"},
+		{"export without destination", []string{"export", `D:\papers\a`}, "requires a destination path", "nodepaper export"},
+		{"missing to value", []string{"export", "--to"}, "--to requires a path", "nodepaper export"},
 		{"missing bib value", []string{"export", "--to", `D:\out`, "--bib"}, "--bib requires", "--bib bibtex"},
 		{"invalid bib value", []string{"export", "--to", `D:\out`, "--bib", "natbib"}, "unsupported bibliography mode", "--bib bibtex"},
 		{"to on build", []string{"build", "--to", `D:\out`}, "--to is only valid with export", "nodepaper export"},
 		{"bib on build", []string{"build", "--bib", "bibtex"}, "--bib is only valid with export", "nodepaper export"},
 		{"verify on build", []string{"build", "--verify"}, "--verify is only valid with export", "nodepaper export"},
 		{"force on clean", []string{"clean", "--force"}, "--force is only valid with export", "nodepaper export"},
+		{"zip on build", []string{"build", "--zip"}, "--zip is only valid with export", "nodepaper export"},
 	}
 
 	for _, test := range tests {

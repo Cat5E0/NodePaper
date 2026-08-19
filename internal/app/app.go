@@ -50,6 +50,7 @@ type ExportRequest struct {
 	Bib        string
 	Verify     bool
 	Force      bool
+	Zip        bool
 }
 
 type CleanRequest struct {
@@ -101,7 +102,9 @@ type BuildResult struct {
 type ExportResult struct {
 	Success     bool   `json:"success"`
 	ProjectRoot string `json:"projectRoot"`
-	ExportDir   string `json:"exportDir"`
+	ExportPath  string `json:"exportPath,omitempty"`
+	ExportDir   string `json:"exportDir,omitempty"`
+	Zipped      bool   `json:"zipped"`
 	BibMode     string `json:"bibMode"`
 	// Verified is true only when --verify ran the compile chain and it
 	// succeeded. It is false both when verification was not requested and

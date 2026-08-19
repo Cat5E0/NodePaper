@@ -1,4 +1,7 @@
-# Build outputs. Anchored so internal/build/ (Go sources) stays tracked.
+# Per-project generated output.  These two directories coexist after a build:
+# `.nodepaper/` is NodePaper's work state (intermediate TeX, logs and locks),
+# while `dist/` is the user-facing final output.  Neither is project source.
+# Anchored `/build/` keeps internal/build/ (Go sources) tracked.
 /build/
 **/.nodepaper/
 **/dist/

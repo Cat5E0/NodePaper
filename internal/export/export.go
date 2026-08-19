@@ -9,9 +9,11 @@
 package export
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -120,6 +122,9 @@ type Options struct {
 	Verify bool
 	// Force allows exporting into a directory that already contains files.
 	Force bool
+	// Zip writes one Overleaf-ready archive whose files are at the archive
+	// root instead of leaving the deliverable as a directory.
+	Zip bool
 }
 
 // Artifact is a file written into the export directory.
@@ -132,7 +137,9 @@ type Artifact struct {
 type Result struct {
 	Success     bool
 	ProjectRoot string
+	ExportPath  string
 	ExportDir   string
+	Zipped      bool
 	BibMode     string
 	// Verified is true only when --verify actually ran the compile chain and
 	// it succeeded.
@@ -223,7 +230,11 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	if hasError(result.Diagnostics) {
 		return result
 	}
-	result.ExportDir = target
+	result.ExportPath = target
+	result.Zipped = opts.Zip
+	if !opts.Zip {
+		result.ExportDir = target
+	}
 
 	// 4. Take the project build lock so an export and a build cannot write
 	// .nodepaper/ at the same time.
@@ -264,7 +275,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	}()
 	logger.Printf("Export ID: %s", bctx.BuildID)
 	logger.Printf("Project Root: %s", p.Root)
-	logger.Printf("Export Directory: %s", target)
+	logger.Printf("Export Destination: %s", target)
 	logger.Printf("Bibliography Mode: %s (-CiteMethod %s)", mode, mode.citeMethod())
 	logger.Printf("Profile Version: %s", loadedProfile.Definition.Version)
 	logger.Printf("Profile SHA-256: %s", loadedProfile.SHA256)
@@ -316,8 +327,13 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 		return result
 	}
 
-	// 8. Assemble the deliverable.
-	artifacts, copyDiags := assemble(p, cfg, mode, texPath, target, fragmentFiles)
+	// 8. Assemble the deliverable. ZIP exports are assembled in the private
+	// work directory first, so --verify sees the exact tree that is archived.
+	deliverableDir := target
+	if opts.Zip {
+		deliverableDir = filepath.Join(workDir, "deliverable")
+	}
+	artifacts, copyDiags := assemble(p, cfg, mode, texPath, deliverableDir, fragmentFiles)
 	result.Artifacts = artifacts
 	result.Diagnostics = append(result.Diagnostics, copyDiags...)
 	if hasError(result.Diagnostics) {
@@ -327,12 +343,22 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	// 9. Optional verification, always in a scratch directory so the
 	// delivered project keeps no .aux, .log, .bbl or .pdf behind.
 	if opts.Verify {
-		verified, verifyDiags := verify(ctx, executor, logger, target, mode)
+		verified, verifyDiags := verify(ctx, executor, logger, deliverableDir, mode)
 		result.Verified = verified
 		result.Diagnostics = append(result.Diagnostics, verifyDiags...)
 		if hasError(result.Diagnostics) {
 			return result
 		}
+	}
+
+	if opts.Zip {
+		if err := writeZip(deliverableDir, target); err != nil {
+			result.Diagnostics = append(result.Diagnostics, errorDiag(CodeCopyFailed,
+				fmt.Sprintf("cannot write export archive %s: %v", target, err),
+				"Check the destination path, free space and permissions."))
+			return result
+		}
+		result.Artifacts = []Artifact{{Kind: "zip", Path: target}}
 	}
 
 	result.Success = true
@@ -344,24 +370,35 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 func resolveTarget(projectRoot string, opts Options) (string, []diagnostic.Diagnostic) {
 	if strings.TrimSpace(opts.ToDir) == "" {
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
-			"no export directory was given",
-			"Pass a destination: nodepaper export --to <directory>")}
+			"no export destination was given",
+			"Pass a destination: nodepaper export --to <path>")}
 	}
 	target, err := filepath.Abs(opts.ToDir)
 	if err != nil {
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
-			fmt.Sprintf("cannot resolve export directory %q: %v", opts.ToDir, err),
-			"Pass a writable destination directory.")}
+			fmt.Sprintf("cannot resolve export destination %q: %v", opts.ToDir, err),
+			"Pass a writable destination path.")}
 	}
 
 	var diags []diagnostic.Diagnostic
 	info, err := os.Stat(target)
 	switch {
-	case err == nil && !info.IsDir():
+	case opts.Zip && err == nil && info.IsDir():
+		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
+			fmt.Sprintf("ZIP export destination is a directory: %s", target),
+			"Pass a file path such as paper.zip.")}
+	case opts.Zip && err == nil && !opts.Force:
+		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetNotEmpty,
+			fmt.Sprintf("export archive already exists: %s", target),
+			"Choose another path, or re-run with --force to replace this archive.")}
+	case opts.Zip && err == nil:
+		// --force permits replacing this exact file after the new archive has
+		// been written successfully to a sibling temporary file.
+	case !opts.Zip && err == nil && !info.IsDir():
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
 			fmt.Sprintf("export destination is not a directory: %s", target),
 			"Pass a directory, not a file.")}
-	case err == nil:
+	case !opts.Zip && err == nil:
 		entries, readErr := os.ReadDir(target)
 		if readErr != nil {
 			return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
@@ -388,7 +425,7 @@ func resolveTarget(projectRoot string, opts Options) (string, []diagnostic.Diagn
 		diags = append(diags, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityWarning,
 			Code:     CodeTargetInsideProject,
-			Message:  fmt.Sprintf("the export directory is inside the Project Root: %s", target),
+			Message:  fmt.Sprintf("the export destination is inside the Project Root: %s", target),
 			Suggestion: "Exporting continues. The exported LaTeX project is a one-way copy that never " +
 				"flows back into the Markdown project; keeping it outside the project avoids committing " +
 				"it by accident.",
@@ -396,6 +433,81 @@ func resolveTarget(projectRoot string, opts Options) (string, []diagnostic.Diagn
 		})
 	}
 	return target, diags
+}
+
+// writeZip creates a directly uploadable Overleaf archive: paper.tex and its
+// resources are at the ZIP root, with no enclosing directory. A fixed
+// timestamp and lexical traversal keep identical exports reproducible.
+func writeZip(sourceDir, target string) (returnErr error) {
+	parent := filepath.Dir(target)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(parent, ".nodepaper-export-*.zip")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer func() {
+		_ = temporary.Close()
+		if returnErr != nil {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+
+	archive := zip.NewWriter(temporary)
+	fixedTime := time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
+	err = filepath.WalkDir(sourceDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		relative, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		header := &zip.FileHeader{Name: filepath.ToSlash(relative), Method: zip.Deflate}
+		header.SetModTime(fixedTime)
+		writer, err := archive.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(writer, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+	if err != nil {
+		_ = archive.Close()
+		return err
+	}
+	if err := archive.Close(); err != nil {
+		return err
+	}
+	if err := temporary.Sync(); err != nil {
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Rename(temporaryPath, target); err != nil {
+		return err
+	}
+	return nil
 }
 
 func within(root, path string) bool {

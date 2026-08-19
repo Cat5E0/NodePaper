@@ -78,6 +78,18 @@ function Get-StringSHA256([string]$Value) {
 try {
     New-Item -ItemType Directory -Force -Path $projectDir | Out-Null
     Copy-Item -Path (Join-Path $fixtureRoot "*") -Destination $projectDir -Recurse -Force
+    # Ordinary fixtures are source trees. Developers may have built one in
+    # place, but ignored .nodepaper/dist output must never leak into the
+    # temporary project and make an E2E assertion inspect stale artifacts.
+    # The two lock fixtures intentionally keep .nodepaper/build.lock as input.
+    if ($Fixture -notin @("damaged-lock", "stale-lock")) {
+        foreach ($generatedDirectory in @(".nodepaper", "dist")) {
+            $generatedPath = Join-Path $projectDir $generatedDirectory
+            if (Test-Path -LiteralPath $generatedPath) {
+                Remove-Item -LiteralPath $generatedPath -Recurse -Force
+            }
+        }
+    }
     if (-not [string]::IsNullOrWhiteSpace($AppendixNumbering)) {
         $configPath = Join-Path $projectDir "nodepaper.yaml"
         $configText = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
@@ -211,6 +223,15 @@ try {
         # the cause instead of leaving a bare LaTeX error.
         if (-not $texText.Contains("\usepackage{tikz}")) {
             throw "layout-stress needs tikz in the Profile preamble; the TikZ Fragment cannot load it (NP2506)"
+        }
+        foreach ($requiredTableWidth in @(
+            "\begin{longtable}[]{@{}cc@{}}",
+            "\real{0.1600}",
+            "\real{0.6400}"
+        )) {
+            if (-not $texText.Contains($requiredTableWidth)) {
+                throw "layout-stress Markdown table-width contract is missing: $requiredTableWidth"
+            }
         }
         $appendixText = ([string][char]0x9644) + ([char]0x5F55)
         $multilingualCodeText = ([string][char]0x591A) + ([char]0x8BED) + ([char]0x8A00) + ([char]0x4EE3) + ([char]0x7801)

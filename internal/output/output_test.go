@@ -290,6 +290,29 @@ func TestTextWriterExportQualifiesVerification(t *testing.T) {
 	}
 }
 
+func TestTextWriterExportZipIsReadyForOverleaf(t *testing.T) {
+	var buf bytes.Buffer
+	tw := &TextWriter{W: &buf}
+	tw.Export(app.ExportResult{
+		Success:     true,
+		ProjectRoot: `D:\papers\a`,
+		ExportPath:  `D:\out\paper-latex.zip`,
+		Zipped:      true,
+		BibMode:     "bibtex",
+	})
+
+	out := buf.String()
+	if !strings.Contains(out, `Export: D:\out\paper-latex.zip`) {
+		t.Fatalf("missing ZIP path: %s", out)
+	}
+	if !strings.Contains(out, "Upload Project") {
+		t.Fatalf("missing direct-upload guidance: %s", out)
+	}
+	if strings.Contains(out, "xelatex paper.tex") {
+		t.Fatalf("ZIP output should not tell the user to cd into it and compile: %s", out)
+	}
+}
+
 func TestTextWriterClean(t *testing.T) {
 	var buf bytes.Buffer
 	tw := &TextWriter{W: &buf}

@@ -84,8 +84,9 @@ func readme(mode BibMode) string {
 
 	b.WriteString("Compiling on Overleaf\n")
 	b.WriteString("---------------------\n")
-	b.WriteString("1. Zip this whole directory, keeping the layout: paper.tex at the top level,\n")
-	b.WriteString("   images/ and any fragment .tex files beside it")
+	b.WriteString("1. If this export is already a .zip, upload it unchanged. If it is a directory,\n")
+	b.WriteString("   zip its contents while keeping paper.tex at the top level, with images/\n")
+	b.WriteString("   and any fragment .tex files beside it")
 	if mode.needsBibFile() {
 		b.WriteString(", references.bib too")
 	}

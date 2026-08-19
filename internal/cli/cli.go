@@ -13,7 +13,7 @@ const Usage = `Usage:
   nodepaper doctor [project-directory] [--format text|json]
   nodepaper validate [project-directory] [--format text|json]
   nodepaper build [project-directory] [--format text|json]
-  nodepaper export [project-directory] --to <directory> [--bib bibtex|biblatex|inline] [--verify] [--force] [--format text|json]
+  nodepaper export [project-directory] --to <path> [--zip] [--bib bibtex|biblatex|inline] [--verify] [--force] [--format text|json]
   nodepaper clean [project-directory] [--all] [--format text|json]
   nodepaper --version
   nodepaper --help
@@ -57,6 +57,7 @@ type Invocation struct {
 	Bib    string
 	Verify bool
 	Force  bool
+	Zip    bool
 }
 
 // UsageError is a syntax error with a focused next step. The CLI prints the
@@ -94,10 +95,12 @@ func Parse(args []string) (Invocation, error) {
 			invocation.Verify = true
 		case argument == "--force":
 			invocation.Force = true
+		case argument == "--zip":
+			invocation.Zip = true
 		case argument == "--to":
 			index++
 			if index >= len(args) {
-				return Invocation{}, usageError("--to requires a directory", "Try: nodepaper export --to <directory>")
+				return Invocation{}, usageError("--to requires a path", "Try: nodepaper export --to <path>")
 			}
 			invocation.ToDir = args[index]
 		case strings.HasPrefix(argument, "--to="):
@@ -105,7 +108,7 @@ func Parse(args []string) (Invocation, error) {
 		case argument == "--bib":
 			index++
 			if index >= len(args) {
-				return Invocation{}, usageError("--bib requires bibtex, biblatex or inline", "Try: nodepaper export --to <directory> --bib bibtex")
+				return Invocation{}, usageError("--bib requires bibtex, biblatex or inline", "Try: nodepaper export --to <path> --bib bibtex")
 			}
 			bib, err := parseBib(args[index])
 			if err != nil {
@@ -151,7 +154,7 @@ func Parse(args []string) (Invocation, error) {
 
 	if invocation.Version {
 		if invocation.Command != "" || invocation.ProjectDir != "" || invocation.CleanAll || invocation.AIGuide || invocation.NonInteractive || invocation.Help || invocation.Format != FormatText ||
-			invocation.ToDir != "" || invocation.Bib != "" || invocation.Verify || invocation.Force {
+			invocation.ToDir != "" || invocation.Bib != "" || invocation.Verify || invocation.Force || invocation.Zip {
 			return Invocation{}, usageError("--version cannot be combined with a command or other options", "Try: nodepaper --version")
 		}
 		return invocation, nil
@@ -179,18 +182,19 @@ func Parse(args []string) (Invocation, error) {
 		{invocation.Bib != "", "--bib"},
 		{invocation.Verify, "--verify"},
 		{invocation.Force, "--force"},
+		{invocation.Zip, "--zip"},
 	} {
 		if restricted.used && invocation.Command != CommandExport {
 			return Invocation{}, usageError(
 				fmt.Sprintf("%s is only valid with export", restricted.flag),
-				"Try: nodepaper export [project-directory] --to <directory>")
+				"Try: nodepaper export [project-directory] --to <path>")
 		}
 	}
 	// --help is answered with the usage text, so it must not be blocked by the
 	// options the command would otherwise require.
 	if invocation.Command == CommandExport && !invocation.Help {
 		if invocation.ToDir == "" {
-			return Invocation{}, usageError("export requires a destination directory", "Try: nodepaper export [project-directory] --to <directory>")
+			return Invocation{}, usageError("export requires a destination path", "Try: nodepaper export [project-directory] --to <path>")
 		}
 		if invocation.Bib == "" {
 			invocation.Bib = DefaultBibMode
@@ -256,7 +260,7 @@ func parseBib(value string) (string, error) {
 	default:
 		return "", usageError(
 			fmt.Sprintf("unsupported bibliography mode %q; use bibtex, biblatex or inline", value),
-			"Try: nodepaper export --to <directory> --bib bibtex")
+			"Try: nodepaper export --to <path> --bib bibtex")
 	}
 }
 

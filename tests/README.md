@@ -87,6 +87,18 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 4. `.nodepaper/`、`dist/`、日志和生成 PDF 不提交 Git。
 5. `fixture-manifest.json` 是可执行契约，固定命令、退出码、success 和 Diagnostic Code。
 
+## 源码与生成物边界
+
+一个 Project 在构建后会同时出现两个不同职责的目录，它们不是两套源码，也不会互相替代：
+
+| 路径 | 职责 | 是否提交 |
+|---|---|---|
+| `paper.md`、`sections/`、`images/`、`tables/*.tex`、`nodepaper.yaml` | 作者编写或审核过的 Project 源码 | 是 |
+| `.nodepaper/` | NodePaper 的中间 TeX、日志、锁和其他工作状态 | 否 |
+| `dist/` | 最终 PDF 等可重新生成的构建输出 | 否 |
+
+测试必须在 Fixture 或 Corpus 的临时副本中构建。源目录中已有的 `.nodepaper/` 或 `dist/` 只可能是本机遗留生成物：它们被 Git 忽略，也不会进入测试语料 ZIP 或程序发布包；清理它们不改变源码。唯一例外是两个锁损坏测试中刻意提交的 `.nodepaper/build.lock` 输入文件，见根 `.gitignore` 的白名单注释。
+
 ## Manifest 契约
 
 `tests/fixture-manifest.json` 的 `schemaVersion` 为 2。Config、Validate、路径和锁场景必须在临时副本上执行，并与 Manifest 中的退出码、success 和 Diagnostic Code 完全一致。
