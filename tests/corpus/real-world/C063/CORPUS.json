@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "C063",
+  "sourceCategory": "sanitized-real-world-competition-paper",
+  "allowedUse": "non-commercial NodePaper compatibility research and regression testing",
+  "separateOpenSourceLicenseGranted": false,
+  "referencedImageCount": 23,
+  "expected": {
+    "validateExitCode": 0,
+    "buildExitCode": 0,
+    "allowedDiagnostics": {},
+    "forbiddenDiagnostics": ["NP6101", "NP6102", "NP6105"]
+  }
+}

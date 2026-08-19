@@ -390,6 +390,23 @@ latexFragments:
 
 `nodepaper validate` 会拒绝未声明的 `\input`；如果 Fragment 已声明但没有在任何 Markdown Source 中插入，则返回 `NP2511` Warning，并提示需要补写的 `\input{...}`。
 
+## TikZ / PGF 绘图
+
+NodePaper v0.1 已验证基础 TikZ 与不依赖 `pgfplots` 的低层 PGF Fragment。最快用法是把导出的 `figures/model.tex` 或 `figures/model.pgf` 加入白名单：
+
+```yaml
+latexFragments:
+  - figures/model.pgf
+```
+
+再在 Markdown 的目标位置插入：
+
+```markdown
+\input{figures/model.pgf}
+```
+
+绘图脚本在 NodePaper 外部运行；NodePaper 只验证并编译声明过的 Fragment。`pgfplots` 尚不属于 v0.1 完整支持面。Matplotlib 导出、字体与路径约束、支持矩阵和排错见 [TikZ / PGF Fragment 指南](docs/guides/tikz-pgf.md)。
+
 ## 主要能力
 
 - 单文件和有序多文件项目；
@@ -425,8 +442,9 @@ latexFragments:
 | `packaging/windows/` | Inno Setup 与便携 ZIP 的 Windows 安装脚本 |
 | `packaging/toolchains/windows-x64.json` | 内置 pandoc 与 pandoc-crossref 的固定版本、哈希和来源清单 |
 | `scripts/` | 开发、构建、打包与各测试套件 |
-| `tests/` | 可独立复制的测试素材包、Fixture Manifest 与测试说明 |
-| `docs/assets/` | README 和用户文档使用的展示图片 |
+| `tests/fixtures/` | 小型、虚构、确定性的功能与错误回归工程 |
+| `tests/corpus/` | A163/C063 净化真实语料；另行打包，不进入程序 ZIP/Setup |
+| `docs/guides/`、`docs/assets/` | 用户指南，以及 README/指南使用的展示图片 |
 | `licenses/`、`THIRD_PARTY_NOTICES.md` | 第三方许可证与声明 |
 | `.github/workflows/` | CI：`ci`、`miktex-e2e`、`export-linux`、`release-build` |
 

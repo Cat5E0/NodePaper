@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "id": "hidden-01",
+      "frozenSha256": "<sha256-of-private-project-archive>",
+      "expected": {
+        "validateExitCode": 0,
+        "buildExitCode": 0,
+        "diagnosticCodes": []
+      }
+    },
+    {
+      "id": "hidden-02",
+      "frozenSha256": "<sha256-of-private-project-archive>",
+      "expected": {
+        "validateExitCode": 0,
+        "buildExitCode": 0,
+        "diagnosticCodes": []
+      }
+    }
+  ],
+  "runs": [
+    {
+      "release": "<beta-or-rc-version>",
+      "projectId": "hidden-01",
+      "environment": "<anonymous-environment-id>",
+      "result": "pass",
+      "defectIds": []
+    }
+  ],
+  "rotationPolicy": "Refresh at least one frozen project before each release candidate."
+}

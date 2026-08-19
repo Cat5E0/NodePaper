@@ -387,6 +387,23 @@ latexFragments:
 
 `nodepaper validate` rejects an undeclared `\input`. If a Fragment is declared but not inserted in any Markdown Source, it returns the `NP2511` Warning with the required `\input{...}` reminder.
 
+## TikZ / PGF figures
+
+NodePaper v0.1 verifies basic TikZ and low-level PGF Fragments that do not depend on `pgfplots`. The shortest route is to allowlist the exported `figures/model.tex` or `figures/model.pgf`:
+
+```yaml
+latexFragments:
+  - figures/model.pgf
+```
+
+Then insert it at the intended location in Markdown:
+
+```markdown
+\input{figures/model.pgf}
+```
+
+Run the plotting script outside NodePaper; NodePaper only validates and compiles declared Fragments. Full `pgfplots` support is not part of the v0.1 contract. See the [TikZ / PGF Fragment guide](docs/guides/tikz-pgf.md) for Matplotlib export, font and path constraints, the support matrix, and troubleshooting.
+
 ## Main capabilities
 
 - single-source and ordered multi-source Projects;
@@ -422,8 +439,9 @@ latexFragments:
 | `packaging/windows/` | Inno Setup and portable-ZIP installation scripts for Windows |
 | `packaging/toolchains/windows-x64.json` | Pinned versions, hashes, and sources for bundled pandoc and pandoc-crossref |
 | `scripts/` | Development, build, packaging and test suites |
-| `tests/` | A self-contained test asset pack, Fixture Manifest, and test notes |
-| `docs/assets/` | Showcase images used by the READMEs and user documentation |
+| `tests/fixtures/` | Small, fictional, deterministic feature and error regression Projects |
+| `tests/corpus/` | Sanitized A163/C063 real-world corpus, packaged separately from the program ZIP/Setup |
+| `docs/guides/`, `docs/assets/` | User guides and showcase images used by the READMEs/guides |
 | `licenses/`, `THIRD_PARTY_NOTICES.md` | Third-party licences and notices |
 | `.github/workflows/` | CI: `ci`, `miktex-e2e`, `export-linux`, `release-build` |
 

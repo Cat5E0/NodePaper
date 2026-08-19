@@ -1,0 +1,7 @@
+version: 1
+profile: cumcm
+source: paper.md
+appendix:
+  numbering: none
+output:
+  file: dist/a163-nodepaper-canonical.pdf

@@ -183,6 +183,22 @@
       "purpose": "layout, Fragment, highlighting and appendix stress E2E"
     },
     {
+      "path": "tikz-basic",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "minimal declared TikZ Fragment validate and E2E contract"
+    },
+    {
+      "path": "pgf-basic",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "minimal declared low-level PGF Fragment validate and E2E contract"
+    },
+    {
       "path": "highlight-showcase",
       "command": "validate",
       "expectedSuccess": true,

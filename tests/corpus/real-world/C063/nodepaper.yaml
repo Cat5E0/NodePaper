@@ -1,0 +1,10 @@
+version: 1
+profile: cumcm
+source: paper.md
+latexFragments:
+  - tables/c063-013-unit-price.tex
+  - tables/c063-015-revenue.tex
+appendix:
+  numbering: none
+output:
+  file: dist/c063-nodepaper-observed.pdf

@@ -1,0 +1,16 @@
+% Minimal low-level PGF output shaped like Matplotlib's PGF backend output.
+\begin{figure}
+\centering
+\begingroup
+\begin{pgfpicture}
+  \pgfpathrectangle{\pgfpointorigin}{\pgfqpoint{3in}{1.5in}}
+  \pgfusepath{use as bounding box, clip}
+  \pgfsetlinewidth{1.2pt}
+  \pgfpathmoveto{\pgfqpoint{0.2in}{0.2in}}
+  \pgfpathlineto{\pgfqpoint{1.4in}{1.1in}}
+  \pgfpathlineto{\pgfqpoint{2.8in}{0.6in}}
+  \pgfusepath{stroke}
+\end{pgfpicture}
+\endgroup
+\caption{NP-PGF-BASIC-01 最小低层 PGF Fragment}
+\end{figure}

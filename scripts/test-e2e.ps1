@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $inspectDir = ""
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
-    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "layout-stress")) {
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "tikz-basic", "pgf-basic", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
     # One extra pass over the smallest fixture, under a path containing "~".
@@ -232,6 +232,20 @@ try {
             }
         }
     }
+    if ($Fixture -eq "tikz-basic") {
+        foreach ($required in @("\input{figures/basic.tex}", "\usepackage{tikz}")) {
+            if (-not $texText.Contains($required)) {
+                throw "tikz-basic LaTeX contract is missing: $required"
+            }
+        }
+    }
+    if ($Fixture -eq "pgf-basic") {
+        foreach ($required in @("\input{figures/basic.pgf}", "\usepackage{tikz}")) {
+            if (-not $texText.Contains($required)) {
+                throw "pgf-basic LaTeX contract is missing: $required"
+            }
+        }
+    }
 
     $logs = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Filter "build-*.log" -File)
     if ($logs.Count -lt 1 -or $logs[0].Length -eq 0) {
@@ -386,12 +400,21 @@ try {
     }
     $linkXmlText = Get-Content -LiteralPath $linkXmlPath -Raw -Encoding UTF8
     Remove-Item -LiteralPath $linkXmlPath -Force -ErrorAction SilentlyContinue
-    $linkedCitationPattern = '(?:<a href="[^"]+#[0-9]+">\[1\]</a>|\[<a href="[^"]+#[0-9]+">1</a>\])'
+    # Poppler may place either both brackets, only the number, or the opening
+    # bracket and number inside the anchor depending on glyph positioning.
+    $linkedCitationPattern = '(?:<a href="[^"]+#[0-9]+">\[1\]</a>|\[<a href="[^"]+#[0-9]+">1</a>\]|<a href="[^"]+#[0-9]+">\[1</a>\])'
     if ($linkXmlText -notmatch $linkedCitationPattern) {
         throw "PDF citation [1] does not contain an internal bibliography link"
     }
     if ($pdfText -match '@(fig|tbl|eq|sec):' -or $pdfText -match '@[A-Za-z][A-Za-z0-9_.:+/-]*') {
         throw "PDF contains an unresolved citation or cross-reference"
+    }
+
+    if ($Fixture -eq "tikz-basic" -and -not $pdfText.Contains("NP-TIKZ-BASIC-01")) {
+        throw "tikz-basic PDF is missing its compiled Fragment marker"
+    }
+    if ($Fixture -eq "pgf-basic" -and -not $pdfText.Contains("NP-PGF-BASIC-01")) {
+        throw "pgf-basic PDF is missing its compiled Fragment marker"
     }
 
     if ($Fixture -eq "layout-stress") {
