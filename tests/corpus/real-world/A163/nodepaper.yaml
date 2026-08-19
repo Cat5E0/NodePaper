@@ -1,7 +1,15 @@
 version: 1
 profile: cumcm
-source: paper.md
+sources:
+  - sections/01-frontmatter-abstract.md
+  - sections/02-problem-background.md
+  - sections/03-analysis.md
+  - sections/04-preparation.md
+  - sections/05-model-and-solution.md
+  - sections/06-evaluation.md
+  - sections/07-references.md
+  - sections/08-appendix.md
 appendix:
   numbering: none
 output:
-  file: dist/a163-nodepaper-canonical.pdf
+  file: dist/a163-nodepaper-multi-file.pdf

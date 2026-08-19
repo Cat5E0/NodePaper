@@ -29,8 +29,25 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
 $projects = @(
-    @{ Name = "A163"; Tables = @() },
-    @{ Name = "C063"; Tables = @("c063-013-unit-price.tex", "c063-015-revenue.tex") }
+    @{
+        Name = "A163"
+        Sources = @(
+            "sections/01-frontmatter-abstract.md",
+            "sections/02-problem-background.md",
+            "sections/03-analysis.md",
+            "sections/04-preparation.md",
+            "sections/05-model-and-solution.md",
+            "sections/06-evaluation.md",
+            "sections/07-references.md",
+            "sections/08-appendix.md"
+        )
+        Tables = @()
+    },
+    @{
+        Name = "C063"
+        Sources = @("paper.md")
+        Tables = @("c063-013-unit-price.tex", "c063-015-revenue.tex")
+    }
 )
 $textExtensions = @(".md", ".yaml", ".yml", ".bib", ".tex", ".json")
 $forbiddenPathPatterns = @(
@@ -51,23 +68,25 @@ foreach ($project in $projects) {
     if (-not (Test-Path -LiteralPath $projectRoot -PathType Container)) {
         throw "Corpus project missing: $projectRoot"
     }
-    foreach ($required in @("README.md", "CORPUS.json", "nodepaper.yaml", "paper.md", "references.bib")) {
+    foreach ($required in @("README.md", "CORPUS.json", "nodepaper.yaml", "references.bib") + $project.Sources) {
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $required) -PathType Leaf)) {
             throw "$($project.Name) is missing required file: $required"
         }
     }
 
-    $paper = Get-Content -LiteralPath (Join-Path $projectRoot "paper.md") -Raw -Encoding UTF8
-    $referencedImages = @([regex]::Matches($paper, 'images/([0-9a-f]{64}\.jpg)') |
+    $sourceText = (($project.Sources | ForEach-Object {
+        Get-Content -LiteralPath (Join-Path $projectRoot $_) -Raw -Encoding UTF8
+    }) -join "`n")
+    $referencedImages = @([regex]::Matches($sourceText, 'images/([0-9a-f]{64}\.jpg)') |
         ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
     $actualImages = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot "images") -File |
         Select-Object -ExpandProperty Name | Sort-Object)
     if (($referencedImages -join "`n") -ne ($actualImages -join "`n")) {
-        throw "$($project.Name) images must exactly match the references in paper.md"
+        throw "$($project.Name) images must exactly match the references in its Markdown sources"
     }
 
     $allowed = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($name in @("README.md", "CORPUS.json", "nodepaper.yaml", "paper.md", "references.bib")) {
+    foreach ($name in @("README.md", "CORPUS.json", "nodepaper.yaml", "references.bib") + $project.Sources) {
         [void]$allowed.Add($name)
     }
     foreach ($name in $referencedImages) { [void]$allowed.Add("images/$name") }
@@ -75,6 +94,10 @@ foreach ($project in $projects) {
 
     foreach ($file in (Get-ChildItem -LiteralPath $projectRoot -Recurse -File)) {
         $relative = $file.FullName.Substring($projectRoot.Length).TrimStart('\') -replace '\\', '/'
+        if ($relative.StartsWith(".nodepaper/", [System.StringComparison]::OrdinalIgnoreCase) -or
+            $relative.StartsWith("dist/", [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
         if (-not $allowed.Contains($relative)) {
             throw "$($project.Name) contains a file outside its allowlist: $relative"
         }

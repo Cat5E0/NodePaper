@@ -4,6 +4,9 @@
   "sourceCategory": "sanitized-real-world-competition-paper",
   "allowedUse": "non-commercial NodePaper compatibility research and regression testing",
   "separateOpenSourceLicenseGranted": false,
+  "sourceMode": "multi-file",
+  "markdownSourceCount": 8,
+  "latexFragmentCount": 0,
   "referencedImageCount": 29,
   "expected": {
     "validateExitCode": 0,

@@ -7,4 +7,4 @@ latexFragments:
 appendix:
   numbering: none
 output:
-  file: dist/c063-nodepaper-observed.pdf
+  file: dist/c063-nodepaper-single-file-latex-tables.pdf
