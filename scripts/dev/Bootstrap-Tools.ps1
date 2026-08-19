@@ -100,7 +100,8 @@ function Copy-FirstExecutable {
     Copy-Item -LiteralPath $exe.FullName -Destination $Destination -Force
 }
 
-$toolsRoot = Join-Path $PSScriptRoot "tools"
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$toolsRoot = Join-Path $repoRoot "tools"
 $platformRoot = Join-Path $toolsRoot "windows-x64"
 $cacheRoot = Join-Path $toolsRoot "_downloads"
 $sourcesRoot = Join-Path $platformRoot "sources"

@@ -125,7 +125,7 @@ try {
 
     # M2 runs the source-tree transition script. M4 ZIP tests will instead
     # verify the default adjacent-to-executable packaged resource layout.
-    $env:NODEPAPER_BUILD_SCRIPT = Join-Path $root "Build-Paper.ps1"
+    $env:NODEPAPER_BUILD_SCRIPT = Join-Path $root "scripts\build\Build-Paper.ps1"
     $env:NODEPAPER_PROFILE_DIR = $profileDir
 
     & $exePath doctor $projectDir --format json

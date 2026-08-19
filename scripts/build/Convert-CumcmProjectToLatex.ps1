@@ -34,6 +34,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot "profiles") -PathType Container) {
+    $script:ResourceRoot = $PSScriptRoot
+}
+else {
+    $script:ResourceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+}
+
 function Get-FullPath([string]$Path) {
     return [System.IO.Path]::GetFullPath($Path)
 }
@@ -45,7 +52,7 @@ function Find-Executable {
         [switch]$AllowSystem
     )
 
-    $bundled = Join-Path $PSScriptRoot $BundledRelativePath
+    $bundled = Join-Path $script:ResourceRoot $BundledRelativePath
     if (Test-Path -LiteralPath $bundled -PathType Leaf) {
         return (Resolve-Path -LiteralPath $bundled).Path
     }

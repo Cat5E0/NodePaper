@@ -35,7 +35,7 @@ jobs:
           go-version: "1.26.5"
           cache: true
       - name: Bootstrap pinned Pandoc tools
-        run: .\Bootstrap-Tools.ps1 -SkipSources
+        run: .\scripts\dev\Bootstrap-Tools.ps1 -SkipSources
       - name: Build nodepaper.exe
         run: go build -o nodepaper.exe ./cmd/nodepaper
       - name: Confirm this runner has no XeLaTeX
@@ -51,7 +51,7 @@ jobs:
         shell: pwsh
         run: |
           $env:NODEPAPER_PROFILE_DIR = Join-Path $PWD "profiles\cumcm"
-          $env:NODEPAPER_BUILD_SCRIPT = Join-Path $PWD "Build-Paper.ps1"
+          $env:NODEPAPER_BUILD_SCRIPT = Join-Path $PWD "scripts\build\Build-Paper.ps1"
           $env:PATH = (Join-Path $PWD "tools\windows-x64\pandoc") + ";" +
                       (Join-Path $PWD "tools\windows-x64\pandoc-crossref") + ";" + $env:PATH
           $fixture = Join-Path $PWD "nodepaper-test-fixtures\tests\fixtures\complete-single-file"

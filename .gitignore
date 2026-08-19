@@ -1,6 +1,5 @@
 # Build outputs. Anchored so internal/build/ (Go sources) stays tracked.
 /build/
-/scau-compat/build/
 **/.nodepaper/
 **/dist/
 
@@ -30,7 +29,6 @@ logs/
 /Paper.tex
 
 # Local experiment screenshots are not repository assets.
-/scau-compat/image/Exp*.png
 
 # Bundled third-party binaries and pinned build toolchains (fetched, verified
 # and never committed)

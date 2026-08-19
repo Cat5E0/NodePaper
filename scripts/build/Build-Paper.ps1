@@ -1,7 +1,4 @@
 param(
-    [Alias("Input")]
-    [string]$MarkdownPath = "",
-
     [string]$SourceManifest = "",
 
     [string]$ProjectRoot = "",
@@ -9,11 +6,6 @@ param(
     [string]$ProfileDirectory = "",
 
     [string]$Output = ".\build\Paper.tex",
-
-    [ValidateSet("thesis", "assignment", "experiment")]
-    [string]$TemplateName = "thesis",
-
-    [string]$Template = "",
 
     [string]$BuildDirectory = ".\build",
 
@@ -28,23 +20,27 @@ param(
 
     [switch]$SkipPdf,
 
-    [string]$LogDirectory = ".\logs",
-
-    [string]$CoverPdf = "",
-
-    [string]$LastPagePdf = "",
-
-    [string]$CoverLastPdf = ""
+    [string]$LogDirectory = ".\logs"
 )
 
 $ErrorActionPreference = "Stop"
+
+# In the source tree this script lives under scripts/build/. Release packaging
+# deliberately places it beside nodepaper.exe, profiles/ and tools/. Resolve a
+# single resource root so both layouts execute the same code.
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot "profiles") -PathType Container) {
+    $script:ResourceRoot = $PSScriptRoot
+}
+else {
+    $script:ResourceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+}
 
 function Resolve-ProjectPath {
     param([string]$Path)
     if ([System.IO.Path]::IsPathRooted($Path)) {
         return [System.IO.Path]::GetFullPath($Path)
     }
-    return [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $Path))
+    return [System.IO.Path]::GetFullPath((Join-Path $script:ResourceRoot $Path))
 }
 
 function Find-CommandPath {
@@ -172,86 +168,44 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $script:RunLogPath = Join-Path $logDir ("build-$stamp.log")
-$inputDescription = $MarkdownPath
-if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
-    $inputDescription = "SourceManifest=$(Resolve-ProjectPath $SourceManifest); ProjectRoot=$(Resolve-ProjectPath $ProjectRoot)"
-}
-elseif (-not [string]::IsNullOrWhiteSpace($MarkdownPath)) {
-    $inputDescription = Resolve-ProjectPath $MarkdownPath
-}
+$inputDescription = "SourceManifest=$(Resolve-ProjectPath $SourceManifest); ProjectRoot=$(Resolve-ProjectPath $ProjectRoot)"
 Set-Content -LiteralPath $script:RunLogPath -Value @(
     "NodePaper build log",
     "Started: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
     "PowerShell: $($PSVersionTable.PSVersion)",
     "Input: $inputDescription",
     "Output: $outputPath",
-    "TemplateName: $TemplateName",
-    "Template: $Template",
     "ProfileDirectory: $ProfileDirectory",
     "BuildDirectory: $buildDir"
 ) -Encoding UTF8
 Write-Log "Build log: $script:RunLogPath"
 
-if (-not [string]::IsNullOrWhiteSpace($SourceManifest)) {
-    if ([string]::IsNullOrWhiteSpace($ProjectRoot) -or [string]::IsNullOrWhiteSpace($ProfileDirectory)) {
-        throw "ProjectRoot and ProfileDirectory are required with SourceManifest."
-    }
-    $convertScript = Join-Path $PSScriptRoot "Convert-CumcmProjectToLatex.ps1"
-    $convertParams = @{
-        SourceManifest = (Resolve-ProjectPath $SourceManifest)
-        ProjectRoot = (Resolve-ProjectPath $ProjectRoot)
-        ProfileDirectory = (Resolve-ProjectPath $ProfileDirectory)
-        Output = $outputPath
-        BuildDirectory = $buildDir
-    }
-    # Only forwarded when it differs from the Convert script's own default, so
-    # the citeproc build command line stays exactly what it has always been.
-    if ($CiteMethod -ne "citeproc") {
-        $convertParams.CiteMethod = $CiteMethod
-    }
-    # Same rule as -CiteMethod: only present when asked for, so the build's
-    # conversion call stays exactly the one it has always made.
-    if ($ExportMode) {
-        $convertParams.ExportMode = $true
-    }
-    if ($AllowSystemPandoc) {
-        $convertParams.AllowSystemPandoc = $true
-    }
+if ([string]::IsNullOrWhiteSpace($SourceManifest) -or
+    [string]::IsNullOrWhiteSpace($ProjectRoot) -or
+    [string]::IsNullOrWhiteSpace($ProfileDirectory)) {
+    throw "SourceManifest, ProjectRoot and ProfileDirectory are required."
 }
-else {
-    if ([string]::IsNullOrWhiteSpace($MarkdownPath)) {
-        throw "MarkdownPath is required for the legacy conversion mode."
-    }
-    if ($CiteMethod -ne "citeproc") {
-        throw "CiteMethod $CiteMethod requires the CUMCM Profile route (SourceManifest); the legacy SCAU conversion only supports citeproc."
-    }
-    if ($ExportMode) {
-        throw "ExportMode requires the CUMCM Profile route (SourceManifest); the legacy SCAU templates have no compile-time font cascade."
-    }
-    # The legacy converter lives in scau-compat/ together with its own
-    # templates, filters and examples; only the CUMCM route stays at the root.
-    $convertScript = Join-Path $PSScriptRoot "scau-compat\Convert-MarkdownToScauLatex.ps1"
-    $convertParams = @{
-        MarkdownPath = (Resolve-ProjectPath $MarkdownPath)
-        Output = $outputPath
-        TemplateName = $TemplateName
-        BuildDirectory = $buildDir
-    }
-    if (-not [string]::IsNullOrWhiteSpace($Template)) {
-        $convertParams.Template = (Resolve-ProjectPath $Template)
-    }
-    if ($AllowSystemPandoc) {
-        $convertParams.AllowSystemPandoc = $true
-    }
-    if ($CoverPdf) {
-        $convertParams.CoverPdf = (Resolve-ProjectPath $CoverPdf)
-    }
-    if ($LastPagePdf) {
-        $convertParams.LastPagePdf = (Resolve-ProjectPath $LastPagePdf)
-    }
-    if ($CoverLastPdf) {
-        $convertParams.CoverLastPdf = (Resolve-ProjectPath $CoverLastPdf)
-    }
+
+$convertScript = Join-Path $PSScriptRoot "Convert-CumcmProjectToLatex.ps1"
+$convertParams = @{
+    SourceManifest = (Resolve-ProjectPath $SourceManifest)
+    ProjectRoot = (Resolve-ProjectPath $ProjectRoot)
+    ProfileDirectory = (Resolve-ProjectPath $ProfileDirectory)
+    Output = $outputPath
+    BuildDirectory = $buildDir
+}
+# Only forwarded when it differs from the Convert script's own default, so
+# the citeproc build command line stays exactly what it has always been.
+if ($CiteMethod -ne "citeproc") {
+    $convertParams.CiteMethod = $CiteMethod
+}
+# Same rule as -CiteMethod: only present when asked for, so the build's
+# conversion call stays exactly the one it has always made.
+if ($ExportMode) {
+    $convertParams.ExportMode = $true
+}
+if ($AllowSystemPandoc) {
+    $convertParams.AllowSystemPandoc = $true
 }
 
 $convertCode = Invoke-LoggedScript -FilePath $convertScript -Parameters $convertParams -StepName "Convert"
@@ -265,7 +219,7 @@ if ($SkipPdf) {
 }
 
 $xelatex = Find-CommandPath @(
-    (Join-Path $PSScriptRoot "tools\windows-x64\texlive\bin\windows\xelatex.exe"),
+    (Join-Path $script:ResourceRoot "tools\windows-x64\texlive\bin\windows\xelatex.exe"),
     "xelatex.exe",
     "xelatex"
 )

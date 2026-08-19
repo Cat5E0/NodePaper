@@ -13,8 +13,8 @@ The following are original NodePaper works licensed under the MIT License
 (`LICENSE`, `Copyright (c) 2026 NodePaper contributors`):
 
 - Go source in `cmd/` and `internal/`;
-- PowerShell transition scripts `Build-Paper.ps1` and
-  `Convert-CumcmProjectToLatex.ps1`;
+- PowerShell transition scripts `scripts/build/Build-Paper.ps1` and
+  `scripts/build/Convert-CumcmProjectToLatex.ps1`;
 - the CUMCM Profile under `profiles/cumcm/` (`profile.json`, `template.tex`,
   `crossref.yaml`, `warning-allowlist.json`, `filters/*.lua`);
 - `scripts/`, `installer/windows/`, `README.md` (Simplified Chinese),

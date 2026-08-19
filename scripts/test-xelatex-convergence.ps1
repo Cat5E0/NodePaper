@@ -132,7 +132,7 @@ function Invoke-FakeScenario {
 
 try {
     $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
-    $buildScript = Join-Path $root "Build-Paper.ps1"
+    $buildScript = Join-Path $root "scripts\build\Build-Paper.ps1"
     $profileDir = Join-Path $root "profiles\cumcm"
     $fixtureRoot = Join-Path $root "nodepaper-test-fixtures\tests\fixtures\minimal-valid"
     if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf) -or -not (Test-Path -LiteralPath $profileDir -PathType Container) -or -not (Test-Path -LiteralPath $fixtureRoot -PathType Container)) {

@@ -188,7 +188,7 @@ try {
         foreach ($tool in $bundledTools) {
             $source = Join-Path $root $tool.Source
             if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-                throw "Bundled tool missing; run .\Bootstrap-Tools.ps1 first: $source"
+                throw "Bundled tool missing; run .\scripts\dev\Bootstrap-Tools.ps1 first: $source"
             }
             $target = Join-Path $worktree $tool.Target
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
@@ -258,22 +258,22 @@ try {
     # ---------- assemble the package from the whitelist -----------------------
 
     $files = @(
-        "Build-Paper.ps1",
-        "Convert-CumcmProjectToLatex.ps1",
-        "Install-NodePaper.ps1",
-        "Uninstall-NodePaper.ps1",
-        "README.md",
-        "README.en.md",
-        "LICENSE",
-        "THIRD_PARTY_NOTICES.md",
-        "tools\versions.json"
+        @{ Source = "scripts\build\Build-Paper.ps1"; Target = "Build-Paper.ps1" },
+        @{ Source = "scripts\build\Convert-CumcmProjectToLatex.ps1"; Target = "Convert-CumcmProjectToLatex.ps1" },
+        @{ Source = "installer\windows\portable\Install-NodePaper.ps1"; Target = "Install-NodePaper.ps1" },
+        @{ Source = "installer\windows\portable\Uninstall-NodePaper.ps1"; Target = "Uninstall-NodePaper.ps1" },
+        @{ Source = "README.md"; Target = "README.md" },
+        @{ Source = "README.en.md"; Target = "README.en.md" },
+        @{ Source = "LICENSE"; Target = "LICENSE" },
+        @{ Source = "THIRD_PARTY_NOTICES.md"; Target = "THIRD_PARTY_NOTICES.md" },
+        @{ Source = "tools\versions.json"; Target = "tools\versions.json" }
     )
-    foreach ($relative in $files) {
-        $source = Join-Path $worktree $relative
+    foreach ($file in $files) {
+        $source = Join-Path $worktree $file.Source
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-            throw "Release whitelist file missing: $relative"
+            throw "Release whitelist file missing: $($file.Source)"
         }
-        $target = Join-Path $packageDir $relative
+        $target = Join-Path $packageDir $file.Target
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
         Copy-Item -LiteralPath $source -Destination $target -Force
     }

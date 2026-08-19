@@ -39,7 +39,7 @@ jobs:
           go-version: "1.26.5"
           cache: true
       - name: Bootstrap pinned Pandoc tools
-        run: .\Bootstrap-Tools.ps1
+        run: .\scripts\dev\Bootstrap-Tools.ps1
       - name: Build release candidate package
         shell: pwsh
         run: |
