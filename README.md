@@ -12,6 +12,39 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 > 当前仍处于测试版开发阶段，尚未正式发布。NodePaper 不代表比赛官方认证。
 
+## 构建展示
+
+下面均为 NodePaper 的实际构建产物。点击预览图或下方链接可打开完整论文 PDF。
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/a163-nodepaper-multi-file.pdf">
+        <img src="https://raw.githubusercontent.com/Cat5E0/NodePaper/main/docs/assets/showcase/a163-pages-26-27.png" alt="A163 第 26–27 页：示意图、公式与模型结果表" width="100%">
+      </a>
+      <br>
+      <strong>A163 · 多文件工程</strong>
+      <br>
+      <sub>第 26–27 页 · 示意图、公式与模型结果表</sub>
+      <br>
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/a163-nodepaper-multi-file.pdf">打开完整构建 PDF</a>
+    </td>
+    <td width="50%" align="center">
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/c063-nodepaper-single-file-latex-tables.pdf">
+        <img src="https://raw.githubusercontent.com/Cat5E0/NodePaper/main/docs/assets/showcase/c063-pages-06-07.png" alt="C063 第 6–7 页：LaTeX 表格与公式" width="100%">
+      </a>
+      <br>
+      <strong>C063 · 单文件工程</strong>
+      <br>
+      <sub>第 6–7 页 · LaTeX 表格与公式</sub>
+      <br>
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/c063-nodepaper-single-file-latex-tables.pdf">打开完整构建 PDF</a>
+    </td>
+  </tr>
+</table>
+
+项目拆分、完整配置、摘要首页、表格、LaTeX Fragment、导出到 Overleaf 与排错，见[用户指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/README.md)。
+
 ## 安装
 
 需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。**它不自带 TeX，而下面的「快速开始」整条走完都不需要 TeX**——导出只调用发布包内置的 pandoc。想在本机一条命令直接出 PDF，再回头装 TeX，见「在本机直接出 PDF：安装 TeX」。
@@ -337,7 +370,7 @@ abstractLinespread: 0.95
 mathFont: cm
 ```
 
-`abstractLinespread` 可单独调整摘要与关键词的行距；摘要刚好把关键词挤到第二页时，优先小幅降低它并重新检查首页，而不要先改动正文行距。其他容易踩坑的写法与后续完整指南主题见 [用户指南索引](docs/guides/README.md)。
+`abstractLinespread` 可单独调整摘要与关键词的行距；摘要刚好把关键词挤到第二页时，优先小幅降低它并重新检查首页，而不要先改动正文行距。其他容易踩坑的写法见[用户指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/README.md)。
 
 ## Markdown 示例
 
@@ -423,7 +456,7 @@ latexFragments:
 \input{figures/model.pgf}
 ```
 
-绘图脚本在 NodePaper 外部运行；NodePaper 只验证并编译声明过的 Fragment。`pgfplots` 尚不属于 v0.1 完整支持面。Matplotlib 导出、字体与路径约束、支持矩阵和排错见 [TikZ / PGF Fragment 指南](docs/guides/tikz-pgf.md)。
+绘图脚本在 NodePaper 外部运行；NodePaper 只验证并编译声明过的 Fragment。`pgfplots` 尚不属于 v0.1 完整支持面。Matplotlib 导出、字体与路径约束、支持矩阵和排错见 [TikZ / PGF Fragment 指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/tikz-pgf.md)。
 
 ## 主要能力
 

@@ -12,6 +12,39 @@ The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chi
 
 > NodePaper is still under beta development and has not been formally released. It is not endorsed by the competition organizers.
 
+## Showcase
+
+Both examples below are real NodePaper build outputs. Click a preview or its link to open the complete paper PDF.
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/a163-nodepaper-multi-file.pdf">
+        <img src="https://raw.githubusercontent.com/Cat5E0/NodePaper/main/docs/assets/showcase/a163-pages-26-27.png" alt="A163 pages 26–27: diagram, equations, and model-result tables" width="100%">
+      </a>
+      <br>
+      <strong>A163 · Multi-file project</strong>
+      <br>
+      <sub>Pages 26–27 · Diagram, equations, and model-result tables</sub>
+      <br>
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/a163-nodepaper-multi-file.pdf">Open the complete build PDF</a>
+    </td>
+    <td width="50%" align="center">
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/c063-nodepaper-single-file-latex-tables.pdf">
+        <img src="https://raw.githubusercontent.com/Cat5E0/NodePaper/main/docs/assets/showcase/c063-pages-06-07.png" alt="C063 pages 6–7: LaTeX tables and equations" width="100%">
+      </a>
+      <br>
+      <strong>C063 · Single-file project</strong>
+      <br>
+      <sub>Pages 6–7 · LaTeX tables and equations</sub>
+      <br>
+      <a href="https://github.com/Cat5E0/NodePaper/blob/main/docs/assets/showcase/c063-nodepaper-single-file-latex-tables.pdf">Open the complete build PDF</a>
+    </td>
+  </tr>
+</table>
+
+For project structure, the full configuration reference, abstract-page fitting, tables, LaTeX Fragments, Overleaf export, and troubleshooting, see the [user-guide index](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/README.md) (currently in Chinese).
+
 ## Installation
 
 Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds. **It does not bundle TeX, and the whole "Quick start" below runs without TeX** — export only calls the pandoc shipped inside the release package. Install TeX later if you want a PDF from a single local command; see "Producing a PDF locally: installing TeX".
@@ -418,7 +451,7 @@ Then insert it at the intended location in Markdown:
 \input{figures/model.pgf}
 ```
 
-Run the plotting script outside NodePaper; NodePaper only validates and compiles declared Fragments. Full `pgfplots` support is not part of the v0.1 contract. See the [TikZ / PGF Fragment guide](docs/guides/tikz-pgf.md) for Matplotlib export, font and path constraints, the support matrix, and troubleshooting.
+Run the plotting script outside NodePaper; NodePaper only validates and compiles declared Fragments. Full `pgfplots` support is not part of the v0.1 contract. See the [TikZ / PGF Fragment guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/tikz-pgf.md) for Matplotlib export, font and path constraints, the support matrix, and troubleshooting.
 
 ## Main capabilities
 
