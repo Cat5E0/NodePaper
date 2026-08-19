@@ -53,6 +53,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "version-lifecycle.ps1")
 
 $script:WorkRoot = ""
 $script:Passed = $false
@@ -249,6 +250,7 @@ try {
         "Convert-CumcmProjectToLatex.ps1",
         "Install-NodePaper.ps1",
         "Uninstall-NodePaper.ps1",
+        "build-info.json",
         "payload-manifest.json",
         "profiles/cumcm/profile.json",
         "profiles/cumcm/template.tex",
@@ -382,6 +384,27 @@ try {
     Write-Host "Executable version: $reportedVersion"
     Assert-True ($reportedVersion -match '^nodepaper ') "nodepaper.exe --version output is malformed: '$reportedVersion'"
     $expectedVersion = $reportedVersion.Substring("nodepaper ".Length)
+    $versionIdentity = ConvertFrom-NodePaperVersion $expectedVersion
+    $expectedPackageName = Get-NodePaperAssetBaseName $expectedVersion
+    Assert-True ([System.IO.Path]::GetFileName($releaseDir) -eq $expectedPackageName) "package directory name does not match executable version: expected $expectedPackageName"
+    if ($zipPath) {
+        Assert-True ($zipName -eq "$expectedPackageName.zip") "ZIP file name does not match executable version: expected $expectedPackageName.zip"
+    }
+
+    $buildInfo = Get-Content -LiteralPath (Join-Path $releaseDir "build-info.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $payloadManifest = Get-Content -LiteralPath (Join-Path $releaseDir "payload-manifest.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([int]$buildInfo.schemaVersion -eq 1) "unsupported build-info.json schema"
+    Assert-True ([string]$buildInfo.version -eq $expectedVersion) "build-info.json version differs from executable"
+    Assert-True ([string]$buildInfo.stage -eq $versionIdentity.Stage) "build-info.json stage differs from version"
+    Assert-True ([string]$buildInfo.sourceCommit -match '^[0-9a-f]{40}$') "build-info.json lacks a full source commit"
+    Assert-True ([string]$buildInfo.builtAtUTC -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$') "build-info.json timestamp is not canonical UTC"
+    Assert-True ($null -ne $buildInfo.toolchain -and -not [string]::IsNullOrWhiteSpace([string]$buildInfo.toolchain.go)) "build-info.json lacks toolchain identity"
+    $actualPayloadSHA256 = Get-NodePaperPayloadSHA256 $releaseDir
+    Assert-True ([string]$buildInfo.payloadSHA256 -eq $actualPayloadSHA256) "payload differs from build-info.json SHA-256"
+    Assert-True ([string]$payloadManifest.version -eq $expectedVersion) "payload manifest version differs from executable"
+    Assert-True ([string]$payloadManifest.sourceCommit -eq [string]$buildInfo.sourceCommit) "payload manifest source commit differs from build-info.json"
+    Assert-True ([string]$payloadManifest.payloadSHA256 -eq $actualPayloadSHA256) "payload differs from payload-manifest.json SHA-256"
+    Write-Host "Build identity: $expectedVersion / $($buildInfo.sourceCommit) / $actualPayloadSHA256"
 
     # ---------- installation / global command ---------------------------------
 

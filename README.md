@@ -18,6 +18,10 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 > 官方仓库 <https://github.com/Cat5E0/NodePaper> 当前尚无公开 GitHub Release 资产。测试候选由维护者直接提供；请同时取得 `NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP）和同批 `release-manifest-<版本>.json`，不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包。
 
+版本通道依次为开发版 `0.1.0-dev.N+g<Commit>`、公开测试版 `0.1.0-beta.N`、发布候选 `0.1.0-rc.N` 和稳定版 `0.1.0`。为让日常构建的文件名更短，开发版资产使用 `nodepaper-devN-windows-x64.zip` / `NodePaper-Setup-devN-windows-x64.exe`；完整版本与 40 位源提交仍记录在包内 `build-info.json`。公开版资产保留完整版本名，并且只能由指向同一提交的注释 Git Tag 构建；RC 还必须通过功能冻结和无发布阻断项检查。
+
+`build-info.json` 同时记录 UTC 构建时间、工具链和 payload SHA-256；外层 `release-manifest-<版本>.json` 记录 ZIP、Setup 的文件哈希。安装前应以 Manifest 校验下载文件，解压后可再核对 `build-info.json`，从短文件名仍能追溯到唯一源码提交和 payload。
+
 双击 Setup 安装，然后打开新终端：
 
 ```powershell

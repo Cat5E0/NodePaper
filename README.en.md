@@ -18,6 +18,10 @@ Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in s
 
 > The official repository, <https://github.com/Cat5E0/NodePaper>, has no public GitHub Release assets yet. Test candidates are handed out directly by the maintainer. Obtain `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP) together with the matching `release-manifest-<version>.json`; do not use third-party downloads or GitHub's Source code ZIP.
 
+The channels progress through development `0.1.0-dev.N+g<commit>`, public beta `0.1.0-beta.N`, release candidate `0.1.0-rc.N`, and stable `0.1.0`. Development assets use the shorter `nodepaper-devN-windows-x64.zip` / `NodePaper-Setup-devN-windows-x64.exe` names; the full version and 40-character source commit remain in the packaged `build-info.json`. Public assets keep the full version in their names and can only be built from an annotated Git tag pointing at that exact commit. RC builds additionally require feature-freeze and no-release-blocker assertions.
+
+`build-info.json` also records the canonical UTC build time, toolchain, and payload SHA-256. The outer `release-manifest-<version>.json` records the ZIP and Setup file hashes. Verify the download against the Manifest before installing; after extraction, `build-info.json` traces even a short development file name to one source commit and payload.
+
 Run the Setup, then open a new terminal:
 
 ```powershell

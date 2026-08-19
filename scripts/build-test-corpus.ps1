@@ -8,14 +8,29 @@
 #>
 param(
     [Parameter(Mandatory = $true)] [string]$Version,
-    [string]$OutputDirectory = ""
+    [string]$OutputDirectory = "",
+    [string]$Commit = "HEAD",
+    [switch]$FeatureFreeze,
+    [switch]$NoReleaseBlockers
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "version-lifecycle.ps1")
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $corpusRoot = Join-Path $root "tests\corpus"
-if ($Version -notmatch '^[A-Za-z0-9][A-Za-z0-9._+-]*$') { throw "Invalid corpus version: $Version" }
+$resolvedCommit = (& git -C $root rev-parse --verify "$Commit^{commit}" 2>$null | Out-String).Trim().ToLowerInvariant()
+if ($LASTEXITCODE -ne 0 -or $resolvedCommit -notmatch '^[0-9a-f]{40}$') { throw "Cannot resolve corpus source commit: $Commit" }
+$headCommit = (& git -C $root rev-parse HEAD | Out-String).Trim().ToLowerInvariant()
+if ($resolvedCommit -ne $headCommit) {
+    throw "Corpus packaging requires the repository to be checked out at source commit $resolvedCommit; current HEAD is $headCommit."
+}
+$corpusChanges = @(& git -C $root status --porcelain --untracked-files=all -- tests/corpus)
+if ($corpusChanges.Count -gt 0) {
+    throw "Corpus packaging refuses uncommitted tests/corpus content; commit or restore it before building a fixed-commit package."
+}
+$buildIdentity = Assert-NodePaperBuildIdentity -Version $Version -ResolvedCommit $resolvedCommit -RepositoryRoot $root -FeatureFreeze:$FeatureFreeze -NoReleaseBlockers:$NoReleaseBlockers
+$canonicalBuildTime = Get-NodePaperCanonicalBuildTime -RepositoryRoot $root -ResolvedCommit $resolvedCommit
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) { $OutputDirectory = Join-Path $root "build\test-corpus" }
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
@@ -95,7 +110,7 @@ foreach ($project in $projects) {
     }
     $packageFiles = @($packageFiles | Sort-Object Path)
 
-    $packageName = "nodepaper-$Version-test-corpus-$($project.Name)"
+    $packageName = "nodepaper-$($buildIdentity.AssetVersion)-test-corpus-$($project.Name)"
     $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-test-corpus-" + [Guid]::NewGuid().ToString("N"))
     $stageRoot = Join-Path $workRoot $packageName
     $zipPath = Join-Path $OutputDirectory "$packageName.zip"
@@ -107,13 +122,26 @@ foreach ($project in $projects) {
             Copy-Item -LiteralPath $file.Source -Destination $target -Force
         }
         $manifest = [ordered]@{
-            schemaVersion = 1; version = $Version; package = "$packageName.zip"
+            schemaVersion = 1; version = $Version; stage = $buildIdentity.Stage
+            sourceCommit = $resolvedCommit; package = "$packageName.zip"
             purpose = "known real-world regression only; not a general compatibility claim"
             project = $project.Name
             files = @($packageFiles | ForEach-Object { [ordered]@{ path = $_.Path; bytes = $_.Bytes; sha256 = $_.Sha256 } })
         }
         [System.IO.File]::WriteAllText((Join-Path $stageRoot "corpus-manifest.json"),
             (($manifest | ConvertTo-Json -Depth 6) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
+        $buildInfo = [ordered]@{
+            schemaVersion = 1
+            version = $Version
+            stage = $buildIdentity.Stage
+            sourceCommit = $resolvedCommit
+            gitTag = $buildIdentity.GitTag
+            builtAtUTC = $canonicalBuildTime
+            toolchain = [ordered]@{ powershell = [string]$PSVersionTable.PSVersion }
+            payloadSHA256 = Get-NodePaperPayloadSHA256 $stageRoot
+        }
+        [System.IO.File]::WriteAllText((Join-Path $stageRoot "build-info.json"),
+            (($buildInfo | ConvertTo-Json -Depth 5) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
 
         if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
         $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)

@@ -21,7 +21,7 @@
     hash recorded here.
 
 .PARAMETER Version
-    Release version, for example 0.1.0-rc.4. Must match the payload manifest
+    Build version, for example 0.1.0-dev.184+g17bdb9e or 0.1.0-rc.1. Must match the payload manifest
     and nodepaper.exe --version.
 
 .PARAMETER PayloadDirectory
@@ -34,8 +34,9 @@
     Release manifest to extend. Default: <OutputDirectory>\release-manifest.json
 
 .EXAMPLE
-    .\scripts\build-setup.ps1 -Version 0.1.0-rc.4 `
-        -PayloadDirectory .\build\release\nodepaper-0.1.0-rc.4-windows-x64
+    .\scripts\build-setup.ps1 -Version 0.1.0-rc.1 `
+        -PayloadDirectory .\build\release\nodepaper-0.1.0-rc.1-windows-x64 `
+        -FeatureFreeze -NoReleaseBlockers
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -43,20 +44,20 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PayloadDirectory,
     [string]$OutputDirectory = "",
-    [string]$ManifestPath = ""
+    [string]$ManifestPath = "",
+    [switch]$FeatureFreeze,
+    [switch]$NoReleaseBlockers
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "version-lifecycle.ps1")
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-
-if ($Version -notmatch '^[A-Za-z0-9][A-Za-z0-9._+-]*$') {
-    throw "Invalid release version string: $Version"
-}
+$versionIdentity = ConvertFrom-NodePaperVersion $Version
 
 $payloadDir = (Resolve-Path -LiteralPath $PayloadDirectory).Path.TrimEnd('\')
-$expectedPayloadName = "nodepaper-$Version-windows-x64"
+$expectedPayloadName = Get-NodePaperAssetBaseName $Version
 if ([System.IO.Path]::GetFileName($payloadDir) -ne $expectedPayloadName) {
     throw "Payload directory name must be $expectedPayloadName, got $([System.IO.Path]::GetFileName($payloadDir))"
 }
@@ -112,6 +113,22 @@ if ([int]$payloadManifest.schemaVersion -ne 1) {
 }
 if ([string]$payloadManifest.version -ne $Version) {
     throw "Payload manifest version is $($payloadManifest.version), expected $Version"
+}
+$sourceCommit = [string]$payloadManifest.sourceCommit
+$buildIdentity = Assert-NodePaperBuildIdentity -Version $Version -ResolvedCommit $sourceCommit -RepositoryRoot $root -FeatureFreeze:$FeatureFreeze -NoReleaseBlockers:$NoReleaseBlockers
+$buildInfoPath = Join-Path $payloadDir "build-info.json"
+if (-not (Test-Path -LiteralPath $buildInfoPath -PathType Leaf)) {
+    throw "build-info.json missing from payload."
+}
+$buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ([int]$buildInfo.schemaVersion -ne 1 -or [string]$buildInfo.version -ne $Version -or
+    [string]$buildInfo.stage -ne $buildIdentity.Stage -or [string]$buildInfo.sourceCommit -ne $sourceCommit) {
+    throw "build-info.json identity does not match the requested payload."
+}
+$actualPayloadSHA256 = Get-NodePaperPayloadSHA256 $payloadDir
+if ([string]$buildInfo.payloadSHA256 -ne $actualPayloadSHA256 -or
+    [string]$payloadManifest.payloadSHA256 -ne $actualPayloadSHA256) {
+    throw "Payload SHA-256 does not match build-info.json and payload-manifest.json."
 }
 
 # Payload files the ZIP channel needs and Setup must never install. Both are
@@ -196,8 +213,7 @@ Write-Host "Setup payload checksum list: $checksumPath"
 
 # ---------- 4. compile the Setup --------------------------------------------
 
-$sourceCommit = [string]$payloadManifest.sourceCommit
-$outputBaseName = "NodePaper-Setup-$Version-windows-x64"
+$outputBaseName = Get-NodePaperAssetBaseName -Version $Version -Prefix "NodePaper-Setup"
 $setupPath = Join-Path $OutputDirectory ($outputBaseName + ".exe")
 if (Test-Path -LiteralPath $setupPath) {
     Remove-Item -LiteralPath $setupPath -Force
@@ -293,7 +309,7 @@ $ordered["setupFile"] = [System.IO.Path]::GetFileName($setupPath)
 $ordered["setupSHA256"] = $setupSHA256
 $ordered | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
 
-$versionedManifestPath = Join-Path (Split-Path -Parent $ManifestPath) "release-manifest-$Version.json"
+$versionedManifestPath = Join-Path (Split-Path -Parent $ManifestPath) "release-manifest-$($versionIdentity.AssetVersion).json"
 Copy-Item -LiteralPath $ManifestPath -Destination $versionedManifestPath -Force
 
 Write-Host ""

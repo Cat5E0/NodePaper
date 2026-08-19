@@ -16,9 +16,19 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release candidate version, e.g. 0.1.0-rc.3"
+        description: "Full version, e.g. 0.1.0-dev.184+g17bdb9e, 0.1.0-beta.1, 0.1.0-rc.1, or 0.1.0"
         required: true
         type: string
+      feature_freeze:
+        description: "Required for an RC build"
+        required: false
+        default: false
+        type: boolean
+      no_release_blockers:
+        description: "Required for an RC build"
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -33,6 +43,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -40,16 +52,57 @@ jobs:
           cache: true
       - name: Bootstrap pinned Pandoc tools
         run: .\scripts\dev\Bootstrap-Tools.ps1
-      - name: Build release candidate package
+      - name: Test version lifecycle rules
+        shell: pwsh
+        run: .\scripts\test-version-lifecycle.ps1
+      - name: Resolve build version and policy flags
         shell: pwsh
         run: |
           $version = "${{ github.event.inputs.version }}"
           if (-not $version) { $version = "${{ github.ref_name }}" -replace '^v', '' }
-          if (-not $version) { throw "No release version provided." }
-          .\scripts\build-release.ps1 -Version $version -OutputDirectory .\dist-release
+          if (-not $version) { throw "No build version provided." }
+          $featureFreeze = "${{ github.event.inputs.feature_freeze }}"
+          $noReleaseBlockers = "${{ github.event.inputs.no_release_blockers }}"
+          if ("${{ github.ref_type }}" -eq "tag" -and $version -match '-rc\.') {
+            $featureFreeze = "true"
+            $noReleaseBlockers = "true"
+          }
+          "NODEPAPER_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "NODEPAPER_FEATURE_FREEZE=$featureFreeze" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "NODEPAPER_NO_RELEASE_BLOCKERS=$noReleaseBlockers" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build portable ZIP
+        shell: pwsh
+        run: |
+          $policy = @{}
+          if ($env:NODEPAPER_FEATURE_FREEZE -eq "true") { $policy.FeatureFreeze = $true }
+          if ($env:NODEPAPER_NO_RELEASE_BLOCKERS -eq "true") { $policy.NoReleaseBlockers = $true }
+          .\scripts\build-release.ps1 -Version $env:NODEPAPER_VERSION -Commit $env:GITHUB_SHA -OutputDirectory .\dist-release @policy
+      - name: Bootstrap pinned Inno Setup
+        shell: pwsh
+        run: .\scripts\bootstrap-innosetup.ps1
+      - name: Build Setup from the same payload
+        shell: pwsh
+        run: |
+          $payloads = @(Get-ChildItem .\dist-release -Directory -Filter "nodepaper-*-windows-x64")
+          if ($payloads.Count -ne 1) { throw "Expected exactly one release payload directory." }
+          $policy = @{}
+          if ($env:NODEPAPER_FEATURE_FREEZE -eq "true") { $policy.FeatureFreeze = $true }
+          if ($env:NODEPAPER_NO_RELEASE_BLOCKERS -eq "true") { $policy.NoReleaseBlockers = $true }
+          .\scripts\build-setup.ps1 -Version $env:NODEPAPER_VERSION -PayloadDirectory $payloads[0].FullName -OutputDirectory .\dist-release @policy
+      - name: Build independent real-world corpus ZIPs
+        shell: pwsh
+        run: |
+          $policy = @{}
+          if ($env:NODEPAPER_FEATURE_FREEZE -eq "true") { $policy.FeatureFreeze = $true }
+          if ($env:NODEPAPER_NO_RELEASE_BLOCKERS -eq "true") { $policy.NoReleaseBlockers = $true }
+          .\scripts\build-test-corpus.ps1 -Version $env:NODEPAPER_VERSION -Commit $env:GITHUB_SHA -OutputDirectory .\dist-corpus @policy
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nodepaper-release-zip
-          path: dist-release/*.zip
+          name: nodepaper-build-${{ github.run_number }}
+          path: |
+            dist-release/*.zip
+            dist-release/*.exe
+            dist-release/release-manifest*.json
+            dist-corpus/*.zip
           if-no-files-found: error

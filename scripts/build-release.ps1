@@ -17,7 +17,8 @@
     earlier verification.
 
 .PARAMETER Version
-    Required release version string (for example "0.1.0-rc.3"). It is
+    Required build version string (for example "0.1.0-dev.184+g17bdb9e",
+    "0.1.0-beta.1", "0.1.0-rc.1", or "0.1.0"). It is
     intentionally independent from the frozen Profile candidate version.
 
 .PARAMETER Commit
@@ -34,8 +35,17 @@
 .PARAMETER KeepWork
     Keep the temporary worktree, package directory and ZIP for inspection.
 
+.PARAMETER FeatureFreeze
+    Required together with NoReleaseBlockers when Version is an rc.
+
+.PARAMETER NoReleaseBlockers
+    Required together with FeatureFreeze when Version is an rc.
+
 .EXAMPLE
-    .\scripts\build-release.ps1 -Version 0.1.0-rc.3
+    .\scripts\build-release.ps1 -Version 0.1.0-dev.184+g17bdb9e
+
+.EXAMPLE
+    .\scripts\build-release.ps1 -Version 0.1.0-rc.1 -FeatureFreeze -NoReleaseBlockers
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -43,11 +53,14 @@ param(
     [string]$Commit = "HEAD",
     [string]$OutputDirectory = "",
     [switch]$SkipTools,
-    [switch]$KeepWork
+    [switch]$KeepWork,
+    [switch]$FeatureFreeze,
+    [switch]$NoReleaseBlockers
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "version-lifecycle.ps1")
 
 $script:WorkRoot = ""
 $script:Worktree = ""
@@ -122,9 +135,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $root ".git") -PathType Container)) 
     throw "Not a git repository: $root"
 }
 
-if ($Version -notmatch '^[A-Za-z0-9][A-Za-z0-9._+-]*$') {
-    throw "Invalid release version string: $Version"
-}
+$versionIdentity = ConvertFrom-NodePaperVersion $Version
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $root "build\release"
@@ -134,7 +145,7 @@ if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
 }
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
-$tagName = "nodepaper-$Version-windows-x64"
+$tagName = Get-NodePaperAssetBaseName $Version
 $packageDir = Join-Path $OutputDirectory $tagName
 
 Write-Host "NodePaper release build"
@@ -148,6 +159,8 @@ $resolvedCommit = $commitLines[0].Trim()
 if ([string]::IsNullOrWhiteSpace($resolvedCommit)) {
     throw "Cannot resolve commit: $Commit"
 }
+$buildIdentity = Assert-NodePaperBuildIdentity -Version $Version -ResolvedCommit $resolvedCommit -RepositoryRoot $root -FeatureFreeze:$FeatureFreeze -NoReleaseBlockers:$NoReleaseBlockers
+$canonicalBuildTime = Get-NodePaperCanonicalBuildTime -RepositoryRoot $root -ResolvedCommit $resolvedCommit
 
 $script:WorkRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-release-" + [Guid]::NewGuid().ToString("N"))
 $script:Worktree = Join-Path $script:WorkRoot "src"
@@ -405,6 +418,25 @@ try {
     # payload file before changing the installation or user Path. The manifest
     # itself is covered by the outer ZIP SHA-256 (a file cannot contain its own
     # hash without a circular definition).
+    $payloadSHA256 = Get-NodePaperPayloadSHA256 $packageDir
+    $buildInfo = [ordered]@{
+        schemaVersion = 1
+        version = $Version
+        stage = $buildIdentity.Stage
+        sourceCommit = $resolvedCommit
+        gitTag = $buildIdentity.GitTag
+        builtAtUTC = $canonicalBuildTime
+        toolchain = [ordered]@{
+            go = ((& $go version) -join " ").Trim()
+            powershell = [string]$PSVersionTable.PSVersion
+            pandoc = [string]$profileMetadata.pandocVersion
+            pandocCrossref = [string]$profileMetadata.pandocCrossrefVersion
+        }
+        payloadSHA256 = $payloadSHA256
+    }
+    $buildInfoPath = Join-Path $packageDir "build-info.json"
+    [System.IO.File]::WriteAllText($buildInfoPath, (($buildInfo | ConvertTo-Json -Depth 5) + [Environment]::NewLine), (New-Object System.Text.UTF8Encoding($false)))
+
     $payloadFiles = @(Get-ChildItem -LiteralPath $packageDir -Recurse -File | ForEach-Object {
         [ordered]@{
             path = ($_.FullName.Substring($packageDir.Length).TrimStart('\') -replace '\\', '/')
@@ -416,7 +448,10 @@ try {
         schemaVersion = 1
         channel = "portable-zip"
         version = $Version
+        stage = $buildIdentity.Stage
         sourceCommit = $resolvedCommit
+        buildInfo = "build-info.json"
+        payloadSHA256 = $payloadSHA256
         profileVersion = [string]$profileMetadata.version
         profileSnapshotSHA256 = $profileSHA256
         bundledPandocVersion = [string]$profileMetadata.pandocVersion
@@ -438,19 +473,6 @@ try {
     Compress-Archive -LiteralPath $packageDir -DestinationPath $zipPath -CompressionLevel Optimal
     $zipSHA256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
-    $gitTag = ""
-    $previousEAP = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $described = (& git -C $root describe --tags --exact-match $resolvedCommit 2>$null | Out-String).Trim()
-        if ($LASTEXITCODE -eq 0 -and $described) {
-            $gitTag = $described
-        }
-    }
-    finally {
-        $ErrorActionPreference = $previousEAP
-    }
-
     $fileList = @(Get-ChildItem -LiteralPath $packageDir -Recurse -File | ForEach-Object {
         $_.FullName.Substring($packageDir.Length).TrimStart('\') -replace '\\', '/'
     } | Sort-Object)
@@ -458,8 +480,11 @@ try {
     $manifest = [ordered]@{
         schemaVersion = 1
         version = $Version
+        stage = $buildIdentity.Stage
         sourceCommit = $resolvedCommit
-        gitTag = $gitTag
+        gitTag = $buildIdentity.GitTag
+        buildInfo = "build-info.json"
+        payloadSHA256 = $payloadSHA256
         profileVersion = [string]$profileMetadata.version
         profileRulesVersion = [string]$profileMetadata.rulesVersion
         profileSnapshotSHA256 = $profileSHA256
@@ -474,7 +499,7 @@ try {
         packageDirectory = $tagName
         zipFile = [System.IO.Path]::GetFileName($zipPath)
         zipSHA256 = $zipSHA256
-        builtAt = (Get-Date).ToString("o")
+        builtAtUTC = $canonicalBuildTime
         files = $fileList
     }
     $manifestPath = Join-Path $OutputDirectory "release-manifest.json"
