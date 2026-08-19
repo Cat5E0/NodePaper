@@ -419,11 +419,11 @@ latexFragments:
 | `cmd/`, `internal/` | The Go implementation: CLI entry point and internal packages |
 | `profiles/cumcm/` | The frozen CUMCM Profile: three templates, Lua filters, CSL, licences and metadata |
 | `scripts/build/` | The PowerShell transition build chain, copied to the ZIP root for releases |
-| `installer/windows/` | Inno Setup and portable-ZIP installation scripts for Windows |
-| `scripts/dev/`, `tools/` | Downloads and verifies the bundled pandoc and pandoc-crossref against pinned hashes |
+| `packaging/windows/` | Inno Setup and portable-ZIP installation scripts for Windows |
+| `packaging/toolchains/windows-x64.json` | Pinned versions, hashes, and sources for bundled pandoc and pandoc-crossref |
 | `scripts/` | Development, build, packaging and test suites |
-| `nodepaper-test-fixtures/` | A self-contained test asset pack with its own notes and manifest |
-| `examples/m0-baseline/` | The M0 baseline project, kept for historical comparison |
+| `tests/` | A self-contained test asset pack, Fixture Manifest, and test notes |
+| `docs/assets/` | Showcase images used by the READMEs and user documentation |
 | `licenses/`, `THIRD_PARTY_NOTICES.md` | Third-party licences and notices |
 | `.github/workflows/` | CI: `ci`, `miktex-e2e`, `export-linux`, `release-build` |
 

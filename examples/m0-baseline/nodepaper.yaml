@@ -1,7 +1,0 @@
-version: 1
-
-profile: cumcm
-source: paper.md
-
-output:
-  file: dist/paper.pdf
