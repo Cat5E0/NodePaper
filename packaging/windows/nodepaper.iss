@@ -22,7 +22,11 @@
 ;                     without /SUPPRESSMSGBOXES) refuses the downgrade and
 ;                     leaves the installed version alone, because that
 ;                     confirmation defaults to No. /ALLOWDOWNGRADE=0 declines
-;                     just as clearly as leaving the switch out.
+;                     just as clearly as leaving the switch out. The switch
+;                     also answers the dev/release-track switch confirmation,
+;                     which is what installing a dev build over a release-
+;                     track version is; the wording differs but the caller's
+;                     stated intent is the same.
 
 #ifndef NodePaperVersion
   #error NodePaperVersion must be defined by the build script
@@ -107,10 +111,14 @@ chinesesimplified.NodePaperRunning=NodePaper 正在运行。请关闭 NodePaper 
 chinesesimplified.PayloadBroken=安装文件校验失败：%1。安装已取消并回滚，未修改 PATH、快捷方式和已有安装。
 chinesesimplified.VersionMismatch=安装后的程序版本校验失败（报告为“%1”，期望“nodepaper {#NodePaperVersion}”）。安装已取消并回滚。
 chinesesimplified.DowngradeWarning=当前已安装 NodePaper %1，本安装包为较旧的 %2。继续将降级为 %2。是否继续？
+chinesesimplified.TrackSwitchWarning=当前已安装 NodePaper %1（发布轨道版本），本安装包为 %2（开发构建，未经发布门槛验收）。继续安装将把现有安装替换为 %2。是否继续？
+chinesesimplified.PublicFromDevWarning=当前已安装开发构建 %1，本安装包为发布轨道版本 %2。继续安装将替换为 %2。是否继续？
 chinesesimplified.ExistingHeading=现有安装：
 chinesesimplified.ExistingReinstall=已安装 %1，将重新安装（修复）。
 chinesesimplified.ExistingUpgrade=已安装 %1，将升级为 %2。
 chinesesimplified.ExistingDowngrade=已安装 %1，将降级为 %2。
+chinesesimplified.ExistingTrackSwitch=已安装 %1，将替换为开发构建 %2。
+chinesesimplified.ExistingPublicFromDev=已安装开发构建 %1，将替换为发布轨道版本 %2。
 chinesesimplified.PortableHere=该目录当前是一份便携安装（解压式），安装后将由本程序接管。
 english.LaunchNodePaper=Launch NodePaper
 english.UninstallShortcut=Uninstall NodePaper
@@ -119,10 +127,14 @@ english.NodePaperRunning=NodePaper is running. Close the NodePaper window or wai
 english.PayloadBroken=Payload verification failed: %1. The installation was canceled and rolled back; Path, shortcuts and any previous installation were left unchanged.
 english.VersionMismatch=The installed executable failed version verification (reported "%1", expected "nodepaper {#NodePaperVersion}"). The installation was canceled and rolled back.
 english.DowngradeWarning=NodePaper %1 is currently installed and this Setup contains the older %2. Continuing downgrades the installation to %2. Continue?
+english.TrackSwitchWarning=NodePaper %1 (a release-track version) is currently installed; this Setup contains %2, a development build that has not passed the release gates. Continuing replaces the installation with %2. Continue?
+english.PublicFromDevWarning=A development build %1 is currently installed; this Setup contains the release-track version %2. Continuing replaces it with %2. Continue?
 english.ExistingHeading=Existing installation:
 english.ExistingReinstall=NodePaper %1 is installed; it will be reinstalled (repair).
 english.ExistingUpgrade=NodePaper %1 is installed; it will be upgraded to %2.
 english.ExistingDowngrade=NodePaper %1 is installed; it will be downgraded to %2.
+english.ExistingTrackSwitch=NodePaper %1 is installed; it will be replaced by the development build %2.
+english.ExistingPublicFromDev=Development build %1 is installed; it will be replaced by the release-track version %2.
 english.PortableHere=This directory currently holds a portable (extracted ZIP) installation; this installation takes it over.
 
 [Tasks]
@@ -441,6 +453,24 @@ begin
     Result := '';
 end;
 
+{ Whether a NodePaper version string names a development build. The lifecycle
+  ranks are dev < beta < rc < stable, but a dev version is a different track
+  rather than a lower point on the same one: dev.126 is built from commit 126
+  while rc.9 was cut earlier at commit 108, so rc.9 -> dev.126 is not an
+  "older package" and must not be presented as one. The text says what it
+  actually is: a development build replacing a release-track installation. }
+function IsDevVersion(const Version: String): Boolean;
+var
+  DashPos: Integer;
+begin
+  Result := False;
+  DashPos := Pos('-dev.', Version);
+  if DashPos <= 1 then
+    Exit;
+  { Ensure the marker is the stage prefix, not a substring somewhere else. }
+  Result := (Pos('-', Copy(Version, 1, DashPos)) = DashPos) and (Length(Version) > DashPos + 4);
+end;
+
 { ---------- ZIP channel detection --------------------------------------- }
 
 { Whether the directory currently holds a portable (extracted ZIP) NodePaper.
@@ -622,6 +652,25 @@ begin
   if AllowDowngradeRequested then
     Exit;
 
+  { A dev build going over a release-track installation is a track switch,
+    not a downgrade: the dev build is typically newer code that simply has not
+    passed the release gates, and calling it "older" would be false. It still
+    needs an explicit confirmation, because the user is leaving a gated
+    version for an ungated one. The same applies in reverse: replacing a dev
+    build with a release-track version is also a deliberate switch, though a
+    benign one, so it only informs. Same-stage downgrades (rc.9 over rc.8,
+    stable over rc) keep the plain downgrade warning. }
+  if IsDevVersion(Installed) <> IsDevVersion('{#NodePaperVersion}') then
+  begin
+    if IsDevVersion('{#NodePaperVersion}') then
+      Result := SuppressibleMsgBox(FmtMessage(CustomMessage('TrackSwitchWarning'), [Installed, '{#NodePaperVersion}']),
+        mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES
+    else
+      Result := SuppressibleMsgBox(FmtMessage(CustomMessage('PublicFromDevWarning'), [Installed, '{#NodePaperVersion}']),
+        mbConfirmation, MB_YESNO, IDYES) = IDYES;
+    Exit;
+  end;
+
   { SuppressibleMsgBox, not MsgBox: /SUPPRESSMSGBOXES does not reach a MsgBox
     raised from [Code], so what a silent downgrade did here was decided by
     whatever happened next rather than by this line. Observed with the rc.8
@@ -674,6 +723,15 @@ begin
     else if Compared < 0 then
       Details := Details + Space +
         FmtMessage(CustomMessage('ExistingUpgrade'), [Installed, '{#NodePaperVersion}']) + NewLine
+    else if IsDevVersion(Installed) <> IsDevVersion('{#NodePaperVersion}') then
+    begin
+      if IsDevVersion('{#NodePaperVersion}') then
+        Details := Details + Space +
+          FmtMessage(CustomMessage('ExistingTrackSwitch'), [Installed, '{#NodePaperVersion}']) + NewLine
+      else
+        Details := Details + Space +
+          FmtMessage(CustomMessage('ExistingPublicFromDev'), [Installed, '{#NodePaperVersion}']) + NewLine;
+    end
     else
       Details := Details + Space +
         FmtMessage(CustomMessage('ExistingDowngrade'), [Installed, '{#NodePaperVersion}']) + NewLine;

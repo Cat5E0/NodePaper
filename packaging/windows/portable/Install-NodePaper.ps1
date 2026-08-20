@@ -394,7 +394,27 @@ foreach ($candidate in @(Get-PortableDirectoriesOnPath $oldPath)) {
 }
 if ($installedVersion -ne "") {
     $versionComparison = Compare-NodePaperVersion ([string]$manifest.version) $installedVersion
-    if ($versionComparison -lt 0) {
+    $packageIsDev = ([string]$manifest.version -match '-dev\.')
+    $installedIsDev = ($installedVersion -match '-dev\.')
+    if ($packageIsDev -ne $installedIsDev) {
+        # A dev build and a release-track version are different tracks, not
+        # points on the same one: dev.126 is typically newer code than rc.9
+        # that simply has not passed the release gates, so "older" would be
+        # false. Confirm because the user is crossing tracks; the release-track
+        # direction is a benign switch and only needs a word.
+        if ($packageIsDev) {
+            if (-not (Test-InteractivePause)) {
+                throw "A release-track NodePaper ($installedVersion) is installed; this package is the development build $($manifest.version), which has not passed the release gates. Switching requires confirmation; run this script interactively or uninstall the release-track version first."
+            }
+            if (-not (Confirm-Installation "NodePaper $installedVersion (a release-track version) is installed; this package is the development build $($manifest.version), which has not passed the release gates. Continuing replaces the installation with $($manifest.version).")) {
+                throw "Installation cancelled by the user; the existing installation was not changed."
+            }
+        }
+        else {
+            Write-Host "Replacing the development build $installedVersion with the release-track version $($manifest.version)."
+        }
+    }
+    elseif ($versionComparison -lt 0) {
         # Downgrade: confirm interactively; reject silently otherwise.
         if (-not (Test-InteractivePause)) {
             throw "A newer NodePaper ($installedVersion) is already installed and this package is the older $($manifest.version). Downgrade requires confirmation; run this script interactively or uninstall the newer version first."
