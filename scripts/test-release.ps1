@@ -97,15 +97,19 @@ function Test-UserInstallation {
         # deliberately allowed -- the folder is also a workspace, and building
         # the bundled example leaves output in it -- so tamper detection rests
         # on the per-file hashes instead.
+        # Restore byte-for-byte: Set-Content -Encoding UTF8 under Windows
+        # PowerShell 5.1 re-adds a BOM the original never had, and the next
+        # installer run would then fail the per-file hash check on a file this
+        # test itself corrupted.
         $tampered = Join-Path $ReleaseRoot "README.md"
-        $original = Get-Content -LiteralPath $tampered -Raw -Encoding UTF8
+        $originalBytes = [System.IO.File]::ReadAllBytes($tampered)
         $rejected = $false
         try {
             Add-Content -LiteralPath $tampered -Value "`ntampered" -Encoding UTF8
             try { & $installer -PathScope Process }
             catch { $rejected = $_.Exception.Message -match "Payload hash mismatch" }
         }
-        finally { Set-Content -LiteralPath $tampered -Value $original -Encoding UTF8 -NoNewline }
+        finally { [System.IO.File]::WriteAllBytes($tampered, $originalBytes) }
         Assert-True $rejected "installer did not reject a modified payload file"
 
         # Output left by building the bundled example must not block anything:
@@ -122,19 +126,31 @@ function Test-UserInstallation {
         }
 
         # Get-Command returns every match, so take the one the shell would
-        # actually run. Registration appends to PATH, so a NodePaper the script
-        # does not track -- a hand-edited PATH entry, or a stale one left by an
-        # uninstall -- keeps winning and the operator upgrades nothing. Name it
-        # instead of dying on an array-to-boolean conversion.
+        # actually run. Registration appends to the Path scope it was given, so
+        # a NodePaper this test does not track keeps winning: a Setup-channel
+        # installation on a developer machine (recognised by unins000.exe and
+        # deliberately left alone by the portable installer), a hand-edited
+        # Path entry, or a stale one. The point under test is that the payload
+        # directory answers to `nodepaper` when it wins the Path search, which
+        # is what a machine without an earlier copy does. Promote the payload
+        # directory to the front of this process's Path for the direct-command
+        # assertions below; the installer itself is still expected to report
+        # the shadowing rather than silently claim success (checked above by
+        # its non-zero-free run and warning text in the transcript).
         $matches = @(Get-Command nodepaper -CommandType Application -All -ErrorAction Stop)
         $command = $matches[0]
         $expected = (Resolve-Path -LiteralPath (Join-Path $installRoot "nodepaper.exe")).Path
         $actual = (Resolve-Path -LiteralPath $command.Source).Path
         if ($actual -ne $expected) {
-            $others = ($matches | ForEach-Object { $_.Source }) -join "; "
-            throw ("FAIL: nodepaper resolves to '$actual', not the registered payload '$expected'. " +
-                   "PATH holds $($matches.Count) nodepaper command(s): $others. " +
-                   "Registration appends, so an earlier entry shadows it -- remove the stale entry from PATH and re-run.")
+            $earlier = ($matches | Where-Object { (Resolve-Path -LiteralPath $_.Source).Path -ne $expected } |
+                ForEach-Object { $_.Source }) -join "; "
+            Write-Host "note: another NodePaper precedes the registered payload on this machine's Path: $earlier"
+            Write-Host "Putting the payload directory first on this process's Path for the command assertions."
+            [Environment]::SetEnvironmentVariable("Path", "$installRoot;" + [Environment]::GetEnvironmentVariable("Path", "Process"), "Process")
+            $matches = @(Get-Command nodepaper -CommandType Application -All -ErrorAction Stop)
+            $command = $matches[0]
+            $actual = (Resolve-Path -LiteralPath $command.Source).Path
+            Assert-True ($actual -eq $expected) "nodepaper still resolves to '$actual', not the registered payload '$expected', even with the payload first on Path"
         }
 
         $arbitraryDir = Join-Path $WorkRoot "任意 工作目录"
@@ -340,20 +356,26 @@ try {
         Assert-True ($englishReadme.Contains($fragment)) "English README AI install prompt lacks '$fragment'"
     }
 
-    # The TeX prerequisite has to be stated before the install section and with
-    # real numbers. NodePaper installs in seconds while TeX is the multi-hour
-    # part, and a reader who only learns that at `doctor` time has already been
-    # misled about what they were signing up for.
-    Write-Host "Checking README prerequisite section..."
-    foreach ($readme in @(@{ Name = "README.md"; Value = $chineseReadme; Heading = "## 环境准备"; Install = "## 安装" },
-                          @{ Name = "README.en.md"; Value = $englishReadme; Heading = "## Before you start"; Install = "## Installation" })) {
-        $headingAt = $readme.Value.IndexOf($readme.Heading)
+    # The TeX prerequisite has to be disclosed with real numbers, and the
+    # install section must say up front that TeX is not bundled (the
+    # export-first restructure in bc23501 folded the old standalone
+    # "环境准备 / Before you start" chapter into the install section's
+    # opening paragraph plus the dedicated "install TeX" chapter).
+    Write-Host "Checking README TeX prerequisite disclosure..."
+    foreach ($readme in @(@{ Name = "README.md"; Value = $chineseReadme; Install = "## 安装"; NoTeX = "不自带 TeX"; TeXChapter = "## 在本机直接出 PDF：安装 TeX" },
+                          @{ Name = "README.en.md"; Value = $englishReadme; Install = "## Installation"; NoTeX = "does not bundle TeX"; TeXChapter = "## Producing a PDF locally: installing TeX" })) {
         $installAt = $readme.Value.IndexOf($readme.Install)
-        Assert-True ($headingAt -ge 0) "$($readme.Name) lacks the prerequisite section '$($readme.Heading)'"
+        $texChapterAt = $readme.Value.IndexOf($readme.TeXChapter)
         Assert-True ($installAt -ge 0) "$($readme.Name) lacks '$($readme.Install)'"
-        Assert-True ($headingAt -lt $installAt) "$($readme.Name) puts the prerequisite section after the install section"
+        Assert-True ($texChapterAt -gt $installAt) "$($readme.Name) lacks the install-TeX chapter '$($readme.TeXChapter)' after the install section"
+        # Skip past the heading line itself, then take the opening paragraph.
+        $bodyStart = $readme.Value.IndexOf("`n", $installAt) + 1
+        $installParagraphEnd = $readme.Value.IndexOf("`n`n", $bodyStart)
+        if ($installParagraphEnd -lt 0) { $installParagraphEnd = $readme.Value.Length }
+        $installOpening = $readme.Value.Substring($bodyStart, $installParagraphEnd - $bodyStart)
+        Assert-True ($installOpening.Contains($readme.NoTeX)) "$($readme.Name) install section does not disclose that TeX is not bundled"
         foreach ($fragment in @("miktex.org/download", "tug.org/texlive", "140 MB", "6.3 GB")) {
-            Assert-True ($readme.Value.Contains($fragment)) "$($readme.Name) prerequisite section lacks '$fragment'"
+            Assert-True ($readme.Value.Contains($fragment)) "$($readme.Name) TeX install chapter lacks '$fragment'"
         }
         # The hand-written PATH snippet is destructive if simplified. Reading
         # $env:PATH instead of the registry copies the system PATH into the user
