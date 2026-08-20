@@ -78,6 +78,10 @@ MinVersion=10.0
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; The Setup executable's own icon: the same artwork embedded in
+; nodepaper.exe, kept in the payload (packaging/windows/nodepaper.ico via the
+; release whitelist) so Setup cannot drift from the program's icon.
+SetupIconFile={#PayloadDir}\\nodepaper.ico
 OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseName}
 UninstallDisplayName={#NodePaperName} {#NodePaperVersion}

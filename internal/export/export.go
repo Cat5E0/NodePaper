@@ -1,11 +1,12 @@
 // Package export produces a standalone, editable LaTeX project from a
 // NodePaper project.
 //
-// The exported directory is a one-way copy: it is generated from the Markdown
+// The exported project is a one-way copy: it is generated from the Markdown
 // sources and never read back. Nothing here changes the `nodepaper build`
 // route - export re-runs the same conversion script with -SkipPdf and, for the
 // BibTeX and biblatex modes, a different -CiteMethod, then copies the produced
-// .tex together with the resources it references into the target directory.
+// .tex together with the resources it references into the target directory or
+// an Overleaf-ready ZIP archive selected by the destination suffix.
 package export
 
 import (
@@ -35,11 +36,11 @@ import (
 
 // Diagnostic codes owned by export. NP8xxx is reserved for this command.
 const (
-	// CodeTargetNotEmpty - the target directory already contains files and
-	// --force was not given.
+	// CodeTargetNotEmpty - the target directory is non-empty or the target
+	// archive already exists and --force was not given.
 	CodeTargetNotEmpty = "NP8001"
 	// CodeTargetUnusable - the target path cannot be used as an export
-	// directory (missing --to, not a directory, unreadable, uncreatable).
+	// destination (missing --to, wrong kind, unreadable, uncreatable).
 	CodeTargetUnusable = "NP8002"
 	// CodeTargetInsideProject - the target directory lies inside the Project
 	// Root. Exporting still proceeds; this is a warning.
@@ -114,20 +115,18 @@ func (m BibMode) needsBibFile() bool { return m != BibInline }
 // Options describes one export request.
 type Options struct {
 	ProjectDir string
-	// ToDir is the export destination. It is created when missing.
-	ToDir string
-	Bib   BibMode
+	// ToPath is the export destination. A case-insensitive .zip suffix selects
+	// an Overleaf-ready archive; every other path selects a directory.
+	ToPath string
+	Bib    BibMode
 	// Verify compiles the exported project in a temporary directory and
-	// reports the outcome. No intermediate file is left in ToDir.
+	// reports the outcome. No intermediate file is left in ToPath.
 	Verify bool
-	// Force allows exporting into a directory that already contains files.
+	// Force allows writing into a non-empty directory or replacing an archive.
 	Force bool
-	// Zip writes one Overleaf-ready archive whose files are at the archive
-	// root instead of leaving the deliverable as a directory.
-	Zip bool
 }
 
-// Artifact is a file written into the export directory.
+// Artifact is a file written into the exported project.
 type Artifact struct {
 	Kind string `json:"kind"`
 	Path string `json:"path"`
@@ -165,7 +164,7 @@ func (processExecutor) Run(ctx context.Context, dir, command string, args ...str
 // needs. Nothing else in export resolves executables.
 var lookPath = exec.LookPath
 
-// Run exports the project at opts.ProjectDir into opts.ToDir.
+// Run exports the project at opts.ProjectDir into opts.ToPath.
 func Run(ctx context.Context, opts Options) Result {
 	return runWithExecutorAndResources(ctx, opts, processExecutor{}, build.DefaultBuildScriptPath(), build.DefaultProfileDir())
 }
@@ -222,17 +221,17 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 		return result
 	}
 
-	// 3. Resolve and inspect the target directory. Only emptiness is checked:
-	// what else the directory holds is the user's business, and refusing to
-	// work because of unrelated files would be a defect, not a safeguard.
+	// 3. Resolve and inspect the destination before taking the build lock or
+	// clearing export's private staging directory.
 	target, diags := resolveTarget(p.Root, opts)
 	result.Diagnostics = append(result.Diagnostics, diags...)
 	if hasError(result.Diagnostics) {
 		return result
 	}
 	result.ExportPath = target
-	result.Zipped = opts.Zip
-	if !opts.Zip {
+	zipTarget := isZipTarget(target)
+	result.Zipped = zipTarget
+	if !zipTarget {
 		result.ExportDir = target
 	}
 
@@ -330,7 +329,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	// 8. Assemble the deliverable. ZIP exports are assembled in the private
 	// work directory first, so --verify sees the exact tree that is archived.
 	deliverableDir := target
-	if opts.Zip {
+	if zipTarget {
 		deliverableDir = filepath.Join(workDir, "deliverable")
 	}
 	artifacts, copyDiags := assemble(p, cfg, mode, texPath, deliverableDir, fragmentFiles)
@@ -351,7 +350,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 		}
 	}
 
-	if opts.Zip {
+	if zipTarget {
 		if err := writeZip(deliverableDir, target); err != nil {
 			result.Diagnostics = append(result.Diagnostics, errorDiag(CodeCopyFailed,
 				fmt.Sprintf("cannot write export archive %s: %v", target, err),
@@ -365,40 +364,59 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	return result
 }
 
-// ---------- target directory --------------------------------------------
+// ---------- target destination ------------------------------------------
 
 func resolveTarget(projectRoot string, opts Options) (string, []diagnostic.Diagnostic) {
-	if strings.TrimSpace(opts.ToDir) == "" {
+	if strings.TrimSpace(opts.ToPath) == "" {
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
 			"no export destination was given",
-			"Pass a destination: nodepaper export --to <path>")}
+			"Pass a destination: nodepaper export --to <directory-or-zip>")}
 	}
-	target, err := filepath.Abs(opts.ToDir)
+	target, err := filepath.Abs(opts.ToPath)
 	if err != nil {
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
-			fmt.Sprintf("cannot resolve export destination %q: %v", opts.ToDir, err),
+			fmt.Sprintf("cannot resolve export destination %q: %v", opts.ToPath, err),
 			"Pass a writable destination path.")}
 	}
+	privateWorkDir := filepath.Join(projectRoot, ".nodepaper", "export")
+	realPrivateWorkDir, err := canonicalPathWithMissingTail(privateWorkDir)
+	if err != nil {
+		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
+			fmt.Sprintf("cannot resolve NodePaper's private staging directory %s: %v", privateWorkDir, err),
+			"Check that the Project Root and .nodepaper directory are accessible.")}
+	}
+	realTarget, err := canonicalPathWithMissingTail(target)
+	if err != nil {
+		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
+			fmt.Sprintf("cannot resolve export destination links for %s: %v", target, err),
+			"Choose a writable destination whose parent directories are accessible.")}
+	}
+	if within(realPrivateWorkDir, realTarget) {
+		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
+			fmt.Sprintf("export destination is inside NodePaper's private staging directory: %s", target),
+			"Choose a destination outside .nodepaper/export; that directory is deleted after every export.")}
+	}
+	zipTarget := isZipTarget(target)
 
 	var diags []diagnostic.Diagnostic
 	info, err := os.Stat(target)
 	switch {
-	case opts.Zip && err == nil && info.IsDir():
+	case zipTarget && err == nil && info.IsDir():
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
 			fmt.Sprintf("ZIP export destination is a directory: %s", target),
 			"Pass a file path such as paper.zip.")}
-	case opts.Zip && err == nil && !opts.Force:
+	case zipTarget && err == nil && !opts.Force:
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetNotEmpty,
 			fmt.Sprintf("export archive already exists: %s", target),
 			"Choose another path, or re-run with --force to replace this archive.")}
-	case opts.Zip && err == nil:
+	case zipTarget && err == nil:
 		// --force permits replacing this exact file after the new archive has
 		// been written successfully to a sibling temporary file.
-	case !opts.Zip && err == nil && !info.IsDir():
+	case !zipTarget && err == nil && !info.IsDir():
 		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
 			fmt.Sprintf("export destination is not a directory: %s", target),
 			"Pass a directory, not a file.")}
-	case !opts.Zip && err == nil:
+	case !zipTarget && err == nil:
 		entries, readErr := os.ReadDir(target)
 		if readErr != nil {
 			return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
@@ -421,7 +439,13 @@ func resolveTarget(projectRoot string, opts Options) (string, []diagnostic.Diagn
 	// Exporting inside the project works, but the copy then looks like part of
 	// the Markdown project while being a dead-end snapshot of it, and it will
 	// be picked up by the project's own version control. Worth saying once.
-	if within(projectRoot, target) {
+	realProjectRoot, err := canonicalPathWithMissingTail(projectRoot)
+	if err != nil {
+		return "", []diagnostic.Diagnostic{errorDiag(CodeTargetUnusable,
+			fmt.Sprintf("cannot resolve Project Root links for %s: %v", projectRoot, err),
+			"Check that the Project Root is accessible.")}
+	}
+	if within(realProjectRoot, realTarget) {
 		diags = append(diags, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityWarning,
 			Code:     CodeTargetInsideProject,
@@ -433,6 +457,10 @@ func resolveTarget(projectRoot string, opts Options) (string, []diagnostic.Diagn
 		})
 	}
 	return target, diags
+}
+
+func isZipTarget(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), ".zip")
 }
 
 // writeZip creates a directly uploadable Overleaf archive: paper.tex and its
@@ -516,6 +544,39 @@ func within(root, path string) bool {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// canonicalPathWithMissingTail resolves every symlink or Windows junction in
+// the nearest existing ancestor, then reattaches any path elements that do not
+// exist yet. filepath.EvalSymlinks alone cannot inspect a new export target;
+// resolving its ancestor prevents an alias from hiding that the target really
+// lies inside .nodepaper/export.
+func canonicalPathWithMissingTail(path string) (string, error) {
+	current := filepath.Clean(path)
+	var missing []string
+	for {
+		_, err := os.Lstat(current)
+		switch {
+		case err == nil:
+			real, evalErr := canonicalExistingPath(current)
+			if evalErr != nil {
+				return "", evalErr
+			}
+			for i := len(missing) - 1; i >= 0; i-- {
+				real = filepath.Join(real, missing[i])
+			}
+			return filepath.Clean(real), nil
+		case !os.IsNotExist(err):
+			return "", err
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
 }
 
 // ---------- conversion ---------------------------------------------------

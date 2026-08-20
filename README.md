@@ -2,6 +2,13 @@
 
 # NodePaper
 
+<p align="left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo/logo-dark.png">
+    <img src="docs/assets/logo/logo-transparent.png" alt="NodePaper logo" width="120">
+  </picture>
+</p>
+
 [![ci](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml)
 [![miktex-e2e](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml)
 [![export-linux](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml)
@@ -47,13 +54,9 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 ## 安装
 
-需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。**它不自带 TeX，而下面的「快速开始」整条走完都不需要 TeX**——导出只调用发布包内置的 pandoc。想在本机一条命令直接出 PDF，再回头装 TeX，见「在本机直接出 PDF：安装 TeX」。
+需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。**它不自带 TeX，而下面的「快速开始」全程无需本地 TeX 环境**——导出只调用发布包内置的 pandoc。想在本机一条命令直接出 PDF，再回头装 TeX，见「在本机直接出 PDF：安装 TeX」。
 
 > 官方仓库 <https://github.com/Cat5E0/NodePaper> 当前尚无公开 GitHub Release 资产。测试候选由维护者直接提供；请同时取得 `NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP）和同批 `release-manifest-<版本>.json`，不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包。
-
-版本通道依次为开发版 `0.1.0-dev.N+g<Commit>`、公开测试版 `0.1.0-beta.N`、发布候选 `0.1.0-rc.N` 和稳定版 `0.1.0`。为让日常构建的文件名更短，开发版资产使用 `nodepaper-devN-windows-x64.zip` / `NodePaper-Setup-devN-windows-x64.exe`；完整版本与 40 位源提交仍记录在包内 `build-info.json`。公开版资产保留完整版本名，并且只能由指向同一提交的注释 Git Tag 构建；RC 还必须通过功能冻结和无发布阻断项检查。
-
-`build-info.json` 同时记录 UTC 构建时间、工具链和 payload SHA-256；外层 `release-manifest-<版本>.json` 记录 ZIP、Setup 的文件哈希。安装前应以 Manifest 校验下载文件，解压后可再核对 `build-info.json`，从短文件名仍能追溯到唯一源码提交和 payload。
 
 双击 Setup 安装，然后打开新终端：
 
@@ -95,7 +98,7 @@ nodepaper doctor
 
 ```powershell
 # 换成你的解压目录
-$dir = 'D:\Tools\nodepaper-0.1.0-rc.9-windows-x64'
+$dir = 'D:\Tools\NodePaper'
 
 $key = 'HKCU:\Environment'
 $old = [string](Get-Item $key).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
@@ -142,7 +145,7 @@ Get-FileHash .\NodePaper-Setup-<版本>-windows-x64.exe -Algorithm SHA256
 7. 不索取 Token 或密码，不执行论文代码，不删除或修改论文 Project；不要把 AI 输出当作测试通过证据。
 ```
 
-## 快速开始（不装 TeX 也能走完）
+## 快速开始（无需本地 TeX 环境）
 
 ### 1. 检查环境
 
@@ -185,6 +188,8 @@ cumcm-a/
 - `images/`：图片资源；
 - `nodepaper.yaml`：项目配置。
 
+复杂表格、TikZ 绘图等 Markdown 表达不了的内容，以 LaTeX Fragment 形式存在项目内自建的目录（如 `tables/`、`figures/`）中，在 `nodepaper.yaml` 声明后用 `\input{...}` 插入正文，见下文「Markdown 示例」。
+
 ### 4. 验证
 
 ```powershell
@@ -197,17 +202,17 @@ nodepaper validate
 ### 5. 出成品：导出后在 Overleaf 编译
 
 ```powershell
-nodepaper export . --to ..\paper-latex.zip --zip
+nodepaper export . --to ..\paper-latex.zip
 ```
 
 导出的不是 PDF，而是一份可独立编译的 LaTeX 工程：`paper.tex`、`references.bib`、论文实际用到的图片、`\input{}` 的 Fragment，以及一份写明编译步骤和所需宏包的 `README.txt`。
 
-`--zip` 会把这些文件直接放在 ZIP 根目录，不套多余文件夹，可以在 Overleaf 选择 **New Project → Upload Project** 直接上传。若希望检查或继续编辑导出结果，省略 `--zip` 并把 `--to` 指向一个文件夹。
+`--to` 以 `.zip` 结尾时（不区分大小写），导出会直接生成 ZIP；文件位于 ZIP 根目录，不套多余文件夹，可以在 Overleaf 选择 **New Project → Upload Project** 直接上传。把 `--to` 指向一个文件夹时，则导出为目录，适合先检查或继续编辑。
 
 - 在 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出真实原因；
 - 中文字体按编译环境自动切换：Overleaf 上用 Noto CJK，你自己的 Windows 上用宋体/黑体。**版面会有细微差别，但不会掉字**。
 
-到这一步你已经能看到真实排版效果了，全程没有安装 TeX。
+到这一步你已经能看到真实排版效果了，全程无需本地 TeX 环境。
 
 **接下来怎么选**：只想先看看效果，或者这次本来就打算交一份 LaTeX 工程，到此为止就够了。如果要反复改稿——尤其是比赛那几天——每改一版都打包上传很费时间，建议装 TeX 换成一条 `nodepaper build` 直接出 PDF。
 
@@ -275,7 +280,7 @@ dist/paper.pdf
 ### 其他选项
 
 - `--verify` 默认关闭。开启后会把导出**复制一份到临时目录**完整编译一遍来确认可用，不在交付目录里留下 `.aux`、`.log` 或 `.pdf`。它需要本机有 TeX；找不到 `xelatex`／`bibtex`／`biber` 时只报一条 Warning，**导出本身照常完成**。另外，本机编译成功不代表收件人机器上也一定能编译；
-- `--to` 指定的目录非空时，需要加 `--force` 才会导出；
+- `--to` 指定的目录非空或目标 ZIP 已存在时，需要加 `--force` 才会导出；
 - `nodepaper doctor` 会附带报告导出用到的宏包是否可用，缺了不影响日常构建。
 
 ## 启动方式
@@ -313,7 +318,7 @@ nodepaper validate [project-directory]
 nodepaper build [project-directory]
 nodepaper clean [project-directory]
 nodepaper clean [project-directory] --all
-nodepaper export [project-directory] --to <path> [--zip] [--bib bibtex|biblatex|inline] [--verify] [--force]
+nodepaper export [project-directory] --to <directory-or-zip> [--bib bibtex|biblatex|inline] [--verify] [--force]
 nodepaper --help
 nodepaper --version
 ```
@@ -443,7 +448,7 @@ latexFragments:
 
 ## TikZ / PGF 绘图
 
-NodePaper v0.1 已验证基础 TikZ 与不依赖 `pgfplots` 的低层 PGF Fragment。最快用法是把导出的 `figures/model.tex` 或 `figures/model.pgf` 加入白名单：
+NodePaper v0.1 支持两类绘图 Fragment：手写或工具生成的 TikZ（`\begin{tikzpicture}`），以及绘图工具导出的纯 PGF 命令文件（`\begin{pgfpicture}`，如 Matplotlib 的 PGF backend 生成的 `.pgf`）。PGF 是 TikZ 底层的绘图语言；`pgfplots`（`\begin{axis}`、`\addplot` 那类坐标轴图表宏包）是更上层的独立宏包，v0.1 尚未支持。最快用法是把导出的 `figures/model.tex` 或 `figures/model.pgf` 加入白名单：
 
 ```yaml
 latexFragments:
@@ -482,24 +487,6 @@ latexFragments:
 - 不自动执行论文代码；
 - 不上传论文内容；
 - 不支持直接转换孤立 Markdown 文件。
-
-## 仓库结构
-
-| 路径 | 内容 |
-|---|---|
-| `cmd/`、`internal/` | Go 实现：CLI 入口与各内部包 |
-| `profiles/cumcm/` | 冻结的 CUMCM Profile：三份模板、Lua 过滤器、CSL、许可证与元数据 |
-| `scripts/build/` | 构建链中仍为 PowerShell 的一段，由 Go 调用；发行时复制到 ZIP 根目录 |
-| `packaging/windows/` | Inno Setup 与便携 ZIP 的 Windows 安装脚本 |
-| `packaging/toolchains/windows-x64.json` | 内置 pandoc 与 pandoc-crossref 的固定版本、哈希和来源清单 |
-| `scripts/` | 开发、构建、打包与各测试套件 |
-| `tests/fixtures/` | 小型、虚构、确定性的功能与错误回归工程 |
-| `tests/corpus/` | A163/C063 净化真实语料；另行打包，不进入程序 ZIP/Setup |
-| `docs/guides/`、`docs/assets/` | 用户指南，以及 README/指南使用的展示图片 |
-| `licenses/`、`THIRD_PARTY_NOTICES.md` | 第三方许可证与声明 |
-| `.github/workflows/` | CI：`ci`、`miktex-e2e`、`export-linux`、`release-build` |
-
-发布包的内容由 `scripts/build-release.ps1` 里的显式白名单决定，不是整仓打包；内置二进制按固定 SHA-256 校验，且随包提供对应源码存档。
 
 ## 许可证
 

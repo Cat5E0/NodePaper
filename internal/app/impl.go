@@ -104,11 +104,10 @@ func (a *appImpl) Export(ctx context.Context, req ExportRequest) (ExportResult, 
 	}
 	er := export.Run(ctx, export.Options{
 		ProjectDir: req.ProjectDir,
-		ToDir:      req.ToDir,
+		ToPath:     req.ToPath,
 		Bib:        mode,
 		Verify:     req.Verify,
 		Force:      req.Force,
-		Zip:        req.Zip,
 	})
 	var artifacts []Artifact
 	for _, art := range er.Artifacts {

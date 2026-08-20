@@ -13,7 +13,7 @@ const Usage = `Usage:
   nodepaper doctor [project-directory] [--format text|json]
   nodepaper validate [project-directory] [--format text|json]
   nodepaper build [project-directory] [--format text|json]
-  nodepaper export [project-directory] --to <path> [--zip] [--bib bibtex|biblatex|inline] [--verify] [--force] [--format text|json]
+  nodepaper export [project-directory] --to <directory-or-zip> [--bib bibtex|biblatex|inline] [--verify] [--force] [--format text|json]
   nodepaper clean [project-directory] [--all] [--format text|json]
   nodepaper --version
   nodepaper --help
@@ -52,12 +52,11 @@ type Invocation struct {
 	Onboarding     bool
 	Version        bool
 	Help           bool
-	// ToDir, Bib, Verify and Force belong to export.
-	ToDir  string
+	// ToPath, Bib, Verify and Force belong to export.
+	ToPath string
 	Bib    string
 	Verify bool
 	Force  bool
-	Zip    bool
 }
 
 // UsageError is a syntax error with a focused next step. The CLI prints the
@@ -96,19 +95,21 @@ func Parse(args []string) (Invocation, error) {
 		case argument == "--force":
 			invocation.Force = true
 		case argument == "--zip":
-			invocation.Zip = true
+			return Invocation{}, usageError(
+				"--zip is no longer used; the --to destination selects the export format",
+				"Remove --zip and use a destination ending in .zip, for example: nodepaper export --to paper.zip")
 		case argument == "--to":
 			index++
 			if index >= len(args) {
-				return Invocation{}, usageError("--to requires a path", "Try: nodepaper export --to <path>")
+				return Invocation{}, usageError("--to requires a path", "Try: nodepaper export --to <directory-or-zip>")
 			}
-			invocation.ToDir = args[index]
+			invocation.ToPath = args[index]
 		case strings.HasPrefix(argument, "--to="):
-			invocation.ToDir = strings.TrimPrefix(argument, "--to=")
+			invocation.ToPath = strings.TrimPrefix(argument, "--to=")
 		case argument == "--bib":
 			index++
 			if index >= len(args) {
-				return Invocation{}, usageError("--bib requires bibtex, biblatex or inline", "Try: nodepaper export --to <path> --bib bibtex")
+				return Invocation{}, usageError("--bib requires bibtex, biblatex or inline", "Try: nodepaper export --to <directory-or-zip> --bib bibtex")
 			}
 			bib, err := parseBib(args[index])
 			if err != nil {
@@ -154,7 +155,7 @@ func Parse(args []string) (Invocation, error) {
 
 	if invocation.Version {
 		if invocation.Command != "" || invocation.ProjectDir != "" || invocation.CleanAll || invocation.AIGuide || invocation.NonInteractive || invocation.Help || invocation.Format != FormatText ||
-			invocation.ToDir != "" || invocation.Bib != "" || invocation.Verify || invocation.Force || invocation.Zip {
+			invocation.ToPath != "" || invocation.Bib != "" || invocation.Verify || invocation.Force {
 			return Invocation{}, usageError("--version cannot be combined with a command or other options", "Try: nodepaper --version")
 		}
 		return invocation, nil
@@ -178,23 +179,22 @@ func Parse(args []string) (Invocation, error) {
 		used bool
 		flag string
 	}{
-		{invocation.ToDir != "", "--to"},
+		{invocation.ToPath != "", "--to"},
 		{invocation.Bib != "", "--bib"},
 		{invocation.Verify, "--verify"},
 		{invocation.Force, "--force"},
-		{invocation.Zip, "--zip"},
 	} {
 		if restricted.used && invocation.Command != CommandExport {
 			return Invocation{}, usageError(
 				fmt.Sprintf("%s is only valid with export", restricted.flag),
-				"Try: nodepaper export [project-directory] --to <path>")
+				"Try: nodepaper export [project-directory] --to <directory-or-zip>")
 		}
 	}
 	// --help is answered with the usage text, so it must not be blocked by the
 	// options the command would otherwise require.
 	if invocation.Command == CommandExport && !invocation.Help {
-		if invocation.ToDir == "" {
-			return Invocation{}, usageError("export requires a destination path", "Try: nodepaper export [project-directory] --to <path>")
+		if invocation.ToPath == "" {
+			return Invocation{}, usageError("export requires a destination path", "Try: nodepaper export [project-directory] --to <directory-or-zip>")
 		}
 		if invocation.Bib == "" {
 			invocation.Bib = DefaultBibMode
@@ -260,7 +260,7 @@ func parseBib(value string) (string, error) {
 	default:
 		return "", usageError(
 			fmt.Sprintf("unsupported bibliography mode %q; use bibtex, biblatex or inline", value),
-			"Try: nodepaper export --to <path> --bib bibtex")
+			"Try: nodepaper export --to <directory-or-zip> --bib bibtex")
 	}
 }
 

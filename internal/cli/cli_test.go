@@ -20,10 +20,10 @@ func TestParseCommands(t *testing.T) {
 		{"validate project", []string{"validate", `D:\papers\a`}, Invocation{Command: CommandValidate, ProjectDir: `D:\papers\a`, Format: FormatText}},
 		{"build json", []string{"build", `D:\papers\a`, "--format", "json"}, Invocation{Command: CommandBuild, ProjectDir: `D:\papers\a`, Format: FormatJSON}},
 		{"format before command", []string{"--format=json", "build", `D:\papers\a`}, Invocation{Command: CommandBuild, ProjectDir: `D:\papers\a`, Format: FormatJSON}},
-		{"export defaults to bibtex", []string{"export", `D:\papers\a`, "--to", `D:\out`}, Invocation{Command: CommandExport, ProjectDir: `D:\papers\a`, Format: FormatText, ToDir: `D:\out`, Bib: "bibtex"}},
-		{"export biblatex", []string{"export", "--to", `D:\out`, "--bib", "biblatex"}, Invocation{Command: CommandExport, Format: FormatText, ToDir: `D:\out`, Bib: "biblatex"}},
-		{"export inline verify force", []string{"export", "--to=" + `D:\out`, "--bib=inline", "--verify", "--force"}, Invocation{Command: CommandExport, Format: FormatText, ToDir: `D:\out`, Bib: "inline", Verify: true, Force: true}},
-		{"export zip", []string{"export", `D:\papers\a`, "--to", `D:\out\paper.zip`, "--zip"}, Invocation{Command: CommandExport, ProjectDir: `D:\papers\a`, Format: FormatText, ToDir: `D:\out\paper.zip`, Bib: "bibtex", Zip: true}},
+		{"export defaults to bibtex", []string{"export", `D:\papers\a`, "--to", `D:\out`}, Invocation{Command: CommandExport, ProjectDir: `D:\papers\a`, Format: FormatText, ToPath: `D:\out`, Bib: "bibtex"}},
+		{"export biblatex", []string{"export", "--to", `D:\out`, "--bib", "biblatex"}, Invocation{Command: CommandExport, Format: FormatText, ToPath: `D:\out`, Bib: "biblatex"}},
+		{"export inline verify force", []string{"export", "--to=" + `D:\out`, "--bib=inline", "--verify", "--force"}, Invocation{Command: CommandExport, Format: FormatText, ToPath: `D:\out`, Bib: "inline", Verify: true, Force: true}},
+		{"export zip inferred from destination", []string{"export", `D:\papers\a`, "--to", `D:\out\paper.zip`}, Invocation{Command: CommandExport, ProjectDir: `D:\papers\a`, Format: FormatText, ToPath: `D:\out\paper.zip`, Bib: "bibtex"}},
 		{"export help needs no destination", []string{"export", "--help"}, Invocation{Command: CommandExport, Format: FormatText, Help: true}},
 		{"clean all", []string{"clean", `D:\papers\a`, "--all"}, Invocation{Command: CommandClean, ProjectDir: `D:\papers\a`, Format: FormatText, CleanAll: true}},
 		{"version", []string{"--version"}, Invocation{Format: FormatText, Version: true}},
@@ -70,7 +70,7 @@ func TestParseRejectsInvalidInvocations(t *testing.T) {
 		{"bib on build", []string{"build", "--bib", "bibtex"}, "--bib is only valid with export", "nodepaper export"},
 		{"verify on build", []string{"build", "--verify"}, "--verify is only valid with export", "nodepaper export"},
 		{"force on clean", []string{"clean", "--force"}, "--force is only valid with export", "nodepaper export"},
-		{"zip on build", []string{"build", "--zip"}, "--zip is only valid with export", "nodepaper export"},
+		{"removed zip option", []string{"export", "--to", `D:\out\paper.zip`, "--zip"}, "--zip is no longer used", "Remove --zip"},
 	}
 
 	for _, test := range tests {
@@ -97,5 +97,14 @@ func TestInitDirectoryRequiredError(t *testing.T) {
 	err := InitDirectoryRequiredError()
 	if !strings.Contains(err.Error(), "non-interactive") {
 		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestUsageDocumentsSuffixSelectedExportWithoutZipOption(t *testing.T) {
+	if !strings.Contains(Usage, "--to <directory-or-zip>") {
+		t.Fatalf("Usage does not describe the export destination: %q", Usage)
+	}
+	if strings.Contains(Usage, "[--zip]") {
+		t.Fatalf("Usage still advertises the removed --zip option: %q", Usage)
 	}
 }

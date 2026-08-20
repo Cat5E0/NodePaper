@@ -46,11 +46,10 @@ type BuildRequest struct {
 // "biblatex" or "inline"; an empty value means the default.
 type ExportRequest struct {
 	ProjectDir string
-	ToDir      string
+	ToPath     string
 	Bib        string
 	Verify     bool
 	Force      bool
-	Zip        bool
 }
 
 type CleanRequest struct {

@@ -142,7 +142,7 @@ func writeOnboarding(w io.Writer, workingDir string) {
 		// they can do with the Project they already have; export was a
 		// capability NodePaper had and never named here. --to is part of the
 		// line because export refuses to run without it.
-		fmt.Fprintln(w, "  nodepaper export --to <directory>")
+		fmt.Fprintln(w, "  nodepaper export --to <directory-or-zip>")
 		fmt.Fprintln(w, "  nodepaper clean")
 		fmt.Fprintln(w, "  nodepaper --help")
 		return
@@ -419,11 +419,10 @@ func runJSON(ctx context.Context, application app.App, inv cli.Invocation, stdou
 func exportRequest(inv cli.Invocation) app.ExportRequest {
 	return app.ExportRequest{
 		ProjectDir: inv.ProjectDir,
-		ToDir:      inv.ToDir,
+		ToPath:     inv.ToPath,
 		Bib:        inv.Bib,
 		Verify:     inv.Verify,
 		Force:      inv.Force,
-		Zip:        inv.Zip,
 	}
 }
 

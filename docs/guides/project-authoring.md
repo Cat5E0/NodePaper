@@ -185,7 +185,7 @@ abstractLinespread: 0.90
 - 跨页表、合并单元格（例如 `\multirow`）；
 - 局部字号、固定列宽、重复表头；
 - 明确的分组竖线或其他 Markdown 无法表示的表格结构；
-- TikZ、低层 PGF 等需要原样交给 LaTeX 的图形内容。
+- TikZ、纯 PGF 命令文件等需要原样交给 LaTeX 的图形内容。
 
 以复杂表为例，先把文件作为源码放在 Project 内：
 
@@ -227,9 +227,9 @@ Fragment 被刻意限制在文档正文片段的范围内：不要在其中放 `
 见图 @fig:result。
 ```
 
-`width=80%` 控制图片占正文宽度的比例，`#fig:result` 供交叉引用使用。构建前应确认该文件与 Markdown 一起存在于项目中；不要把图片仅放在 `.nodepaper/`、`dist/` 或项目外的临时目录。TikZ 或低层 PGF 则必须按与表格 Fragment 相同的“文件在项目内 → `latexFragments` 显式声明 → Markdown `\input` 插入”流程处理。
+`width=80%` 控制图片占正文宽度的比例，`#fig:result` 供交叉引用使用。构建前应确认该文件与 Markdown 一起存在于项目中；不要把图片仅放在 `.nodepaper/`、`dist/` 或项目外的临时目录。TikZ 或纯 PGF 命令文件则必须按与表格 Fragment 相同的“文件在项目内 → `latexFragments` 显式声明 → Markdown `\input` 插入”流程处理。
 
-外部工具如何导出、Matplotlib PGF 的字体一致性、可用 TikZ 库和诊断码，见 [TikZ / PGF Fragment 指南](tikz-pgf.md)。当前已验证的是基本 TikZ 与低层 PGF；`pgfplots` 不在当前支持承诺内，不能把能否偶然编译当作兼容性保证。
+外部工具如何导出、Matplotlib PGF 的字体一致性、可用 TikZ 库和诊断码，见 [TikZ / PGF Fragment 指南](tikz-pgf.md)。当前已验证的是基本 TikZ 与纯 PGF 命令文件（`pgfpicture`）；`pgfplots` 不在当前支持承诺内，不能把能否偶然编译当作兼容性保证。
 
 ## 7. 哪些文件提交，哪些文件只留在本机
 
@@ -267,10 +267,10 @@ nodepaper export . --to ..\paper-latex
 需要直接上传 Overleaf 的 ZIP：
 
 ```powershell
-nodepaper export . --to ..\paper-latex.zip --zip
+nodepaper export . --to ..\paper-latex.zip
 ```
 
-`--zip` 的文件直接放在 ZIP 根目录，不额外套一层目录；在 Overleaf 选择 **New Project → Upload Project** 后上传即可。文件夹模式适合先检查或继续编辑导出结果；手动压缩时应压缩该目录的内容，而非再多包一层目录。
+`--to` 以 `.zip` 结尾时（不区分大小写）生成 ZIP；其中的文件直接放在 ZIP 根目录，不额外套一层目录。在 Overleaf 选择 **New Project → Upload Project** 后上传即可。`--to` 指向文件夹时生成目录，适合先检查或继续编辑；手动压缩时应压缩该目录的内容，而非再多包一层目录。
 
 导出的文件是从 Markdown 源项目**单向**生成的。之后在 Overleaf 改动，不会回写到 Markdown 项目；长期维护仍应改源项目，再重新导出。
 
@@ -281,10 +281,10 @@ nodepaper export . --to ..\paper-latex.zip --zip
 nodepaper export . --to ..\paper-latex --bib biblatex
 
 # 生成后在临时副本中完整编译交付树；不在交付目录留下 PDF、.aux 或 .log
-nodepaper export . --to ..\paper-latex.zip --zip --verify
+nodepaper export . --to ..\paper-latex.zip --verify
 
-# 目标文件或目录已存在时，明确允许替换/写入
-nodepaper export . --to ..\paper-latex.zip --zip --force
+# 非空目录或目标 ZIP 已存在时，明确允许写入/替换
+nodepaper export . --to ..\paper-latex.zip --force
 ```
 
 `--bib` 可取 `bibtex`、`biblatex` 或 `inline`。`--verify` 需要本机相应的 TeX 工具；工具缺失时会给出 Warning，导出本身仍完成。若目标不是空目录或 ZIP 已存在，默认会拒绝覆盖，应确认目标后再加 `--force`。将导出目标放在 Project 根目录内会触发提醒，因为它容易被误提交；建议使用项目外的交付目录。
@@ -301,7 +301,7 @@ nodepaper validate .
 nodepaper build .
 
 # 3. 需要交付给他人或 Overleaf 时，导出并在本机可用时验证
-nodepaper export . --to ..\paper-latex.zip --zip --verify
+nodepaper export . --to ..\paper-latex.zip --verify
 ```
 
 打开生成的 PDF 后，至少人工检查：

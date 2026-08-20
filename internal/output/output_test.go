@@ -442,7 +442,9 @@ func TestJSONWriterExport(t *testing.T) {
 	err := jw.Export(app.ExportResult{
 		Success:         true,
 		ProjectRoot:     `D:\papers\a`,
+		ExportPath:      `D:\out\latex`,
 		ExportDir:       `D:\out\latex`,
+		Zipped:          false,
 		BibMode:         "bibtex",
 		Verified:        true,
 		CompileCommands: []string{"xelatex paper.tex", "bibtex paper", "xelatex paper.tex", "xelatex paper.tex"},
@@ -459,9 +461,11 @@ func TestJSONWriterExport(t *testing.T) {
 		t.Fatalf("schemaVersion = %v, want %d", envelope["schemaVersion"], schemaVersion)
 	}
 	for key, want := range map[string]any{
-		"exportDir": `D:\out\latex`,
-		"bibMode":   "bibtex",
-		"verified":  true,
+		"exportPath": `D:\out\latex`,
+		"exportDir":  `D:\out\latex`,
+		"bibMode":    "bibtex",
+		"zipped":     false,
+		"verified":   true,
 	} {
 		if envelope[key] != want {
 			t.Errorf("%s = %v, want %v", key, envelope[key], want)
@@ -470,6 +474,42 @@ func TestJSONWriterExport(t *testing.T) {
 	commands, ok := envelope["compileCommands"].([]any)
 	if !ok || len(commands) != 4 || commands[1] != "bibtex paper" {
 		t.Fatalf("compileCommands = %v, want the four-step bibtex chain", envelope["compileCommands"])
+	}
+}
+
+func TestJSONWriterZipExportUsesExportPathWithoutExportDir(t *testing.T) {
+	var buf bytes.Buffer
+	jw := &JSONWriter{W: &buf}
+	target := `D:\out\paper.zip`
+
+	err := jw.Export(app.ExportResult{
+		Success:     true,
+		ProjectRoot: `D:\papers\a`,
+		ExportPath:  target,
+		Zipped:      true,
+		BibMode:     "bibtex",
+		Artifacts:   []app.Artifact{{Kind: "zip", Path: target}},
+	})
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if envelope["exportPath"] != target || envelope["zipped"] != true {
+		t.Fatalf("ZIP fields = %#v", envelope)
+	}
+	if _, exists := envelope["exportDir"]; exists {
+		t.Fatalf("ZIP JSON unexpectedly contains exportDir: %#v", envelope)
+	}
+	artifacts, ok := envelope["artifacts"].([]any)
+	if !ok || len(artifacts) != 1 {
+		t.Fatalf("artifacts = %#v", envelope["artifacts"])
+	}
+	artifact, ok := artifacts[0].(map[string]any)
+	if !ok || artifact["kind"] != "zip" || artifact["path"] != target {
+		t.Fatalf("ZIP artifact = %#v", artifacts[0])
 	}
 }
 

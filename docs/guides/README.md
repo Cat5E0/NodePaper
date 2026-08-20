@@ -11,6 +11,6 @@
 
 1. 从根目录 README 完成安装、初始化和第一次构建。
 2. 需要拆分论文、调摘要或排普通表格时，阅读[项目编写、排版与导出](project-authoring.md)。
-3. 需要 TikZ、低层 PGF 或外部工具导出的图时，阅读 [TikZ / PGF Fragment](tikz-pgf.md)。
+3. 需要 TikZ、纯 PGF 命令文件或外部工具导出的图时，阅读 [TikZ / PGF Fragment](tikz-pgf.md)。
 
 所有指南均以当前实现为界。诸如 `pgfplots` 兼容性、摘要独立段距和 Markdown 表题/表注字体的独立配置目前都不是已提供的功能；如未来实现，会另行在发布说明和对应指南中标明。

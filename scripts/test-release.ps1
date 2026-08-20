@@ -261,6 +261,7 @@ try {
         "profiles/cumcm/warning-allowlist.json",
         "README.md",
         "README.en.md",
+        "nodepaper.ico",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
         "licenses/Apache-2.0.txt",

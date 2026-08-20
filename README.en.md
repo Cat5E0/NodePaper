@@ -2,6 +2,13 @@
 
 # NodePaper
 
+<p align="left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo/logo-dark.png">
+    <img src="docs/assets/logo/logo-transparent.png" alt="NodePaper logo" width="120">
+  </picture>
+</p>
+
 [![ci](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/ci.yml)
 [![miktex-e2e](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/miktex-e2e.yml)
 [![export-linux](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml/badge.svg)](https://github.com/Cat5E0/NodePaper/actions/workflows/export-linux.yml)
@@ -47,13 +54,9 @@ For project structure, the full configuration reference, abstract-page fitting, 
 
 ## Installation
 
-Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds. **It does not bundle TeX, and the whole "Quick start" below runs without TeX** — export only calls the pandoc shipped inside the release package. Install TeX later if you want a PDF from a single local command; see "Producing a PDF locally: installing TeX".
+Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds. **It does not bundle TeX, and the whole "Quick start" below works without a local TeX installation** — export only calls the pandoc shipped inside the release package. Install TeX later if you want a PDF from a single local command; see "Producing a PDF locally: installing TeX".
 
 > The official repository, <https://github.com/Cat5E0/NodePaper>, has no public GitHub Release assets yet. Test candidates are handed out directly by the maintainer. Obtain `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP) together with the matching `release-manifest-<version>.json`; do not use third-party downloads or GitHub's Source code ZIP.
-
-The channels progress through development `0.1.0-dev.N+g<commit>`, public beta `0.1.0-beta.N`, release candidate `0.1.0-rc.N`, and stable `0.1.0`. Development assets use the shorter `nodepaper-devN-windows-x64.zip` / `NodePaper-Setup-devN-windows-x64.exe` names; the full version and 40-character source commit remain in the packaged `build-info.json`. Public assets keep the full version in their names and can only be built from an annotated Git tag pointing at that exact commit. RC builds additionally require feature-freeze and no-release-blocker assertions.
-
-`build-info.json` also records the canonical UTC build time, toolchain, and payload SHA-256. The outer `release-manifest-<version>.json` records the ZIP and Setup file hashes. Verify the download against the Manifest before installing; after extraction, `build-info.json` traces even a short development file name to one source commit and payload.
 
 Run the Setup, then open a new terminal:
 
@@ -95,7 +98,7 @@ You can also skip the script entirely: run `nodepaper.exe` from the extracted fo
 
 ```powershell
 # your extracted folder
-$dir = 'D:\Tools\nodepaper-0.1.0-rc.9-windows-x64'
+$dir = 'D:\Tools\NodePaper'
 
 $key = 'HKCU:\Environment'
 $old = [string](Get-Item $key).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
@@ -142,7 +145,7 @@ Please install NodePaper on Windows. Rules:
 7. Do not request tokens or passwords, execute paper code, or delete or modify paper Projects. Do not present AI output as test evidence.
 ```
 
-## Quick start (no TeX required)
+## Quick start (works without a local TeX installation)
 
 ### 1. Check the environment
 
@@ -185,6 +188,8 @@ The main files are:
 - `images/`: image resources;
 - `nodepaper.yaml`: Project configuration.
 
+Content Markdown cannot express — complex tables, TikZ figures, and the like — lives as LaTeX Fragments in directories you create inside the Project (e.g. `tables/`, `figures/`). Declare them in `nodepaper.yaml` and insert them with `\input{...}`; see the Markdown examples below.
+
 ### 4. Validate
 
 ```powershell
@@ -197,17 +202,17 @@ Fix whatever Validate reports before going on.
 ### 5. Get the finished document: export, then compile on Overleaf
 
 ```powershell
-nodepaper export . --to ..\paper-latex.zip --zip
+nodepaper export . --to ..\paper-latex.zip
 ```
 
 What you get is not a PDF but a self-contained LaTeX project: `paper.tex`, `references.bib`, only the images the paper references, any fragments it `\input{}`s, and a `README.txt` spelling out the compile steps and the packages they need.
 
-`--zip` puts these files directly at the archive root, with no wrapper directory, so the result can be uploaded through **New Project → Upload Project**. Omit `--zip` and point `--to` at a directory when you want to inspect or edit the export first. Then:
+When `--to` ends in `.zip` (case-insensitive), export creates a ZIP directly. Its files sit at the archive root with no wrapper directory, so the result can be uploaded through **New Project → Upload Project**. Point `--to` at a directory when you want to inspect or edit the export first. Then:
 
 - Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the real cause;
 - Chinese fonts follow the machine doing the compiling: Noto CJK on Overleaf, the SimSun families on your own Windows box. **The page differs slightly; no characters are dropped**.
 
-At this point you can see the real typeset result, with no TeX installed anywhere.
+At this point you can see the real typeset result, without a local TeX installation.
 
 **What to do next**: if you only wanted to see the result, or you intended to hand over a LaTeX project anyway, you are done. If you will revise repeatedly — especially during a competition — zipping and uploading every revision costs real time, so install TeX and switch to a single `nodepaper build`.
 
@@ -272,7 +277,7 @@ The repeated `xelatex` runs are not redundant: the first pass writes the citatio
 ### Other options
 
 - `--verify` is off by default. When enabled it **copies the export to a temporary directory** and compiles it there to confirm it works, so no `.aux`, `.log` or `.pdf` is left in the delivered folder. It needs TeX on this machine; when `xelatex`, `bibtex` or `biber` is missing it only reports a Warning and **the export itself still completes**. Note also that compiling here does not guarantee it compiles on the recipient's machine;
-- `--force` is required when the `--to` directory is not empty;
+- `--force` is required when the `--to` directory is not empty or the target ZIP already exists;
 - `nodepaper doctor` additionally reports whether the packages used by export are available; missing ones do not affect ordinary builds.
 
 ## Ways to start NodePaper
@@ -310,7 +315,7 @@ nodepaper validate [project-directory]
 nodepaper build [project-directory]
 nodepaper clean [project-directory]
 nodepaper clean [project-directory] --all
-nodepaper export [project-directory] --to <path> [--zip] [--bib bibtex|biblatex|inline] [--verify] [--force]
+nodepaper export [project-directory] --to <directory-or-zip> [--bib bibtex|biblatex|inline] [--verify] [--force]
 nodepaper --help
 nodepaper --version
 ```
@@ -438,7 +443,7 @@ latexFragments:
 
 ## TikZ / PGF figures
 
-NodePaper v0.1 verifies basic TikZ and low-level PGF Fragments that do not depend on `pgfplots`. The shortest route is to allowlist the exported `figures/model.tex` or `figures/model.pgf`:
+NodePaper v0.1 supports two kinds of figure Fragments: TikZ code (`\begin{tikzpicture}`, hand-written or tool-generated) and plain PGF command files (`\begin{pgfpicture}`, e.g. the `.pgf` output of Matplotlib's PGF backend). PGF is the low-level drawing language TikZ itself is built on; `pgfplots` (the separate axis/chart package using `\begin{axis}` and `\addplot`) sits on top of it and is not yet supported in v0.1. The shortest route is to allowlist the exported `figures/model.tex` or `figures/model.pgf`:
 
 ```yaml
 latexFragments:
@@ -477,24 +482,6 @@ Run the plotting script outside NodePaper; NodePaper only validates and compiles
 - does not execute paper code automatically;
 - does not upload paper content;
 - does not convert isolated Markdown files directly.
-
-## Repository layout
-
-| Path | Contents |
-|---|---|
-| `cmd/`, `internal/` | The Go implementation: CLI entry point and internal packages |
-| `profiles/cumcm/` | The frozen CUMCM Profile: three templates, Lua filters, CSL, licences and metadata |
-| `scripts/build/` | The PowerShell transition build chain, copied to the ZIP root for releases |
-| `packaging/windows/` | Inno Setup and portable-ZIP installation scripts for Windows |
-| `packaging/toolchains/windows-x64.json` | Pinned versions, hashes, and sources for bundled pandoc and pandoc-crossref |
-| `scripts/` | Development, build, packaging and test suites |
-| `tests/fixtures/` | Small, fictional, deterministic feature and error regression Projects |
-| `tests/corpus/` | Sanitized A163/C063 real-world corpus, packaged separately from the program ZIP/Setup |
-| `docs/guides/`, `docs/assets/` | User guides and showcase images used by the READMEs/guides |
-| `licenses/`, `THIRD_PARTY_NOTICES.md` | Third-party licences and notices |
-| `.github/workflows/` | CI: `ci`, `miktex-e2e`, `export-linux`, `release-build` |
-
-What goes into a release package is an explicit allowlist in `scripts/build-release.ps1` rather than an archive of the repository; bundled binaries are verified against pinned SHA-256 values and shipped alongside their corresponding source archives.
 
 ## License
 

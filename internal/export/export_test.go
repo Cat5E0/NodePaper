@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -150,9 +152,12 @@ func TestExportWritesTheDeliverable(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "latex")
 	executor := &fakeExecutor{}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, executor)
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, executor)
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
+	}
+	if result.Zipped || result.ExportPath != target || result.ExportDir != target {
+		t.Fatalf("directory result = %#v", result)
 	}
 	for _, relative := range []string{
 		"paper.tex",
@@ -175,11 +180,11 @@ func TestExportWritesTheDeliverable(t *testing.T) {
 	}
 }
 
-func TestExportWritesAnOverleafReadyZipWithoutAWrapperDirectory(t *testing.T) {
+func TestExportInfersAnOverleafReadyZipCaseInsensitively(t *testing.T) {
 	projectDir := fixtureProject(t)
-	target := filepath.Join(t.TempDir(), "latex-project.zip")
+	target := filepath.Join(t.TempDir(), "latex-project.ZIP")
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
@@ -218,7 +223,7 @@ func TestZipExportIsDeterministic(t *testing.T) {
 	second := filepath.Join(t.TempDir(), "second.zip")
 
 	for _, target := range []string{first, second} {
-		result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true}, &fakeExecutor{})
+		result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 		if !result.Success {
 			t.Fatalf("export %s failed: %#v", target, result.Diagnostics)
 		}
@@ -242,7 +247,7 @@ func TestZipExportRefusesAnExistingFileWithoutForce(t *testing.T) {
 	if err := os.WriteFile(target, []byte("keep"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 	if result.Success || !hasCode(result.Diagnostics, CodeTargetNotEmpty) {
 		t.Fatalf("result = %#v, want %s", result, CodeTargetNotEmpty)
 	}
@@ -258,7 +263,7 @@ func TestZipExportWithForceReplacesTheExistingFile(t *testing.T) {
 	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Zip: true, Force: true}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Force: true}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
@@ -268,6 +273,19 @@ func TestZipExportWithForceReplacesTheExistingFile(t *testing.T) {
 	}
 	if err := reader.Close(); err != nil {
 		t.Fatalf("close replacement zip: %v", err)
+	}
+}
+
+func TestZipExportRejectsADirectoryTargetEvenWithForce(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "latex-project.zip")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Force: true}, &fakeExecutor{})
+	if result.Success || !hasCode(result.Diagnostics, CodeTargetUnusable) {
+		t.Fatalf("result = %#v, want %s", result, CodeTargetUnusable)
 	}
 }
 
@@ -282,7 +300,7 @@ func TestExportPassesSkipPdfAndTheMappedCiteMethod(t *testing.T) {
 			target := filepath.Join(t.TempDir(), "latex")
 			executor := &fakeExecutor{}
 
-			result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Bib: mode}, executor)
+			result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Bib: mode}, executor)
 			if !result.Success {
 				t.Fatalf("export failed: %#v", result.Diagnostics)
 			}
@@ -323,7 +341,7 @@ func TestExportCopiesOnlyReferencedImages(t *testing.T) {
 	}
 	target := filepath.Join(t.TempDir(), "latex")
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
@@ -362,7 +380,7 @@ func TestExportCopiesDeclaredFragments(t *testing.T) {
 	}
 
 	target := filepath.Join(t.TempDir(), "latex")
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
@@ -380,7 +398,7 @@ func TestExportRefusesANonEmptyTargetWithoutForce(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 	if result.Success || !hasCode(result.Diagnostics, CodeTargetNotEmpty) {
 		t.Fatalf("result = %#v, want %s", result, CodeTargetNotEmpty)
 	}
@@ -394,7 +412,7 @@ func TestExportWithForceKeepsUnrelatedFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Force: true}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Force: true}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
@@ -408,11 +426,28 @@ func TestExportWithForceKeepsUnrelatedFiles(t *testing.T) {
 	}
 }
 
+func TestDirectoryExportRejectsAnExistingFile(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "latex-project")
+	if err := os.WriteFile(target, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Force: true}, &fakeExecutor{})
+	if result.Success || !hasCode(result.Diagnostics, CodeTargetUnusable) {
+		t.Fatalf("result = %#v, want %s", result, CodeTargetUnusable)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || string(data) != "keep" {
+		t.Fatalf("existing file changed: data=%q err=%v", data, err)
+	}
+}
+
 func TestExportWarnsButProceedsInsideTheProject(t *testing.T) {
 	projectDir := fixtureProject(t)
 	target := filepath.Join(projectDir, "latex-export")
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("export inside the project failed: %#v", result.Diagnostics)
 	}
@@ -424,6 +459,79 @@ func TestExportWarnsButProceedsInsideTheProject(t *testing.T) {
 			t.Fatalf("%s severity = %q, want warning", CodeTargetInsideProject, d.Severity)
 		}
 	}
+}
+
+func TestZipExportWarnsButProceedsInsideTheProject(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(projectDir, "latex-export.zip")
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
+	if !result.Success || !result.Zipped {
+		t.Fatalf("zip export inside the project failed: %#v", result)
+	}
+	if !hasCode(result.Diagnostics, CodeTargetInsideProject) {
+		t.Fatalf("diagnostics = %#v, want %s warning", result.Diagnostics, CodeTargetInsideProject)
+	}
+}
+
+func TestExportRejectsTargetsInsideItsPrivateStagingDirectory(t *testing.T) {
+	for _, relative := range []string{
+		filepath.Join(".nodepaper", "export", "latex-project"),
+		filepath.Join(".nodepaper", "export", "latex-project.zip"),
+	} {
+		t.Run(filepath.Base(relative), func(t *testing.T) {
+			projectDir := fixtureProject(t)
+			target := filepath.Join(projectDir, relative)
+
+			result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{})
+			if result.Success || !hasCode(result.Diagnostics, CodeTargetUnusable) {
+				t.Fatalf("result = %#v, want %s", result, CodeTargetUnusable)
+			}
+			if _, err := os.Stat(target); !os.IsNotExist(err) {
+				t.Fatalf("unsafe target was created: %v", err)
+			}
+		})
+	}
+}
+
+func TestExportRejectsTargetsAliasedIntoItsPrivateStagingDirectory(t *testing.T) {
+	projectDir := fixtureProject(t)
+	privateWorkDir := filepath.Join(projectDir, ".nodepaper", "export")
+	if err := os.MkdirAll(privateWorkDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(projectDir, "staging-alias")
+	if err := createDirectoryAlias(privateWorkDir, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Fatalf("cannot create a junction for the Windows path-safety test: %v", err)
+		}
+		t.Skipf("cannot create a directory symlink in this environment: %v", err)
+	}
+	defer os.Remove(alias)
+
+	for _, name := range []string{"latex-project", "latex-project.zip"} {
+		t.Run(name, func(t *testing.T) {
+			target := filepath.Join(alias, name)
+			result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Force: true}, &fakeExecutor{})
+			if result.Success || !hasCode(result.Diagnostics, CodeTargetUnusable) {
+				t.Fatalf("result = %#v, want %s", result, CodeTargetUnusable)
+			}
+			if _, err := os.Stat(filepath.Join(privateWorkDir, name)); !os.IsNotExist(err) {
+				t.Fatalf("unsafe target was created through alias: %v", err)
+			}
+		})
+	}
+}
+
+func createDirectoryAlias(target, alias string) error {
+	if runtime.GOOS != "windows" {
+		return os.Symlink(target, alias)
+	}
+	output, err := osexec.Command("cmd.exe", "/d", "/c", "mklink", "/J", alias, target).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mklink /J failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func TestExportRejectsAMissingDestination(t *testing.T) {
@@ -444,7 +552,7 @@ func TestExportStopsOnValidationFailure(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "latex")
 	executor := &fakeExecutor{}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, executor)
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, executor)
 	if result.Success || !hasCode(result.Diagnostics, CodeValidationFailed) {
 		t.Fatalf("result = %#v, want %s", result, CodeValidationFailed)
 	}
@@ -464,7 +572,7 @@ func TestExportReportsConversionFailure(t *testing.T) {
 			errors.New("exit status 1")
 	}}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, executor)
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, executor)
 	if result.Success || !hasCode(result.Diagnostics, CodeConversionFailed) {
 		t.Fatalf("result = %#v, want %s", result, CodeConversionFailed)
 	}
@@ -477,7 +585,7 @@ func TestExportReportsAMissingTex(t *testing.T) {
 		return process.Result{Command: command, Args: args, Dir: dir}, nil // exit 0, writes nothing
 	}}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, executor)
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, executor)
 	if result.Success || !hasCode(result.Diagnostics, CodeTexMissing) {
 		t.Fatalf("result = %#v, want %s", result, CodeTexMissing)
 	}
@@ -505,7 +613,7 @@ func TestVerifyLeavesNoIntermediatesInTheExport(t *testing.T) {
 		return process.Result{Command: command, Args: args, Dir: dir}, nil
 	}}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Verify: true}, executor)
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Verify: true}, executor)
 	if !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
@@ -527,6 +635,40 @@ func TestVerifyLeavesNoIntermediatesInTheExport(t *testing.T) {
 	}
 }
 
+func TestVerifyLeavesNoIntermediatesInTheZip(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "latex.zip")
+	stubTools(t, "xelatex", "bibtex", "biber")
+
+	executor := &fakeExecutor{behavior: func(dir, command string, args []string) (process.Result, error) {
+		if command == "powershell.exe" {
+			return fakeConversion(dir, command, args)
+		}
+		for _, name := range []string{"paper.aux", "paper.log", "paper.pdf", "paper.bbl"} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("intermediate"), 0o644); err != nil {
+				return process.Result{ExitCode: 1}, err
+			}
+		}
+		return process.Result{Command: command, Args: args, Dir: dir}, nil
+	}}
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Verify: true}, executor)
+	if !result.Success || !result.Verified || !result.Zipped {
+		t.Fatalf("result = %#v", result)
+	}
+	reader, err := zip.OpenReader(target)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer reader.Close()
+	for _, file := range reader.File {
+		switch strings.ToLower(filepath.Ext(file.Name)) {
+		case ".aux", ".log", ".pdf", ".bbl":
+			t.Errorf("verification output was included in the ZIP: %s", file.Name)
+		}
+	}
+}
+
 func TestVerifyRunsTheChainTheReadmeDocuments(t *testing.T) {
 	for mode, want := range map[BibMode][]string{
 		BibBibTeX:   {"xelatex", "bibtex", "xelatex", "xelatex"},
@@ -539,7 +681,7 @@ func TestVerifyRunsTheChainTheReadmeDocuments(t *testing.T) {
 			stubTools(t, "xelatex", "bibtex", "biber")
 			executor := &fakeExecutor{}
 
-			result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Bib: mode, Verify: true}, executor)
+			result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Bib: mode, Verify: true}, executor)
 			if !result.Success || !result.Verified {
 				t.Fatalf("result = %#v", result)
 			}
@@ -574,7 +716,7 @@ func TestVerifyFailureIsReportedAndKeepsTheFiles(t *testing.T) {
 		return process.Result{Command: command, Args: args, Dir: dir, ExitCode: 1}, errors.New("exit status 1")
 	}}
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Verify: true}, executor)
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Verify: true}, executor)
 	if result.Success || result.Verified {
 		t.Fatalf("result = %#v, want a failed verification", result)
 	}
@@ -594,7 +736,7 @@ func TestVerifyIsSkippedWithAWarningWhenAToolIsMissing(t *testing.T) {
 	lookPath = func(name string) (string, error) { return "", fmt.Errorf("%s: not found", name) }
 	t.Cleanup(func() { lookPath = restore })
 
-	result := runExport(t, Options{ProjectDir: projectDir, ToDir: target, Verify: true}, &fakeExecutor{})
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Verify: true}, &fakeExecutor{})
 	if !result.Success {
 		t.Fatalf("a missing TeX tool must not fail the export: %#v", result.Diagnostics)
 	}
@@ -689,7 +831,7 @@ func TestReadmeExplainsTheGbt7714TitleCaseWorkaroundInBibtexModeOnly(t *testing.
 func TestReadmeNeverShipsAGitignore(t *testing.T) {
 	projectDir := fixtureProject(t)
 	target := filepath.Join(t.TempDir(), "latex")
-	if result := runExport(t, Options{ProjectDir: projectDir, ToDir: target}, &fakeExecutor{}); !result.Success {
+	if result := runExport(t, Options{ProjectDir: projectDir, ToPath: target}, &fakeExecutor{}); !result.Success {
 		t.Fatalf("export failed: %#v", result.Diagnostics)
 	}
 	if _, err := os.Stat(filepath.Join(target, ".gitignore")); !os.IsNotExist(err) {

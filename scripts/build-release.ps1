@@ -278,6 +278,7 @@ try {
         @{ Source = "scripts\build\Convert-CumcmProjectToLatex.ps1"; Target = "Convert-CumcmProjectToLatex.ps1" },
         @{ Source = "packaging\windows\portable\Install-NodePaper.ps1"; Target = "Install-NodePaper.ps1" },
         @{ Source = "packaging\windows\portable\Uninstall-NodePaper.ps1"; Target = "Uninstall-NodePaper.ps1" },
+        @{ Source = "packaging\\windows\\nodepaper.ico"; Target = "nodepaper.ico" },
         @{ Source = "README.md"; Target = "README.md" },
         @{ Source = "README.en.md"; Target = "README.en.md" },
         @{ Source = "LICENSE"; Target = "LICENSE" },
