@@ -9,7 +9,7 @@ import (
 // English to match the rest of the command-line output, and it is the only
 // place the recipient can learn how to compile the project, so it states the
 // command chain, the packages, and the fact that this copy is a dead end.
-func readme(mode BibMode) string {
+func readme(mode BibMode, hasBibliography bool) string {
 	var b strings.Builder
 
 	b.WriteString("NodePaper LaTeX export\n")
@@ -32,15 +32,25 @@ func readme(mode BibMode) string {
 	b.WriteString("How to compile\n")
 	b.WriteString("--------------\n")
 	b.WriteString(fmt.Sprintf("Bibliography mode: %s\n", bibModeDescription(mode)))
+	if mode.needsBibFile() && !hasBibliography {
+		// The paper cites nothing and nocites nothing, so no \bibliography was
+		// emitted and there is no bibtex/biber step below. Say so here: a
+		// recipient who expected one would otherwise assume the export is
+		// broken, and running bibtex anyway fails with "I found no \citation
+		// commands" on a document that is perfectly fine.
+		b.WriteString("This paper has no citations, so no bibliography is generated and no bibtex or\n")
+		b.WriteString("biber pass is needed. references.bib still ships, unused, in case you add\n")
+		b.WriteString("citations later; a reference list written by hand in the text stays as text.\n")
+	}
 	b.WriteString("Run these commands in this directory, in this order:\n\n")
-	for _, step := range compileChain(mode) {
+	for _, step := range compileChain(mode, hasBibliography) {
 		b.WriteString(fmt.Sprintf("  %s %s\n", step.tool, strings.Join(step.args, " ")))
 	}
 	b.WriteString("\n")
 	b.WriteString("The engine must be XeLaTeX. pdflatex and lualatex will not work: the document\n")
 	b.WriteString("selects Chinese fonts through ctex/fontspec, which requires XeLaTeX or LuaLaTeX,\n")
 	b.WriteString("and the layout was set for XeLaTeX.\n\n")
-	if len(compileChain(mode)) > 2 {
+	if len(compileChain(mode, hasBibliography)) > 2 {
 		b.WriteString("The repeated XeLaTeX runs are not redundant: the first pass writes the\n")
 		b.WriteString("citation and cross-reference data, and the later passes read it back.\n\n")
 	}
@@ -116,7 +126,7 @@ func readme(mode BibMode) string {
 	b.WriteString("Expect the same layout with slightly different letterforms than a Windows\n")
 	b.WriteString("compile, and the same text.\n\n")
 
-	if mode == BibBibTeX {
+	if mode == BibBibTeX && hasBibliography {
 		b.WriteString("Note on English titles (BibTeX mode)\n")
 		b.WriteString("------------------------------------\n")
 		b.WriteString("The gbt7714 style rewrites English titles to sentence case, so\n")

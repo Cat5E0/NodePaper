@@ -300,7 +300,7 @@ nodepaper export . --to ..\paper-latex.zip --verify
 nodepaper export . --to ..\paper-latex.zip --force
 ```
 
-`--bib` 可取 `bibtex`、`biblatex` 或 `inline`。`--verify` 需要本机相应的 TeX 工具；工具缺失时会给出 Warning，导出本身仍完成。若目标不是空目录或 ZIP 已存在，默认会拒绝覆盖，应确认目标后再加 `--force`。将导出目标放在 Project 根目录内会触发提醒，因为它容易被误提交；建议使用项目外的交付目录。
+`--bib` 可取 `bibtex`、`biblatex` 或 `inline`。**如果论文没有任何行内引用、也没有 `nocite`**（例如参考文献是手工写在正文里的编号列表），导出不会生成文献表，命令链里也不会有 `bibtex`／`biber` 这一步，并会给出一条 `NP8012` 信息提示——这是正常结果，不是错误：没有 bib 条目就无法产生引用。`references.bib` 仍会随包交付，`README.txt` 里会说明它未被使用。`--verify` 需要本机相应的 TeX 工具；工具缺失时会给出 Warning，导出本身仍完成。若目标不是空目录或 ZIP 已存在，默认会拒绝覆盖，应确认目标后再加 `--force`。将导出目标放在 Project 根目录内会触发提醒，因为它容易被误提交；建议使用项目外的交付目录。
 
 ### Overleaf
 

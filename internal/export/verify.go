@@ -19,8 +19,18 @@ type verifyStep struct {
 // compileChain returns the exact command sequence a recipient of this export
 // would run. README.txt prints it, the terminal prints it as the next step, and
 // --verify executes it, so all three are the same list and cannot drift apart.
-func compileChain(mode BibMode) []verifyStep {
+//
+// hasBibliography comes from the .tex that was actually produced, not from the
+// mode: a document that cites nothing and nocites nothing gets no
+// \bibliography, and then bibtex or biber would only fail with "I found no
+// \citation commands" on a project whose PDF is already correct. Deciding this
+// from the emitted file keeps the chain honest for a paper that maintains its
+// references by hand.
+func compileChain(mode BibMode, hasBibliography bool) []verifyStep {
 	xelatex := verifyStep{tool: "xelatex", args: []string{"paper.tex"}}
+	if !hasBibliography {
+		return []verifyStep{xelatex, xelatex}
+	}
 	switch mode {
 	case BibBibTeX:
 		return []verifyStep{xelatex, {tool: "bibtex", args: []string{"paper"}}, xelatex, xelatex}
@@ -32,8 +42,8 @@ func compileChain(mode BibMode) []verifyStep {
 }
 
 // CompileCommands renders the chain as the command lines a person would type.
-func CompileCommands(mode BibMode) []string {
-	steps := compileChain(mode)
+func CompileCommands(mode BibMode, hasBibliography bool) []string {
+	steps := compileChain(mode, hasBibliography)
 	commands := make([]string, 0, len(steps))
 	for _, step := range steps {
 		commands = append(commands, strings.TrimSpace(step.tool+" "+strings.Join(step.args, " ")))
@@ -55,8 +65,8 @@ func batchArgs(tool string, args []string) []string {
 // succeeded. It never writes into the delivered directory: the copy lives in a
 // temporary directory that is removed before this function returns, so no
 // .aux, .log, .bbl or .pdf is left behind for the recipient to wonder about.
-func verify(ctx context.Context, executor commandExecutor, logger *logWriter, exportDir string, mode BibMode) (bool, []diagnostic.Diagnostic) {
-	steps := compileChain(mode)
+func verify(ctx context.Context, executor commandExecutor, logger *logWriter, exportDir string, mode BibMode, hasBibliography bool) (bool, []diagnostic.Diagnostic) {
+	steps := compileChain(mode, hasBibliography)
 
 	resolved := make([]verifyStep, 0, len(steps))
 	for _, step := range steps {

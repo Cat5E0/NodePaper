@@ -44,7 +44,11 @@ func (f *fakeExecutor) Run(_ context.Context, dir, command string, args ...strin
 }
 
 // fakeConversion stands in for Build-Paper.ps1 -SkipPdf: it writes the .tex
-// the real script would have produced and nothing else.
+// the real script would have produced and nothing else. That includes the
+// bibliography command layout.lua injects on the natbib and biblatex routes:
+// the export reads the emitted .tex to decide whether the chain needs a
+// bibtex/biber pass, so a stub without it would describe a document that cites
+// nothing and the chain would legitimately shrink to two xelatex runs.
 func fakeConversion(dir, command string, args []string) (process.Result, error) {
 	result := process.Result{Command: command, Args: args, Dir: dir}
 	if command != "powershell.exe" {
@@ -58,7 +62,14 @@ func fakeConversion(dir, command string, args []string) (process.Result, error) 
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
 		return process.Result{ExitCode: 1}, err
 	}
-	body := "\\documentclass{ctexart}\\begin{document}exported\\end{document}\n"
+	bibliography := ""
+	switch argumentValue(args, "-CiteMethod") {
+	case "natbib":
+		bibliography = "\\bibliography{references}"
+	case "biblatex":
+		bibliography = "\\printbibliography"
+	}
+	body := "\\documentclass{ctexart}\\begin{document}exported" + bibliography + "\\end{document}\n"
 	return result, os.WriteFile(output, []byte(body), 0o644)
 }
 
@@ -695,7 +706,7 @@ func TestVerifyRunsTheChainTheReadmeDocuments(t *testing.T) {
 			if strings.Join(got, ",") != strings.Join(want, ",") {
 				t.Fatalf("chain = %v, want %v", got, want)
 			}
-			readmeText := readme(mode)
+			readmeText := readme(mode, true)
 			for _, tool := range want {
 				if !strings.Contains(readmeText, tool) {
 					t.Errorf("README.txt does not mention %q", tool)
@@ -771,7 +782,7 @@ func stubTools(t *testing.T, names ...string) {
 
 func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode)
+		text := readme(mode, true)
 		for _, needle := range []string{
 			"one-way",
 			"never read back",
@@ -796,7 +807,7 @@ func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 // states the free-plan cap before the upload steps rather than after them.
 func TestReadmeExplainsOverleaf(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode)
+		text := readme(mode, true)
 		for _, needle := range []string{
 			"Compiling on Overleaf",
 			"after 10",
@@ -816,26 +827,77 @@ func TestReadmeExplainsOverleaf(t *testing.T) {
 	}
 	// The zip layout is the other thing people get wrong; Overleaf cannot find
 	// paper.tex when the archive wraps it in a folder.
-	if !strings.Contains(readme(BibInline), "not the enclosing folder") {
+	if !strings.Contains(readme(BibInline, true), "not the enclosing folder") {
 		t.Error("README.txt does not say to zip the contents rather than the folder")
 	}
 	// Order matters more than presence: a cap disclosed after the upload steps
 	// is read only by someone who already spent the time it was meant to save.
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode)
+		text := readme(mode, true)
 		if strings.Index(text, "after 10") > strings.Index(text, "Upload Project") {
 			t.Errorf("%s README.txt states the Overleaf time limit after the upload steps", mode)
 		}
 	}
 }
 
+// A paper can maintain its reference list as text in the body and cite nothing -
+// C063 in the public corpus does exactly that, and it cannot cite anything
+// because there are no bib entries to cite. That is the author's choice, not a
+// defect. When layout.lua emits no \bibliography for such a document, the chain
+// must lose its bibtex/biber step too: running it would fail with "I found no
+// \citation commands" on a project whose PDF is already correct.
+func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
+	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX} {
+		commands := CompileCommands(mode, false)
+		if len(commands) != 2 {
+			t.Fatalf("%s chain without a bibliography = %v, want two xelatex runs", mode, commands)
+		}
+		for _, command := range commands {
+			if !strings.HasPrefix(command, "xelatex") {
+				t.Errorf("%s chain without a bibliography runs %q", mode, command)
+			}
+		}
+
+		text := readme(mode, false)
+		for _, forbidden := range []string{"bibtex paper", "biber paper"} {
+			if strings.Contains(text, forbidden) {
+				t.Errorf("%s README.txt still tells the recipient to run %q with no bibliography", mode, forbidden)
+			}
+		}
+		// Silence would read as a broken export to anyone expecting a
+		// bibliography, so the reason is stated where the chain is.
+		if !strings.Contains(text, "no citations") {
+			t.Errorf("%s README.txt does not explain why there is no bibliography pass:\n%s", mode, text)
+		}
+		// references.bib still ships, so say it is unused rather than leaving a
+		// file nothing refers to.
+		if !strings.Contains(text, "references.bib still ships") {
+			t.Errorf("%s README.txt does not account for the unused references.bib", mode)
+		}
+	}
+
+	// The normal case keeps its bibliography pass.
+	for mode, tool := range map[BibMode]string{BibBibTeX: "bibtex paper", BibBibLaTeX: "biber paper"} {
+		commands := CompileCommands(mode, true)
+		found := false
+		for _, command := range commands {
+			if command == tool {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s chain with a bibliography lost %q: %v", mode, tool, commands)
+		}
+	}
+}
+
 func TestReadmeExplainsTheGbt7714TitleCaseWorkaroundInBibtexModeOnly(t *testing.T) {
-	bibtex := readme(BibBibTeX)
+	bibtex := readme(BibBibTeX, true)
 	if !strings.Contains(bibtex, "title = {{") || !strings.Contains(bibtex, "sentence case") {
 		t.Errorf("bibtex README.txt does not explain the double-brace workaround:\n%s", bibtex)
 	}
 	for _, mode := range []BibMode{BibBibLaTeX, BibInline} {
-		if strings.Contains(readme(mode), "title = {{") {
+		if strings.Contains(readme(mode, true), "title = {{") {
 			t.Errorf("%s README.txt carries the gbt7714-only workaround", mode)
 		}
 	}

@@ -64,7 +64,20 @@ const (
 	// CodeVerifyWorkspace - --verify could not prepare or clean its temporary
 	// directory. Warning.
 	CodeVerifyWorkspace = "NP8011"
+	// CodeNoCitations - a bibtex or biblatex export whose document cites nothing
+	// and nocites nothing, so no bibliography was emitted and the chain has no
+	// bibtex/biber step. Info, not a warning: a hand-written reference list is a
+	// legitimate way to write a paper and nothing here needs fixing.
+	CodeNoCitations = "NP8012"
 )
+
+// bibliographyTool names the program a mode's chain would run over the .bib.
+func bibliographyTool(mode BibMode) string {
+	if mode == BibBibLaTeX {
+		return "biber"
+	}
+	return "bibtex"
+}
 
 const source = "export"
 
@@ -107,6 +120,25 @@ func (m BibMode) citeMethod() string {
 	default:
 		return "citeproc"
 	}
+}
+
+// texHasBibliography reports whether the produced paper.tex actually carries a
+// bibliography command. layout.lua omits it when the document cites nothing and
+// nocites nothing, because BibTeX and biber then have no work and would fail
+// with "I found no \citation commands" on a project whose PDF is already
+// correct - a paper that keeps its reference list as hand-written text is making
+// a legitimate choice, not a mistake. Reading the emitted file rather than
+// inferring from the mode keeps the README chain, the terminal next-step list
+// and --verify agreeing with what was actually written.
+func texHasBibliography(texPath string) bool {
+	data, err := os.ReadFile(texPath)
+	if err != nil {
+		// Unreadable here means the caller is about to fail on it anyway; assume
+		// the nominal chain rather than quietly shortening it.
+		return true
+	}
+	text := string(data)
+	return strings.Contains(text, "\\bibliography{") || strings.Contains(text, "\\printbibliography")
 }
 
 // needsBibFile reports whether the exported project has to ship references.bib.
@@ -174,7 +206,9 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	if mode == "" {
 		mode = BibBibTeX
 	}
-	result := Result{BibMode: string(mode), CompileCommands: CompileCommands(mode)}
+	// The nominal chain for the mode; refined once paper.tex exists and it is
+	// known whether a bibliography was actually emitted.
+	result := Result{BibMode: string(mode), CompileCommands: CompileCommands(mode, true)}
 
 	// 1. Discover the project, read its configuration and load the Profile,
 	// exactly as a build does, before touching anything on disk.
@@ -325,6 +359,18 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 			"Inspect the NodePaper export log and the PowerShell transition log."))
 		return result
 	}
+	hasBibliography := texHasBibliography(texPath)
+	result.CompileCommands = CompileCommands(mode, hasBibliography)
+	if mode.needsBibFile() && !hasBibliography {
+		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityInfo,
+			Code:     CodeNoCitations,
+			Message: fmt.Sprintf("this project cites nothing, so the %s export carries no bibliography and needs no %s pass",
+				mode, bibliographyTool(mode)),
+			Suggestion: "Nothing to do. A reference list written by hand in the text stays as text; --bib inline produces the same command chain if you prefer to say so explicitly.",
+			Source:     "export",
+		})
+	}
 
 	// 8. Assemble the deliverable. ZIP exports are assembled in the private
 	// work directory first, so --verify sees the exact tree that is archived.
@@ -332,7 +378,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	if zipTarget {
 		deliverableDir = filepath.Join(workDir, "deliverable")
 	}
-	artifacts, copyDiags := assemble(p, cfg, mode, texPath, deliverableDir, fragmentFiles)
+	artifacts, copyDiags := assemble(p, cfg, mode, hasBibliography, texPath, deliverableDir, fragmentFiles)
 	result.Artifacts = artifacts
 	result.Diagnostics = append(result.Diagnostics, copyDiags...)
 	if hasError(result.Diagnostics) {
@@ -342,7 +388,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	// 9. Optional verification, always in a scratch directory so the
 	// delivered project keeps no .aux, .log, .bbl or .pdf behind.
 	if opts.Verify {
-		verified, verifyDiags := verify(ctx, executor, logger, deliverableDir, mode)
+		verified, verifyDiags := verify(ctx, executor, logger, deliverableDir, mode, hasBibliography)
 		result.Verified = verified
 		result.Diagnostics = append(result.Diagnostics, verifyDiags...)
 		if hasError(result.Diagnostics) {
@@ -679,7 +725,7 @@ func writeSourceManifest(path, projectRoot string, cfg config.ProjectConfig, fra
 
 // assemble writes paper.tex, the bibliography, every referenced image, the
 // declared LaTeX Fragments and README.txt into the target directory.
-func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, texPath, target string, fragments []fragment.File) ([]Artifact, []diagnostic.Diagnostic) {
+func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibliography bool, texPath, target string, fragments []fragment.File) ([]Artifact, []diagnostic.Diagnostic) {
 	var artifacts []Artifact
 	var diags []diagnostic.Diagnostic
 
@@ -736,7 +782,7 @@ func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, texPath
 	}
 
 	readmePath := filepath.Join(target, "README.txt")
-	if err := os.WriteFile(readmePath, []byte(readme(mode)), 0o644); err != nil {
+	if err := os.WriteFile(readmePath, []byte(readme(mode, hasBibliography)), 0o644); err != nil {
 		diags = append(diags, errorDiag(CodeCopyFailed,
 			fmt.Sprintf("cannot write README.txt: %v", err),
 			"Check the available disk space and permissions."))

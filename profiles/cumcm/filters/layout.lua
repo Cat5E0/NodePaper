@@ -120,6 +120,29 @@ local function nocite_keys(meta)
   return keys
 end
 
+-- has_inline_citation reports whether the body carries a real inline citation.
+-- On the export routes this decides whether emitting any bibliography machinery
+-- is worth it: a paper that cites nothing and nocites nothing gives bibtex and
+-- biber no work, and emitting \bibliography regardless made the compile chain
+-- in the export's own README.txt fail on a legitimate project - C063 keeps its
+-- five references as a hand-typed numbered list, which cannot be cited because
+-- there are no bib entries to cite. That is the author's choice, not an error,
+-- so the export follows it instead of insisting on a bibliography pass.
+local function has_inline_citation(blocks)
+  local found = false
+  for _, block in ipairs(blocks) do
+    if found then
+      break
+    end
+    pandoc.walk_block(block, {
+      Cite = function(_)
+        found = true
+      end,
+    })
+  end
+  return found
+end
+
 local function nocite_block(keys)
   if #keys == 0 then
     return nil
@@ -308,6 +331,17 @@ function Pandoc(doc)
   end
 
   local bib_commands = BIB_COMMANDS[stringify(doc.meta["nodepaper-bib-method"])]
+  -- Nothing to cite means nothing for BibTeX or biber to do. Dropping the
+  -- bibliography command here also drops the bibtex/biber step from the chain
+  -- the Go side writes into README.txt, so the exported project compiles with
+  -- the commands it documents.
+  local nocite_list = {}
+  if bib_commands ~= nil then
+    nocite_list = nocite_keys(doc.meta["nocite"])
+    if #nocite_list == 0 and not has_inline_citation(doc.blocks) then
+      bib_commands = nil
+    end
+  end
 
   local appendix_index = nil
   local references_index = nil
@@ -342,7 +376,7 @@ function Pandoc(doc)
   -- stays a no-op, leaving the build's behaviour untouched.
   local nocite_raw = nil
   if bib_commands ~= nil then
-    nocite_raw = nocite_block(nocite_keys(doc.meta["nocite"]))
+    nocite_raw = nocite_block(nocite_list)
   end
 
   local output = pandoc.List()
