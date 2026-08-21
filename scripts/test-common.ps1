@@ -5,6 +5,11 @@ function Get-NodePaperRepoRoot {
     return (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 }
 
+function Get-NodePaperCoreRoot {
+    # Go module root after the web-UI restructure (AGENTS.md directory layout).
+    return (Join-Path (Get-NodePaperRepoRoot) "nodepaper\core")
+}
+
 function Get-NodePaperGo {
     if ($env:NODEPAPER_GO) {
         if (-not (Test-Path -LiteralPath $env:NODEPAPER_GO -PathType Leaf)) {
@@ -49,7 +54,7 @@ function Assert-GoFormatting {
     }
 
     $root = Get-NodePaperRepoRoot
-    $files = Get-ChildItem -LiteralPath (Join-Path $root "cmd"), (Join-Path $root "internal") -Recurse -Filter "*.go" -File |
+    $files = Get-ChildItem -LiteralPath (Join-Path $root "nodepaper\core\cmd"), (Join-Path $root "nodepaper\core\internal") -Recurse -Filter "*.go" -File |
         ForEach-Object { $_.FullName }
     $unformatted = @(& $gofmt -l @files)
     if ($LASTEXITCODE -ne 0) {

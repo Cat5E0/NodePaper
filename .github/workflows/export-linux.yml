@@ -34,10 +34,12 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - name: Bootstrap pinned Pandoc tools
         run: .\scripts\dev\Bootstrap-Tools.ps1 -SkipSources
       - name: Build nodepaper.exe
-        run: go build -o nodepaper.exe ./cmd/nodepaper
+        run: go build -o ../../nodepaper.exe ./cmd/nodepaper
+        working-directory: nodepaper/core
       - name: Confirm this runner has no XeLaTeX
         shell: pwsh
         run: |
@@ -55,7 +57,7 @@ jobs:
           $toolchains = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains\windows-x64"
           $env:PATH = (Join-Path $toolchains "pandoc") + ";" +
                       (Join-Path $toolchains "pandoc-crossref") + ";" + $env:PATH
-          $fixture = Join-Path $PWD "tests\fixtures\complete-single-file"
+          $fixture = Join-Path $PWD "nodepaper\core\tests\fixtures\complete-single-file"
           foreach ($mode in @("inline", "bibtex")) {
             $project = Join-Path $env:RUNNER_TEMP "project-$mode"
             Copy-Item -Path $fixture -Destination $project -Recurse -Force

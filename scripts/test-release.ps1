@@ -484,7 +484,7 @@ try {
 
     $fixtureDir = $FixtureDirectory
     if ([string]::IsNullOrWhiteSpace($fixtureDir)) {
-        $fixtureDir = Join-Path $PSScriptRoot "..\tests\fixtures\$Fixture"
+        $fixtureDir = Join-Path $PSScriptRoot "..\nodepaper\core\tests\fixtures\$Fixture"
         if (-not (Test-Path -LiteralPath $fixtureDir -PathType Container)) {
             throw "FAIL: Fixture not found: $fixtureDir. Pass -FixtureDirectory to use a copied fixture."
         }

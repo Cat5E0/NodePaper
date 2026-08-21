@@ -228,7 +228,7 @@ try {
     # as a failure -- which is how rc.3 through rc.7 were built on a different
     # toolchain from rc.2 and rc.8 without anyone noticing.
     $expectedToolchain = ""
-    foreach ($line in (Get-Content -LiteralPath (Join-Path $worktree "go.mod") -Encoding UTF8)) {
+    foreach ($line in (Get-Content -LiteralPath (Join-Path $worktree "nodepaper\core\go.mod") -Encoding UTF8)) {
         if ($line -match '^\s*toolchain\s+(go\S+)\s*$') { $expectedToolchain = $Matches[1]; break }
     }
     if ([string]::IsNullOrWhiteSpace($expectedToolchain)) {
@@ -240,7 +240,7 @@ try {
     }
     Write-Host "Go toolchain verified: $actualToolchain (pinned by go.mod)"
 
-    Push-Location $worktree
+    Push-Location (Join-Path $worktree "nodepaper\core")
     try {
         $previousGoos = $env:GOOS
         $previousGoarch = $env:GOARCH
@@ -341,7 +341,7 @@ try {
 
     # Runnable CUMCM example: the public fictional complete-single-file
     # Fixture is the only example that passes the current CUMCM Profile.
-    $exampleSource = Join-Path $worktree "tests\fixtures\complete-single-file"
+    $exampleSource = Join-Path $worktree "nodepaper\core\tests\fixtures\complete-single-file"
     if (-not (Test-Path -LiteralPath $exampleSource -PathType Container)) {
         throw "Example Fixture missing: $exampleSource"
     }

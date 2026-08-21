@@ -98,4 +98,4 @@ plt.savefig("figures/model.pgf")
 | `NP3202` | Markdown 交叉引用目标不存在；Fragment 标签改用 `\ref` |
 | `NP6102` / `NP6105` | 构建日志发现未解析引用或 LaTeX 致命错误；先缩减为最小 Fragment，再检查字体、库和包依赖 |
 
-仓库中的 `tests/fixtures/tikz-basic`、`pgf-basic` 是最小正向工程；`fragment-missing`、`fragment-path-traversal`、`fragment-forbidden-command`、`fragment-nested`、`fragment-command-execution`、`fragment-undeclared-input` 和 `unknown-crossref` 固定负向边界。`layout-stress` 继续承担组合排版回归。
+仓库中的 `nodepaper/core/tests/fixtures/tikz-basic`、`pgf-basic` 是最小正向工程；`fragment-missing`、`fragment-path-traversal`、`fragment-forbidden-command`、`fragment-nested`、`fragment-command-execution`、`fragment-undeclared-input` 和 `unknown-crossref` 固定负向边界。`layout-stress` 继续承担组合排版回归。

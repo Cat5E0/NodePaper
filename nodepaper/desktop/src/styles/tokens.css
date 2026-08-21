@@ -1,0 +1,264 @@
+/* ============================================================
+   NodePaper 设计 token —— 三层体系（primitive → semantic → component）
+   权威源：docs/design/tokens.md；组件样式禁止裸写色值（例外见该文档 9.1）。
+   ============================================================ */
+
+/* ---------- Primitive · 色彩：灰阶（纸墨轴，暖灰） ---------- */
+:root {
+  --np-gray-0: #FCFBF9;
+  --np-gray-1: #F7F5F1;
+  --np-gray-2: #EFECE6;
+  --np-gray-3: #E3DFD7;
+  --np-gray-4: #D3CEC3;
+  --np-gray-5: #B4ADA0;
+  --np-gray-6: #8C8578;
+  --np-gray-7: #5C574D;
+  --np-gray-8: #37332C;
+  --np-gray-9: #211E19;
+
+  /* ---------- Primitive · 色彩：墨水蓝（强调） ---------- */
+  --np-blue-50: #EEF3F8;
+  --np-blue-100: #D9E4EF;
+  --np-blue-200: #B3C9DE;
+  --np-blue-300: #9FC0DE;
+  --np-blue-400: #4C7BA6;
+  --np-blue-500: #2E5C88;
+  --np-blue-600: #24496D;
+  --np-blue-700: #1B3754;
+
+  /* ---------- Primitive · 色彩：反馈（构建状态） ---------- */
+  --np-ok-600: #356B47;
+  --np-warn-600: #85611F;
+  --np-err-600: #B03A3A;
+  --np-ok-300: #7FAF8E;
+  --np-warn-300: #D0A85C;
+  --np-err-300: #D07676;
+
+  /* ---------- Primitive · 字体族：工坊用 sans，书房用 serif ---------- */
+  --np-font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --np-font-serif-zh: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --np-font-serif-en: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --np-font-kai: "LXGW WenKai", "Kaiti SC", "STKaiti", var(--np-font-serif-zh);
+  --np-font-display: "Cormorant Garamond", "Newsreader", serif;
+  --np-font-mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+
+  /* ---------- Primitive · 字号阶梯（阅读器尺度） ---------- */
+  --np-text-2xs: 0.6875rem;
+  --np-text-xs: 0.75rem;
+  --np-text-sm: 0.875rem;
+  --np-text-base: 1rem;
+  --np-text-md: 1.0625rem;
+  --np-text-lg: 1.25rem;
+  --np-text-xl: 1.5rem;
+  --np-text-2xl: 2rem;
+  --np-text-3xl: 2.5rem;
+
+  /* ---------- Primitive · 间距（4px 基）与圆角 ---------- */
+  --np-space-1: 0.25rem;
+  --np-space-2: 0.5rem;
+  --np-space-3: 0.75rem;
+  --np-space-4: 1rem;
+  --np-space-5: 1.25rem;
+  --np-space-6: 1.5rem;
+  --np-space-7: 2rem;
+  --np-space-8: 3rem;
+  --np-space-9: 4rem;
+  --np-radius-xs: 0.25rem;
+  --np-radius-sm: 0.4rem;
+  --np-radius-md: 0.6rem;
+  --np-radius-lg: 0.8rem;
+
+  /* ---------- Primitive · 阴影、动效、Z 序 ---------- */
+  --np-shadow-flat: inset 0 1px 0 rgba(255, 255, 255, .6);
+  --np-shadow-card: 0 10px 24px -16px rgba(33, 30, 26, .25);
+  --np-shadow-pop: 0 18px 40px -20px rgba(33, 30, 26, .35);
+  --np-shadow-modal: 0 30px 60px -30px rgba(33, 30, 26, .4);
+  --np-dur-fast: 120ms;
+  --np-dur-base: 200ms;
+  --np-dur-slow: 350ms;
+  --np-ease-out: cubic-bezier(.2, .7, .2, 1);
+  /* 屏内移动（折叠箭头、滑块）专用：对称加速减速 */
+  --np-ease-in-out: cubic-bezier(.65, 0, .35, 1);
+  --np-z-base: 0;
+  --np-z-brush: 5;
+  --np-z-masthead: 20;
+  --np-z-menu: 35;
+  --np-z-overlay: 40;
+  --np-z-dropdown: 45;
+  --np-z-veil: 50;
+  --np-z-context: 60;
+}
+
+/* ============================================================
+   Semantic · 纸墨（默认主题，:root 即默认值）
+   ============================================================ */
+:root {
+  /* 表面 */
+  --np-surface-page: var(--np-gray-2);
+  --np-surface-raise: var(--np-gray-1);
+  --np-surface-sheen: var(--np-gray-0);
+  /* 墨色 */
+  --np-ink-strong: var(--np-gray-9);
+  --np-ink-body: var(--np-gray-8);
+  --np-ink-soft: var(--np-gray-7);
+  --np-ink-mute: var(--np-gray-6);
+  /* 线条 */
+  --np-line: var(--np-gray-4);
+  --np-line-soft: var(--np-gray-3);
+  /* 强调与交互态 */
+  --np-accent: var(--np-blue-500);
+  --np-accent-hover: var(--np-blue-600);
+  --np-accent-soft: var(--np-blue-200);
+  --np-accent-wash: var(--np-blue-50);
+  --np-accent-chip: var(--np-blue-100);
+  --np-on-accent: var(--np-gray-0);
+  --np-selection: rgba(46, 92, 136, .18);
+  --np-state-hover: rgba(0, 0, 0, .04);
+  --np-state-active: rgba(0, 0, 0, .065);
+  /* 反馈 */
+  --np-ok: var(--np-ok-600);
+  --np-warn: var(--np-warn-600);
+  --np-err: var(--np-err-600);
+  --np-info: var(--np-blue-400);
+  --np-focus-ring: var(--np-accent);
+  /* 代码 */
+  --np-code-chip-bg: rgba(33, 30, 26, .06);
+  --np-code-chip-fg: var(--np-ink-soft);
+  --np-code-block-bg: var(--np-surface-sheen);
+  /* UI 字体（工坊 sans；阅读区字体在 style.css 直接取衬线 primitive） */
+  --np-font-ui: var(--np-font-sans);
+  /* 布局 */
+  --np-measure: 62ch;
+  --np-gutter: clamp(1.25rem, 4vw, 3.5rem);
+  --np-shelf-w: 264px;
+  --np-toc-w: 248px;
+}
+
+/* ---------- Semantic · Apple：清亮极简 ---------- */
+html[data-theme="apple"] {
+  --np-surface-page: #FFFFFF;
+  --np-surface-raise: #F5F5F7;
+  --np-surface-sheen: #FBFBFD;
+  --np-ink-strong: #1D1D1F;
+  --np-ink-body: #1D1D1F;
+  --np-ink-soft: #424245;
+  --np-ink-mute: #86868B;
+  --np-line: #D2D2D7;
+  --np-line-soft: #E8E8ED;
+  --np-accent: #0071E3;
+  --np-accent-hover: #0077ED;
+  --np-accent-soft: rgba(0, 113, 227, .4);
+  --np-accent-wash: rgba(0, 113, 227, .05);
+  --np-accent-chip: rgba(0, 113, 227, .1);
+  --np-selection: rgba(0, 113, 227, .16);
+  --np-code-chip-bg: rgba(0, 0, 0, .05);
+  --np-code-chip-fg: #424245;
+}
+
+/* ---------- Semantic · 墨夜（dark 锚点，暖炭 + 蓝阶亮端） ---------- */
+html[data-theme="ink-night"],
+html[data-np-theme="dark"] {
+  /* 暗端表面为灰阶轴的暗端延伸（tokens.md 9.1 例外） */
+  --np-surface-page: #191613;
+  --np-surface-raise: #241F1A;
+  --np-surface-sheen: #2B2520;
+  --np-ink-strong: #E9E2D6;
+  --np-ink-body: #CFC5B4;
+  --np-ink-soft: #B7AF9F;
+  --np-ink-mute: #8C8578;
+  --np-line: #3B322B;
+  --np-line-soft: #2E2722;
+  --np-accent: var(--np-blue-300);
+  --np-accent-hover: var(--np-blue-200);
+  --np-accent-soft: rgba(159, 192, 222, .4);
+  --np-accent-wash: rgba(159, 192, 222, .1);
+  --np-accent-chip: rgba(159, 192, 222, .16);
+  --np-selection: rgba(159, 192, 222, .22);
+  --np-state-hover: rgba(255, 255, 255, .07);
+  --np-state-active: rgba(255, 255, 255, .1);
+  --np-ok: var(--np-ok-300);
+  --np-warn: var(--np-warn-300);
+  --np-err: var(--np-err-300);
+  --np-info: var(--np-blue-300);
+  --np-code-chip-bg: rgba(255, 255, 255, .08);
+  --np-code-chip-fg: #E9E2D6;
+  --np-code-block-bg: #221D18;
+}
+
+/* ---------- Semantic · 石墨：冷灰中性（主题锚定 hex，见 tokens.md 9.1 例外） ---------- */
+html[data-theme="graphite"] {
+  --np-surface-page: #ECECEE;
+  --np-surface-raise: #F4F4F6;
+  --np-surface-sheen: #FAFAFC;
+  --np-ink-strong: #1C1C1E;
+  --np-ink-body: #1C1C1E;
+  --np-ink-soft: #45454A;
+  --np-ink-mute: #8E8E93;
+  --np-line: #D5D5DA;
+  --np-line-soft: #E4E4E9;
+  --np-accent: #3A3A3C;
+  --np-accent-hover: #2A2A2C;
+  --np-accent-soft: rgba(58, 58, 60, .38);
+  --np-accent-wash: rgba(58, 58, 60, .04);
+  --np-accent-chip: rgba(58, 58, 60, .1);
+  --np-selection: rgba(58, 58, 60, .16);
+}
+
+/* ---------- Semantic · 羊皮卷：仿古米褐，赭红强调 ---------- */
+html[data-theme="parchment"] {
+  --np-surface-page: #F1E8D3;
+  --np-surface-raise: #F6EFE0;
+  --np-surface-sheen: #FBF5E8;
+  --np-ink-strong: #43301C;
+  --np-ink-body: #43301C;
+  --np-ink-soft: #5E4630;
+  --np-ink-mute: #8C7355;
+  --np-line: #DBC9A8;
+  --np-line-soft: #E6D8BD;
+  --np-accent: #A8542B;
+  --np-accent-hover: #8F431F;
+  --np-accent-soft: rgba(168, 84, 43, .4);
+  --np-accent-wash: rgba(168, 84, 43, .06);
+  --np-accent-chip: rgba(168, 84, 43, .12);
+  --np-selection: rgba(168, 84, 43, .18);
+}
+
+/* ---------- Semantic · 樱：樱粉轻柔，玫红强调 ---------- */
+html[data-theme="sakura"] {
+  --np-surface-page: #FBF3F1;
+  --np-surface-raise: #FDF6F4;
+  --np-surface-sheen: #FFF9F8;
+  --np-ink-strong: #4A2F38;
+  --np-ink-body: #4A2F38;
+  --np-ink-soft: #6B4A55;
+  --np-ink-mute: #A48690;
+  --np-line: #EAD2D8;
+  --np-line-soft: #F1DEE3;
+  --np-accent: #C25D7A;
+  --np-accent-hover: #A84A66;
+  --np-accent-soft: rgba(194, 93, 122, .4);
+  --np-accent-wash: rgba(194, 93, 122, .05);
+  --np-accent-chip: rgba(194, 93, 122, .1);
+  --np-selection: rgba(194, 93, 122, .16);
+}
+
+/* ============================================================
+   Component · 组件映射（仅偏离语义默认处）
+   ============================================================ */
+:root {
+  /* 按钮 */
+  --np-btn-bg: var(--np-surface-raise);
+  --np-btn-fg: var(--np-ink-soft);
+  --np-btn-radius: var(--np-radius-sm);
+  --np-btn-primary-bg: var(--np-accent);
+  --np-btn-primary-fg: var(--np-on-accent);
+  /* 菜单浮层 */
+  --np-menu-bg: var(--np-surface-sheen);
+  --np-menu-radius: var(--np-radius-md);
+  --np-menu-shadow: var(--np-shadow-pop);
+  /* h1 与阅读字号（--np-reader-size 由 App 运行时写入） */
+  --np-h1-size: clamp(2.2rem, 5.5vw, 3.4rem);
+  --np-reader-size: 1.0625rem;
+  /* 窗口控制：关闭按钮 hover（Windows 惯例红） */
+  --np-win-close-hover: #E0564F;
+}

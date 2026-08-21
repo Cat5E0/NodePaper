@@ -7,10 +7,10 @@
 **/dist/
 
 # Lock-state Fixture inputs are source test data, not generated artifacts.
-!tests/fixtures/damaged-lock/.nodepaper/
-!tests/fixtures/damaged-lock/.nodepaper/build.lock
-!tests/fixtures/stale-lock/.nodepaper/
-!tests/fixtures/stale-lock/.nodepaper/build.lock
+!nodepaper/core/tests/fixtures/damaged-lock/.nodepaper/
+!nodepaper/core/tests/fixtures/damaged-lock/.nodepaper/build.lock
+!nodepaper/core/tests/fixtures/stale-lock/.nodepaper/
+!nodepaper/core/tests/fixtures/stale-lock/.nodepaper/build.lock
 
 # Logs
 /logs/
@@ -29,7 +29,8 @@
 *.bbl
 *.blg
 *.run.xml
-
+skills/
+AGENTS.md
 # Compiled outputs at project root
 /Paper.pdf
 /Paper.tex
@@ -39,6 +40,10 @@
 # Bundled third-party binaries and pinned build toolchains (fetched, verified
 # and never committed)
 /tools/
+# 桌面端内嵌的 nodepaper core 二进制（desktop-build/desktop CI 构建时生成）
+/nodepaper/desktop/binaries/
+# playwright-cli 会话残留
+.playwright-cli/
 
 # Python
 __pycache__/

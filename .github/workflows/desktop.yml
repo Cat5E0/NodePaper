@@ -1,0 +1,105 @@
+# Desktop CI for NodePaper (nodepaper/desktop: Tauri + React).
+#
+# Mirrors the core `ci.yml` policy: each check is its own job so pass/fail is
+# visible at a glance, and the required-check group stays honest -- no check is
+# made green by relaxing rules. Runs on both macOS and Windows because the
+# desktop app targets the same platforms as the Go core plus the newly added
+# macOS route (compile_latex drives pandoc directly on unix shells).
+#
+# Jobs:
+#   frontend  - pnpm install from the lockfile, tsc + vite build
+#   rust      - cargo fmt --check, cargo check, cargo test (needs pandoc for
+#               the real conversion tests; runners ship pandoc 3.x preinstalled)
+#
+# The Windows job joins the sequential `needs` chain of ci.yml indirectly: it
+# runs in this separate workflow so the core's runner-concurrency ordering is
+# untouched.
+
+name: desktop
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "nodepaper/desktop/**"
+      - "profiles/**"
+      - ".github/workflows/desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: 前端构建 (tsc + vite)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        # version 取自 package.json 的 packageManager 字段
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: nodepaper/desktop/pnpm-lock.yaml
+      - name: pnpm install（锁文件）
+        run: pnpm install --frozen-lockfile
+        working-directory: nodepaper/desktop
+      - name: pnpm build（tsc + vite）
+        run: pnpm build
+        working-directory: nodepaper/desktop
+
+  rust:
+    name: Rust 检查与测试 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: nodepaper/core/go.sum
+      - name: 安装 Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nodepaper/desktop/src-tauri
+      - name: 构建 Go core（tauri-build 要求 binaries/ 在位）
+        shell: pwsh
+        run: |
+          # cargo check/test 触发 tauri-build，resources 映射要求 ../binaries 存在。
+          # 构建真实 core 而非空占位，顺带验证 core 在本平台可编译。
+          New-Item -ItemType Directory -Force ../desktop/binaries | Out-Null
+          if ($IsWindows) {
+            go build -o ../desktop/binaries/nodepaper-windows-x64.exe ./cmd/nodepaper
+          } else {
+            go build -o ../desktop/binaries/nodepaper-macos-aarch64 ./cmd/nodepaper
+          }
+        working-directory: nodepaper/core
+      - name: 确认 pandoc 可用（compile_latex 真实测试依赖）
+        shell: pwsh
+        run: |
+          $v = (& pandoc --version | Select-Object -First 1)
+          Write-Host "pandoc: $v"
+          if (-not $v) { Write-Error "runner 镜像未预装 pandoc，真实转换测试将退化为 skip"; exit 1 }
+      - name: cargo fmt --check
+        run: cargo fmt --check
+        working-directory: nodepaper/desktop/src-tauri
+      - name: cargo check
+        run: cargo check
+        working-directory: nodepaper/desktop/src-tauri
+      - name: cargo test（pandoc 真实链路）
+        run: cargo test
+        working-directory: nodepaper/desktop/src-tauri

@@ -1,0 +1,90 @@
+# Manual desktop release-candidate build.
+#
+# Companion to `release-build.yml` (PLAN.md M4-01 decision 2: CI only, no CD):
+# this workflow builds the Tauri desktop app bundles from the pushed commit
+# and uploads them as workflow artifacts. It never auto-publishes a GitHub
+# Release and is deliberately not triggered by tags -- one version, one build.
+#
+# Artifacts:
+#   macOS   - .dmg  (aarch64)
+#   Windows - .nsis installer + portable .exe (x64)
+#
+# The maintainer downloads the exact artifacts, verifies them on real
+# machines, and drafts the Release manually.
+
+name: desktop-build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Tauri 打包 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos-aarch64
+          - os: windows-latest
+            platform: windows-x64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: nodepaper/core/go.sum
+      - uses: pnpm/action-setup@v4
+        # version 取自 package.json 的 packageManager 字段
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: nodepaper/desktop/pnpm-lock.yaml
+      - name: 安装 Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nodepaper/desktop/src-tauri
+      - name: 构建 Go core 到 binaries/（随 tauri 打包内嵌）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ../desktop/binaries | Out-Null
+          if ($IsWindows) {
+            go build -o ../desktop/binaries/nodepaper-windows-x64.exe ./cmd/nodepaper
+          } else {
+            go build -o ../desktop/binaries/nodepaper-macos-aarch64 ./cmd/nodepaper
+          }
+          Get-ChildItem ../desktop/binaries
+        working-directory: nodepaper/core
+      - name: pnpm install（锁文件）
+        run: pnpm install --frozen-lockfile
+        working-directory: nodepaper/desktop
+      - name: pnpm tauri build（前端 + Rust release + 打包）
+        run: pnpm tauri build
+        working-directory: nodepaper/desktop
+      - name: 收集产物清单
+        shell: pwsh
+        run: |
+          $bundles = "nodepaper/desktop/src-tauri/target/release/bundles"
+          if (-not (Test-Path $bundles)) { $bundles = "nodepaper/desktop/src-tauri/target/release/bundle" }
+          Write-Host "=== bundles 目录：$bundles ==="
+          Get-ChildItem $bundles -Recurse -File | ForEach-Object { Write-Host "$($_.Length)  $($_.FullName)" }
+      - name: 上传桌面端构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: nodepaper-desktop-${{ matrix.platform }}-${{ github.run_number }}
+          path: |
+            nodepaper/desktop/src-tauri/target/release/bundle/**/*.dmg
+            nodepaper/desktop/src-tauri/target/release/bundle/**/*.app/**
+            nodepaper/desktop/src-tauri/target/release/bundle/**/*.exe
+            nodepaper/desktop/src-tauri/target/release/bundle/**/*.msi
+            nodepaper/desktop/src-tauri/target/release/bundle/**/*.nsis.zip
+          if-no-files-found: warn

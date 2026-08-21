@@ -1,0 +1,760 @@
+// NodePaper 桌面壳 —— 极薄 Tauri 壳。
+// compile_latex：把编辑区 Markdown 写成临时最小工程（nodepaper.yaml + paper.md +
+// references.bib），在宿主 shell 环境直接执行 pandoc 完成 md → LaTeX 转换。
+//
+// 参数集逐项对齐核心 scripts/build/Convert-CumcmProjectToLatex.ps1 的 citeproc
+// 主链（单文件情形）：同 --from 扩展、--top-level-division=section、同模板与
+// lua 过滤器、citeproc + 国标 CSL、--fail-if-warnings。核心自身经
+// powershell.exe 调用该脚本，仅 Windows 可达；macOS 与 pandoc 直连等价链路由
+// 本命令承担。pandoc-crossref 为可选外部过滤器，未安装时跳过（编译模式预览
+// 不做交叉引用编号）。
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
+use tauri::Manager;
+
+mod tools;
+
+/// 环境变量锁：工具查找依赖进程级 env，并行测试会互相污染。
+/// 涉及 NODEPAPER_* env 的测试段必须持有此锁（lib 与 tools 测试共用）。
+#[cfg(test)]
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// .md / .markdown 后缀匹配（书架与阅读共用；不引入 regex 依赖）
+fn is_markdown_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown")
+}
+
+/// md 读/写共用的体积上限（防巨型文件卡死渲染/写入）
+const MAX_BYTES: u64 = 10 * 1024 * 1024;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileOutcome {
+    /// 生成的 LaTeX 源码；失败时为空串
+    pub tex: String,
+    /// 工具链日志（pandoc 版本、命令、stdout/stderr）
+    pub log: String,
+    /// 实际使用的转换器描述
+    pub tool: String,
+}
+
+#[tauri::command]
+fn compile_latex(app: tauri::AppHandle, md: String) -> Result<CompileOutcome, String> {
+    let profile_dir =
+        find_profile_dir(app.path().resource_dir().ok().as_deref()).ok_or_else(|| {
+            "未找到 profiles/cumcm（可用环境变量 NODEPAPER_PROFILE_DIR 指定）".to_string()
+        })?;
+    let pandoc =
+        tools::find_pandoc(app.path().app_data_dir().ok().as_deref()).ok_or_else(|| {
+            "未找到 pandoc，请安装 pandoc 3.x，或到「帮助 → 环境诊断」下载".to_string()
+        })?;
+    run_compile(
+        &md,
+        &profile_dir,
+        &pandoc,
+        find_core_binary(app.path().resource_dir().ok().as_deref()),
+        app.path().app_data_dir().ok().as_deref(),
+    )
+    .map_err(|e| e)
+}
+
+/// 书架文件条目；字段名与前端 FileEntry 约定一致
+#[derive(Debug, Serialize)]
+pub struct FileEntry {
+    /// 绝对路径，用于读取
+    pub path: String,
+    /// 相对根目录的路径（/ 分隔），用于书架展示与排序
+    pub rel: String,
+    /// 文件名
+    pub name: String,
+}
+
+/// 递归列出目录下所有 .md / .markdown 文件（书架数据源）。
+/// 跳过隐藏目录与 node_modules / target / .git 等生成物目录；
+/// 目录 symlink 不跟随，防循环。返回按 rel 排序。
+#[tauri::command]
+fn list_markdown(dir: String) -> Result<Vec<FileEntry>, String> {
+    let root = PathBuf::from(&dir);
+    if !root.is_dir() {
+        return Err(format!("目录不存在或不可读：{}", dir));
+    }
+    const SKIP_DIRS: [&str; 4] = ["node_modules", "target", ".git", ".venv"];
+    let mut out = Vec::new();
+    // 迭代式递归（栈），深度上限防御异常嵌套
+    let mut stack: Vec<(PathBuf, String, usize)> = vec![(root.clone(), String::new(), 0)];
+    while let Some((dir_path, rel_prefix, depth)) = stack.pop() {
+        if depth > 16 {
+            continue;
+        }
+        let entries = fs::read_dir(&dir_path)
+            .map_err(|e| format!("读取目录失败 {}：{}", dir_path.display(), e))?;
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            // file_type 不跟随 symlink：目录链接不入选，防循环
+            let Ok(ft) = entry.file_type() else { continue };
+            if ft.is_dir() {
+                if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
+                    continue;
+                }
+                let rel = if rel_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}/{}", rel_prefix, name)
+                };
+                stack.push((entry.path(), rel, depth + 1));
+            } else if is_markdown_name(&name) {
+                let rel = if rel_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}/{}", rel_prefix, name)
+                };
+                out.push(FileEntry {
+                    path: entry.path().to_string_lossy().to_string(),
+                    rel,
+                    name,
+                });
+            }
+        }
+    }
+    out.sort_by(|a, b| a.rel.cmp(&b.rel));
+    Ok(out)
+}
+
+/// 读取 Markdown 文本（阅读区数据源）。
+/// 只收 .md / .markdown；大小上限 10MB，防误读巨型文件卡死渲染。
+#[tauri::command]
+fn read_markdown(path: String) -> Result<String, String> {
+    let p = Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&name) {
+        return Err(format!("仅支持 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::metadata(p).map_err(|e| format!("读取文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    if meta.len() > MAX_BYTES {
+        return Err(format!(
+            "文件超过 10MB 上限（{} MB）：{}",
+            meta.len() / 1024 / 1024,
+            path
+        ));
+    }
+    fs::read_to_string(p).map_err(|e| format!("读取失败 {}：{}", path, e))
+}
+
+/// 保存 Markdown（自动保存专用）：同目录 temp 文件 + rename 原子替换，
+/// 避免写半过程被看到/被并发读到。校验规则与 read_markdown 一致（仅 md、
+/// 普通文件、10MB 上限），防止把内存态写到任意路径。
+#[tauri::command]
+fn write_markdown(path: String, content: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&name) {
+        return Err(format!("仅支持保存 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("查看文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    if content.len() as u64 > MAX_BYTES {
+        return Err("内容超过 10MB 上限，未保存".to_string());
+    }
+    let dir = p.parent().ok_or("无法定位父目录")?;
+    // 同目录临时名：pid+时间戳避免碰撞；rename 同分区原子
+    let tmp = dir.join(format!(
+        ".{}-{}.tmp",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    ));
+    fs::write(&tmp, content).map_err(|e| format!("写入临时文件失败：{}", e))?;
+    if let Err(e) = fs::rename(&tmp, p) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("替换文件失败：{}", e));
+    }
+    Ok(())
+}
+
+/// 文件名清洗：去空白、拦截 Windows 保留字符与控制符、限长。
+/// 返回不含扩展名的 stem；新建与重命名共用同一规则。
+fn sanitize_stem(raw: &str) -> Result<String, String> {
+    let s = raw.trim().trim_end_matches(['.', ' ']).to_string();
+    if s.is_empty() {
+        return Err("名称不能为空".to_string());
+    }
+    if s.chars().count() > 80 {
+        return Err("名称过长（最多 80 字符）".to_string());
+    }
+    // Windows 保留字符 + 控制符；/ 与 \\ 同时阻断跨目录注入
+    if s.chars().any(|c| {
+        matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || (c as u32) < 32
+    }) {
+        return Err("名称含非法字符（/ \\ : * ? \" < > |）".to_string());
+    }
+    Ok(s)
+}
+
+/// 在目录下新建 Markdown。name 为空时回退为 未命名[-N].md；
+/// 显式命名时同名直接报错（命名环节用户应知晓冲突，不静默加后缀）。
+/// name 允许带或不带 .md/.markdown 后缀，统一存为 .md。
+#[tauri::command]
+fn create_markdown(dir: String, name: Option<String>) -> Result<FileEntry, String> {
+    let root = PathBuf::from(&dir);
+    if !root.is_dir() {
+        return Err(format!("目录不存在或不可读：{}", dir));
+    }
+    let file_name = match name {
+        // 显式命名：sanitize_stem 会拦截空白名（用户应知晓，而非静默回退匿名）
+        Some(n) => {
+            let stem = sanitize_stem(
+                n.trim()
+                    .trim_end_matches(".md")
+                    .trim_end_matches(".markdown"),
+            )?;
+            let f = format!("{}.md", stem);
+            if root.join(&f).exists() {
+                return Err(format!("同名文件已存在：{}", f));
+            }
+            f
+        }
+        None => {
+            // 匿名新建：找第一个不存在的 未命名[-N].md
+            let mut pick = None;
+            for i in 1..1000u32 {
+                let stem = if i == 1 {
+                    "未命名".to_string()
+                } else {
+                    format!("未命名-{}", i)
+                };
+                let f = format!("{}.md", stem);
+                if !root.join(&f).exists() {
+                    pick = Some(f);
+                    break;
+                }
+            }
+            pick.ok_or("目录下同名文件过多，无法新建")?
+        }
+    };
+    let path = root.join(&file_name);
+    fs::write(&path, "").map_err(|e| format!("创建失败 {}：{}", path.display(), e))?;
+    Ok(FileEntry {
+        path: path.to_string_lossy().to_string(),
+        rel: file_name.clone(),
+        name: file_name,
+    })
+}
+
+/// 重命名 Markdown（同目录）。new_name 允许带或不带 .md 后缀，统一 .md。
+/// 名字实质未变时无感返回；返回条目的 rel 仅含文件名（书架刷新由前端
+/// list_markdown 重建，不依赖此值）。
+#[tauri::command]
+fn rename_markdown(path: String, new_name: String) -> Result<FileEntry, String> {
+    let p = Path::new(&path);
+    let old_name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&old_name) {
+        return Err(format!("仅支持重命名 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("查看文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    let stem = sanitize_stem(
+        new_name
+            .trim()
+            .trim_end_matches(".md")
+            .trim_end_matches(".markdown"),
+    )?;
+    let file_name = format!("{}.md", stem);
+    if file_name == old_name {
+        return Ok(FileEntry {
+            path: p.to_string_lossy().to_string(),
+            rel: old_name.clone(),
+            name: old_name,
+        });
+    }
+    let dest = p.parent().ok_or("无法定位父目录")?.join(&file_name);
+    if dest.exists() {
+        return Err(format!("同名文件已存在：{}", file_name));
+    }
+    fs::rename(p, &dest).map_err(|e| format!("重命名失败：{}", e))?;
+    Ok(FileEntry {
+        path: dest.to_string_lossy().to_string(),
+        rel: file_name.clone(),
+        name: file_name,
+    })
+}
+
+/// 删除 Markdown 文件。仅收 .md/.markdown 且须为普通文件，
+/// 防误删目录或 symlink；前端弹原生确认框后才调本命令。
+#[tauri::command]
+fn delete_markdown(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&name) {
+        return Err(format!("仅支持删除 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("查看文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    fs::remove_file(p).map_err(|e| format!("删除失败 {}：{}", path, e))
+}
+
+/// 由内到外定位 profiles/cumcm：环境变量 → bundle 资源目录（打包态）→
+/// 可执行文件/工作目录祖先（tauri dev 态，仓库根在其上两级）。
+/// 返回路径一律 canonicalize：相对路径会随 pandoc 子进程 cwd（临时工程）
+/// 改变含义，--template / --lua-filter 将解析失败。
+fn find_profile_dir(resource_root: Option<&Path>) -> Option<PathBuf> {
+    let absolutize = |p: PathBuf| fs::canonicalize(&p).ok().or(Some(p));
+    if let Ok(env_dir) = std::env::var("NODEPAPER_PROFILE_DIR") {
+        let p = PathBuf::from(env_dir);
+        if p.join("profile.json").exists() {
+            return absolutize(p);
+        }
+    }
+    // 打包态：bundle.resources 把 profiles/cumcm 映射到资源目录
+    if let Some(root) = resource_root {
+        let p = root.join("profiles/cumcm");
+        if p.join("profile.json").exists() {
+            return absolutize(p);
+        }
+    }
+    // dev 态：仓库根在 cwd（nodepaper/desktop）或 exe 的祖先上
+    let target = Path::new("profiles/cumcm/profile.json");
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        let mut dir = exe.parent().map(|d| d.to_path_buf());
+        while let Some(d) = dir {
+            candidates.push(d.to_path_buf());
+            dir = d.parent().map(|p| p.to_path_buf());
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        let mut dir = Some(cwd);
+        while let Some(d) = dir {
+            candidates.push(d.to_path_buf());
+            dir = d.parent().map(|p| p.to_path_buf());
+        }
+    }
+    candidates
+        .into_iter()
+        .map(|base| base.join(target))
+        .find(|p| p.exists())
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .and_then(absolutize)
+}
+
+/// 定位内嵌的 nodepaper core 二进制（bundle.resources 的 binaries/）。
+/// core 的 build/export 链依赖 powershell.exe 仅 Windows 可达；macOS 桌面
+/// 编译模式用 pandoc 直连。core 在位时用于未来的 validate/doctor 集成，
+/// 此处先探测并写入日志。
+pub(crate) fn find_core_binary(resource_root: Option<&Path>) -> Option<PathBuf> {
+    if let Ok(env_core) = std::env::var("NODEPAPER_CORE") {
+        let p = PathBuf::from(env_core);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    let root = resource_root?;
+    let name = if cfg!(windows) {
+        "nodepaper-windows-x64.exe"
+    } else {
+        "nodepaper-macos-aarch64"
+    };
+    let p = root.join("binaries").join(name);
+    p.is_file().then_some(p)
+}
+
+/// 转换链主体：写临时工程 → 组装对齐参数 → 执行 pandoc → 回读 .tex。
+/// data 为应用数据目录（app_data_dir），供 crossref 在自取 bin/ 中被发觉；
+/// 测试与无壳环境传 None。
+fn run_compile(
+    md: &str,
+    profile: &Path,
+    pandoc: &Path,
+    core: Option<PathBuf>,
+    data: Option<&Path>,
+) -> Result<CompileOutcome, String> {
+    // 目录名含 pid + 原子序号，避免同毫秒并发（如并行测试）碰撞
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let uniq = format!(
+        "nodepaper-compile-{}-{}-{}",
+        stamp,
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    let project = std::env::temp_dir().join(uniq);
+    let out_dir = project.join("out");
+    fs::create_dir_all(&out_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+
+    // 最小工程镜像 nodepaper init 的形状：配置 + 正文 + 参考文献（编译模式正文
+    // 未必含引用，空 bib 供 citeproc 链保持与核心一致）
+    fs::write(
+        project.join("nodepaper.yaml"),
+        "version: 1\nprofile: cumcm\nsource: paper.md\noutput:\n  file: out/paper.tex\n",
+    )
+    .map_err(|e| format!("写入 nodepaper.yaml 失败: {}", e))?;
+    fs::write(project.join("paper.md"), md).map_err(|e| format!("写入 paper.md 失败: {}", e))?;
+    fs::write(project.join("references.bib"), "")
+        .map_err(|e| format!("写入 references.bib 失败: {}", e))?;
+
+    // profile.json 只在存在时读取版本钉版信息，用于日志提示（mac 不做硬校验，
+    // 与核心在 Windows 上的强校验不同——桌面编译模式面向预览）
+    let mut log = String::new();
+    let pandoc_version = run_capture(pandoc, &["--version"]);
+    log.push_str(&format!(
+        "Pandoc: {}\n",
+        pandoc_version.lines().next().unwrap_or("未知版本")
+    ));
+    let crossref = tools::find_crossref(data);
+    match &crossref {
+        Some(p) => {
+            let v = run_capture(p, &["--version"]);
+            log.push_str(&format!(
+                "pandoc-crossref: {}\n",
+                v.lines().next().unwrap_or("未知版本")
+            ));
+        }
+        None => log.push_str("pandoc-crossref: 未安装，跳过交叉引用编号（不影响正文转换）\n"),
+    }
+    match &core {
+        Some(p) => {
+            let v = run_capture(p, &["--version"]);
+            log.push_str(&format!(
+                "nodepaper-core: {} ({})\n",
+                v.lines().next().unwrap_or("未知版本").trim(),
+                p.display()
+            ));
+        }
+        None => log.push_str(
+            "nodepaper-core: 未内嵌（build/export 链仅 Windows 可达，编译模式已用 pandoc 直连）\n",
+        ),
+    }
+
+    // 资源搜索路径：临时工程 + profile（分隔符平台差异：Windows ; / unix :）
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let mut args: Vec<String> = vec![
+        "paper.md".into(),
+        "--from".into(),
+        "markdown+yaml_metadata_block+tex_math_dollars+raw_tex+link_attributes+implicit_figures+pipe_tables+fenced_divs".into(),
+        "--to".into(),
+        "latex".into(),
+        "--standalone".into(),
+        "--top-level-division=section".into(),
+        "--template".into(),
+        profile.join("template.tex").to_string_lossy().into(),
+        "--metadata-file".into(),
+        profile.join("crossref.yaml").to_string_lossy().into(),
+        "--lua-filter".into(),
+        profile.join("filters/extract-abstract.lua").to_string_lossy().into(),
+        "--lua-filter".into(),
+        profile.join("filters/layout.lua").to_string_lossy().into(),
+    ];
+    if let Some(cr) = &crossref {
+        args.push("--filter".into());
+        args.push(cr.to_string_lossy().into());
+    }
+    args.extend([
+        "--citeproc".to_string(),
+        "--bibliography".to_string(),
+        "references.bib".to_string(),
+        "--csl".to_string(),
+        profile
+            .join("csl/china-national-standard-gb-t-7714-2015-numeric.csl")
+            .to_string_lossy()
+            .into(),
+        "--syntax-highlighting=tango".to_string(),
+        "--metadata".to_string(),
+        "link-citations=true".to_string(),
+        "--fail-if-warnings".to_string(),
+        "--resource-path".to_string(),
+        format!(
+            "{}{}{}",
+            project.to_string_lossy(),
+            sep,
+            profile.to_string_lossy()
+        ),
+        "--output".to_string(),
+        "out/paper.tex".to_string(),
+    ]);
+
+    log.push_str(&format!(
+        "Pandoc command: {} {}\n",
+        pandoc.display(),
+        args.join(" ")
+    ));
+
+    let output = Command::new(pandoc)
+        .args(&args)
+        .current_dir(&project)
+        .output()
+        .map_err(|e| format!("执行 pandoc 失败: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    log.push_str(&stdout);
+    if !stderr.trim().is_empty() {
+        log.push_str(&stderr);
+    }
+
+    let tex_path = out_dir.join("paper.tex");
+    if !output.status.success() || !tex_path.exists() {
+        let _ = fs::remove_dir_all(&project);
+        return Err(format!(
+            "转换失败（exit {}）：\n{}",
+            output.status.code().unwrap_or(-1),
+            stderr.trim()
+        ));
+    }
+    let tex = fs::read_to_string(&tex_path).map_err(|e| format!("回读 paper.tex 失败: {}", e))?;
+    let _ = fs::remove_dir_all(&project);
+
+    Ok(CompileOutcome {
+        tex,
+        log,
+        tool: format!("pandoc（对齐核心 citeproc 主链，profile: cumcm）"),
+    })
+}
+
+pub(crate) fn run_capture(bin: &Path, args: &[&str]) -> String {
+    Command::new(bin)
+        .args(args)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default()
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            compile_latex,
+            list_markdown,
+            read_markdown,
+            create_markdown,
+            rename_markdown,
+            delete_markdown,
+            write_markdown,
+            tools::diagnose_tools,
+            tools::install_tool
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::MutexGuard;
+
+    fn env_lock() -> MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// 真实链路测试：需要 pandoc。未安装时跳过（CI 无 pandoc 环境不红）。
+    /// NODEPAPER_PANDOC / NODEPAPER_PROFILE_DIR 可注入测试工具路径。
+    #[test]
+    fn compile_sample_md_to_latex() {
+        let _guard = env_lock();
+        let profile = match find_profile_dir(None) {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 profiles/cumcm");
+                return;
+            }
+        };
+        let pandoc = match tools::find_pandoc(None) {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 pandoc");
+                return;
+            }
+        };
+        let md = "# 摘要之前的标题\n\n::: abstract\n这是一段摘要，用于验证 extract-abstract 过滤器。\n:::\n\n## 第一节点\n\n正文一段，含 **加粗** 与 `code`。\n\n$$E = mc^2$$\n";
+        let out = run_compile(md, &profile, &pandoc, None, None).expect("转换应成功");
+        assert!(out.tex.contains("\\documentclass"), "应生成完整 LaTeX 文档");
+        assert!(out.tex.contains("第一节点"), "正文应进入 .tex");
+        assert!(out.log.contains("Pandoc"), "日志应含 pandoc 版本");
+        assert!(
+            out.log.contains("nodepaper-core"),
+            "日志应报告 core 探测结果: {}",
+            out.log
+        );
+    }
+
+    /// 资源目录解析：模拟打包态 layout（resource_root 下有 profiles/cumcm）
+    #[test]
+    fn profile_resolves_from_resource_root() {
+        let _guard = env_lock();
+        std::env::remove_var("NODEPAPER_PROFILE_DIR");
+        let tmp = std::env::temp_dir().join("np-resource-root-test");
+        let dir = tmp.join("profiles/cumcm");
+        fs::create_dir_all(&dir).expect("建目录");
+        fs::write(dir.join("profile.json"), "{}").expect("写标记");
+        let found = find_profile_dir(Some(&tmp));
+        assert!(found.is_some(), "应从资源目录命中");
+        let found = found.unwrap();
+        assert!(found.is_absolute(), "返回路径必须是绝对路径: {:?}", found);
+        assert_eq!(found.canonicalize().ok(), fs::canonicalize(&dir).ok());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// 文件命令：嵌套列举（跳过隐藏/生成物目录）+ 扩展名校验 + 内容读回
+    #[test]
+    fn file_commands_walk_and_read() {
+        let tmp = std::env::temp_dir().join("np-file-cmd-test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("chapters")).unwrap();
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        fs::create_dir_all(tmp.join("node_modules")).unwrap();
+        fs::write(tmp.join("paper.md"), "# 根文档\n").unwrap();
+        fs::write(tmp.join("chapters").join("c1.markdown"), "## 第一章\n").unwrap();
+        fs::write(tmp.join(".git").join("hidden.md"), "不应出现\n").unwrap();
+        fs::write(tmp.join("node_modules").join("dep.md"), "不应出现\n").unwrap();
+        fs::write(tmp.join("cover.txt"), "非 md\n").unwrap();
+
+        let items = list_markdown(tmp.to_string_lossy().to_string()).expect("列举应成功");
+        let rels: Vec<&str> = items.iter().map(|i| i.rel.as_str()).collect();
+        assert_eq!(
+            rels,
+            vec!["chapters/c1.markdown", "paper.md"],
+            "应递归且跳过生成物目录"
+        );
+        assert!(items[0].path.contains("chapters"), "path 应为绝对可读路径");
+
+        let text = read_markdown(items[1].path.clone()).expect("读回应成功");
+        assert_eq!(text, "# 根文档\n");
+
+        // 自动保存：写入 → 读回一致；非 md 拒绝；失败路径不残留临时文件
+        write_markdown(items[1].path.clone(), "# 改动\n".into()).expect("保存应成功");
+        let after = read_markdown(items[1].path.clone()).expect("保存后可读");
+        assert_eq!(after, "# 改动\n");
+        let err = write_markdown(
+            tmp.join("cover.txt").to_string_lossy().to_string(),
+            "x".into(),
+        )
+        .expect_err("非 md 保存应拒绝");
+        assert!(err.contains("仅支持保存"), "{}", err);
+        let tmps: Vec<_> = fs::read_dir(&tmp)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert_eq!(tmps.len(), 0, "不应残留临时文件");
+
+        let err = read_markdown(tmp.join("cover.txt").to_string_lossy().to_string())
+            .expect_err("非 md 应拒绝");
+        assert!(err.contains("仅支持"), "错误应可读：{}", err);
+
+        let err = list_markdown(tmp.join("不不存在").to_string_lossy().to_string())
+            .expect_err("不存在目录应报错");
+        assert!(err.contains("目录不存在"), "错误应可读：{}", err);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// 新建/重命名/删除：命名校验、重名冲突、仅操作 md 普通文件
+    #[test]
+    fn create_rename_delete_markdown() {
+        let tmp = std::env::temp_dir().join("np-create-del-test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        // 匿名新建仍递增
+        let a = create_markdown(tmp.to_string_lossy().to_string(), None).expect("新建应成功");
+        assert_eq!(a.name, "未命名.md");
+        assert!(Path::new(&a.path).is_file(), "文件应真实存在");
+        let b = create_markdown(tmp.to_string_lossy().to_string(), None).expect("二次新建应成功");
+        assert_eq!(b.name, "未命名-2.md", "重名应递增后缀");
+
+        // 显式命名：自动补 .md；重名报错；非法字符报错；空白名回退匿名规则拒绝
+        let c = create_markdown(tmp.to_string_lossy().to_string(), Some("第一章".into()))
+            .expect("显式命名应成功");
+        assert_eq!(c.name, "第一章.md");
+        let err = create_markdown(tmp.to_string_lossy().to_string(), Some("第一章.md".into()))
+            .expect_err("重名应报错");
+        assert!(err.contains("同名文件已存在"), "{}", err);
+        let err = create_markdown(tmp.to_string_lossy().to_string(), Some("a/b".into()))
+            .expect_err("路径分隔符应拒绝");
+        assert!(err.contains("非法字符"), "{}", err);
+        let err = create_markdown(tmp.to_string_lossy().to_string(), Some("  ".into()))
+            .expect_err("空白名应拒绝");
+        assert!(err.contains("不能为空"), "{}", err);
+
+        // 重命名：同目录、目标冲突报错、改名后旧路径失效
+        let renamed = rename_markdown(c.path.clone(), "开篇".into()).expect("重命名应成功");
+        assert_eq!(renamed.name, "开篇.md");
+        assert!(!Path::new(&c.path).exists());
+        assert!(Path::new(&renamed.path).is_file());
+        let err =
+            rename_markdown(renamed.path.clone(), "未命名".into()).expect_err("目标重名应报错");
+        assert!(err.contains("同名文件已存在"), "{}", err);
+        // 名字实质未变：返回原条目不报错
+        let same = rename_markdown(renamed.path.clone(), "开篇.md".into()).expect("同名应无感");
+        assert_eq!(same.path, renamed.path);
+
+        delete_markdown(a.path.clone()).expect("删除应成功");
+        assert!(!Path::new(&a.path).exists(), "删除后不应存在");
+        let err = delete_markdown(tmp.to_string_lossy().to_string()).expect_err("目录应拒绝");
+        assert!(err.contains("仅支持删除"), "错误应可读：{}", err);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn fail_path_reports_stderr() {
+        let _guard = env_lock();
+        let profile = match find_profile_dir(None) {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 profiles/cumcm");
+                return;
+            }
+        };
+        let pandoc = match tools::find_pandoc(None) {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 pandoc");
+                return;
+            }
+        };
+        // citeproc 对未收录引用报 warning，--fail-if-warnings 将其升级为硬错误；
+        // 这是用户真实会碰到的失败（引了 bib 里没有的文献），核心链同样失败
+        let err = run_compile(
+            "# t\n\n引用不存在条目 [@missing-ref]\n",
+            &profile,
+            &pandoc,
+            None,
+            None,
+        )
+        .expect_err("未收录引用应失败");
+        assert!(err.contains("转换失败"), "错误信息应可读：{}", err);
+    }
+}

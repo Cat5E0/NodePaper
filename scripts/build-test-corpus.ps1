@@ -18,7 +18,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "version-lifecycle.ps1")
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$corpusRoot = Join-Path $root "tests\corpus"
+$corpusRoot = Join-Path $root "nodepaper\core\tests\corpus"
 $resolvedCommit = (& git -C $root rev-parse --verify "$Commit^{commit}" 2>$null | Out-String).Trim().ToLowerInvariant()
 if ($LASTEXITCODE -ne 0 -or $resolvedCommit -notmatch '^[0-9a-f]{40}$') { throw "Cannot resolve corpus source commit: $Commit" }
 $headCommit = (& git -C $root rev-parse HEAD | Out-String).Trim().ToLowerInvariant()

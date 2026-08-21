@@ -120,7 +120,7 @@ try {
     Write-Host "  installed version: $oldVersion"
 
     $projectDir = Join-Path $workRoot "project"
-    $fixture = Join-Path $PSScriptRoot "..\tests\fixtures\complete-single-file"
+    $fixture = Join-Path $PSScriptRoot "..\nodepaper\core\tests\fixtures\complete-single-file"
     Copy-Item -LiteralPath $fixture -Destination $projectDir -Recurse
     $exe = Join-Path $DefaultInstallRoot "nodepaper.exe"
     Push-Location $projectDir
