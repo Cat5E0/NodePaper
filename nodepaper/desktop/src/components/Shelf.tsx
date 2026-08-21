@@ -12,6 +12,8 @@ interface ShelfProps {
   activePath: string | null;
   onOpenFile: (entry: FileEntry) => void;
   onOpenFolder: () => void;
+  onCreate: () => void;
+  onDelete: (entry: FileEntry) => void;
 }
 
 interface NodeProps {
@@ -19,9 +21,10 @@ interface NodeProps {
   depth: number;
   activePath: string | null;
   onOpenFile: (entry: FileEntry) => void;
+  onDelete: (entry: FileEntry) => void;
 }
 
-function NodeView({ node, depth, activePath, onOpenFile }: NodeProps) {
+function NodeView({ node, depth, activePath, onOpenFile, onDelete }: NodeProps) {
   const { open } = useContextMenu();
   return (
     <ul className={depth === 0 ? "tree" : "tree tree-sub"}>
@@ -32,6 +35,7 @@ function NodeView({ node, depth, activePath, onOpenFile }: NodeProps) {
           depth={depth}
           activePath={activePath}
           onOpenFile={onOpenFile}
+          onDelete={onDelete}
         />
       ))}
       {node.files.map((f) => (
@@ -48,6 +52,8 @@ function NodeView({ node, depth, activePath, onOpenFile }: NodeProps) {
               e.preventDefault();
               open(e.clientX, e.clientY, [
                 { label: "打开", onClick: () => onOpenFile(f) },
+                { type: "sep" },
+                { label: "删除…", onClick: () => onDelete(f) },
               ]);
             }}
           >
@@ -64,11 +70,13 @@ function DirEntry({
   depth,
   activePath,
   onOpenFile,
+  onDelete,
 }: {
   dir: ShelfDir;
   depth: number;
   activePath: string | null;
   onOpenFile: (entry: FileEntry) => void;
+  onDelete: (entry: FileEntry) => void;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -82,6 +90,7 @@ function DirEntry({
         depth={depth + 1}
         activePath={activePath}
         onOpenFile={onOpenFile}
+        onDelete={onDelete}
       />
     </li>
   );
@@ -94,6 +103,8 @@ export function Shelf({
   activePath,
   onOpenFile,
   onOpenFolder,
+  onCreate,
+  onDelete,
 }: ShelfProps) {
   const { open } = useContextMenu();
   return (
@@ -114,6 +125,8 @@ export function Shelf({
           if ((e.target as HTMLElement).closest(".tree-file")) return;
           e.preventDefault();
           open(e.clientX, e.clientY, [
+            { label: "新建笔记", onClick: onCreate },
+            { type: "sep" },
             { label: "打开文件夹…", onClick: onOpenFolder },
           ]);
         }}
@@ -124,6 +137,7 @@ export function Shelf({
             depth={0}
             activePath={activePath}
             onOpenFile={onOpenFile}
+            onDelete={onDelete}
           />
         ) : (
           <div className="shelf-empty">

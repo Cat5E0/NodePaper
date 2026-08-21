@@ -598,26 +598,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   align-items: center;
 }
 .paste-card header h3 { margin: 0; font-family: var(--np-font-ui); font-size: 1.1rem; font-weight: 600; }
-.paste-card textarea {
-  width: 100%;
-  height: 46vh;
-  border: 0;
-  outline: 0;
-  resize: none;
-  background: transparent;
-  padding: 1.1rem 1.2rem;
-  font-family: var(--np-font-mono);
-  font-size: .84rem;
-  line-height: 1.6;
-  color: var(--np-ink-soft);
-}
-.paste-card footer {
-  padding: .8rem 1.2rem;
-  border-top: 1px solid var(--np-line-soft);
-  display: flex;
-  justify-content: flex-end;
-  gap: .5rem;
-}
+/* .paste-card textarea / footer 随粘贴浮层移除；遮罩与卡片壳由 InfoLayer 复用 */
 .btn {
   appearance: none;
   border: 1px solid var(--np-line);

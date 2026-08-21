@@ -11,19 +11,21 @@ import { EditStage } from "./components/EditStage";
 import type { CompileState } from "./components/EditStage";
 import type { ScrollState } from "./components/Stage";
 import { Toc } from "./components/Toc";
-import { PasteLayer } from "./components/PasteLayer";
 import { DropVeil } from "./components/DropVeil";
 import { InfoLayer } from "./components/InfoLayer";
 import { ContextMenuProvider } from "./components/ContextMenu";
 import type { CtxItem } from "./components/ContextMenu";
 import { renderMarkdown } from "./lib/markdown";
 import { invoke } from "@tauri-apps/api/core";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { SAMPLE } from "./lib/sample";
 import { buildShelfTree } from "./lib/shelf";
 import {
   pickDirectory,
   listMarkdown,
   readMarkdown,
+  createMarkdown,
+  deleteMarkdown,
   MD_RE,
 } from "./lib/fileSystem";
 import type { FileEntry } from "./lib/fileSystem";
@@ -34,6 +36,8 @@ const SIZES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.1875];
 const EDIT_SIZES = [0.72, 0.78, 0.84, 0.9, 0.98, 1.06];
 
 interface ShelfData {
+  /** 书架根目录绝对路径（刷新/新建/删除用） */
+  dir: string;
   title: string;
   tree: import("./lib/shelf").ShelfNode;
 }
@@ -65,8 +69,6 @@ export default function App() {
     activeId: null,
   });
 
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteValue, setPasteValue] = useState("");
   const [dropOpen, setDropOpen] = useState(false);
   const [infoKind, setInfoKind] = useState<null | "shortcuts" | "about">(null);
 
@@ -101,26 +103,63 @@ export default function App() {
     }
   }, []);
 
-  /* 打开文件夹 → 书架（并展开书架列） */
-  const handleOpen = useCallback(async () => {
-    const dir = await pickDirectory();
-    if (!dir) return;
+  /* 打开文件夹 → 书架（并展开书架列）；dir 存入 state 供新建/删除后刷新 */
+  const refreshShelf = useCallback(async (dir: string) => {
     const items = await listMarkdown(dir);
     items.sort((a, b) => a.rel.localeCompare(b.rel, "zh-Hans"));
     const tree = buildShelfTree(items);
     const rootName = dir.split(/[\\/]/).pop() || "书架";
-    setShelf({ title: rootName, tree });
-    setShelfCollapsed(false);
-    if (items.length) loadEntry(items[0]);
-  }, [loadEntry]);
+    setShelf({ dir, title: rootName, tree });
+    return items;
+  }, []);
 
-  /* 粘贴确认 */
-  const handlePasteConfirm = useCallback(() => {
-    if (pasteValue.trim()) {
-      setMd(pasteValue);
-      setPasteOpen(false);
+  const handleOpen = useCallback(async () => {
+    const dir = await pickDirectory();
+    if (!dir) return;
+    setShelfCollapsed(false);
+    try {
+      const items = await refreshShelf(dir);
+      if (items.length) loadEntry(items[0]);
+    } catch (e) {
+      console.error("打开文件夹失败", e);
     }
-  }, [pasteValue]);
+  }, [loadEntry, refreshShelf]);
+
+  /* 新建笔记：根目录下建未命名.md，刷新书架并直接打开进入编辑 */
+  const handleCreate = useCallback(async () => {
+    const dir = shelf?.dir;
+    if (!dir) return;
+    try {
+      const entry = await createMarkdown(dir);
+      await refreshShelf(dir);
+      loadEntry(entry);
+      setMode("edit");
+    } catch (e) {
+      console.error("新建笔记失败", e);
+    }
+  }, [shelf, refreshShelf, loadEntry]);
+
+  /* 删除文件：原生确认框防误删；删的是当前文件则回示例卷首 */
+  const handleDelete = useCallback(
+    async (entry: FileEntry) => {
+      const ok = await ask(`确定删除「${entry.rel}」？此操作不可恢复。`, {
+        title: "删除笔记",
+        kind: "warning",
+      }).catch(() => false); // 浏览器预览无 dialog 插件时不删
+      if (!ok) return;
+      try {
+        await deleteMarkdown(entry.path);
+        if (shelf) await refreshShelf(shelf.dir);
+        if (activePath === entry.path) {
+          setActivePath(null);
+          setMd(SAMPLE);
+        }
+      } catch (e) {
+        console.error("删除失败", e);
+      }
+    },
+    [shelf, activePath, refreshShelf]
+  );
 
   /* 字号增减 */
   const sizeUp = useCallback(
@@ -165,7 +204,6 @@ export default function App() {
         },
       },
       { type: "sep" },
-      { label: "粘贴文本…", onClick: () => setPasteOpen(true) },
       { label: "打开文件夹…", onClick: handleOpen },
       { type: "sep" },
       { label: "放大字号", onClick: sizeUp },
@@ -207,7 +245,6 @@ export default function App() {
       const typing = !!el && /TEXTAREA|INPUT/.test(el.tagName);
       const k = e.key.toLowerCase();
       if (k === "escape") {
-        setPasteOpen(false);
         setInfoKind(null);
         return;
       }
@@ -240,7 +277,6 @@ export default function App() {
         onToggleShelf={() => setShelfCollapsed((v) => !v)}
         onToggleToc={() => setTocCollapsed((v) => !v)}
         onToggleEdit={() => setMode((m) => (m === "edit" ? "read" : "edit"))}
-        onPaste={() => setPasteOpen(true)}
         onSizeUp={sizeUp}
         onSizeDown={sizeDown}
         onSelectTheme={(key) => {
@@ -263,6 +299,8 @@ export default function App() {
           activePath={activePath}
           onOpenFile={loadEntry}
           onOpenFolder={handleOpen}
+          onCreate={handleCreate}
+          onDelete={handleDelete}
         />
 
         <Toc collapsed={tocCollapsed} items={toc} activeId={scrollState.activeId} />
@@ -292,14 +330,6 @@ export default function App() {
           )}
         </div>
       </div>
-
-      <PasteLayer
-        open={pasteOpen}
-        value={pasteValue}
-        onChange={setPasteValue}
-        onCancel={() => setPasteOpen(false)}
-        onConfirm={handlePasteConfirm}
-      />
 
       <DropVeil open={dropOpen} />
 

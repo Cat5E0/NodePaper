@@ -142,6 +142,61 @@ fn read_markdown(path: String) -> Result<String, String> {
     fs::read_to_string(p).map_err(|e| format!("读取失败 {}：{}", path, e))
 }
 
+/// 在目录下新建空白 Markdown（未命名.md，重名自动 -2/-3 递增）。
+/// 返回新文件条目，前端刷新书架并直接打开进入编辑。
+#[tauri::command]
+fn create_markdown(dir: String) -> Result<FileEntry, String> {
+    let root = PathBuf::from(&dir);
+    if !root.is_dir() {
+        return Err(format!("目录不存在或不可读：{}", dir));
+    }
+    // 找第一个不存在的 未命名[-N].md
+    let mut target: Option<PathBuf> = None;
+    for i in 1..1000u32 {
+        let stem = if i == 1 {
+            "未命名".to_string()
+        } else {
+            format!("未命名-{}", i)
+        };
+        let p = root.join(format!("{}.md", stem));
+        if !p.exists() {
+            target = Some(p);
+            break;
+        }
+    }
+    let path = target.ok_or("目录下同名文件过多，无法新建")?;
+    fs::write(&path, "").map_err(|e| format!("创建失败 {}：{}", path.display(), e))?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let rel = name.clone();
+    Ok(FileEntry {
+        path: path.to_string_lossy().to_string(),
+        rel,
+        name,
+    })
+}
+
+/// 删除 Markdown 文件。仅收 .md/.markdown 且须为普通文件，
+/// 防误删目录或 symlink；前端弹原生确认框后才调本命令。
+#[tauri::command]
+fn delete_markdown(path: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&name) {
+        return Err(format!("仅支持删除 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("查看文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    fs::remove_file(p).map_err(|e| format!("删除失败 {}：{}", path, e))
+}
+
 /// 由内到外定位 profiles/cumcm：环境变量 → bundle 资源目录（打包态）→
 /// 可执行文件/工作目录祖先（tauri dev 态，仓库根在其上两级）。
 /// 返回路径一律 canonicalize：相对路径会随 pandoc 子进程 cwd（临时工程）
@@ -405,7 +460,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             compile_latex,
             list_markdown,
-            read_markdown
+            read_markdown,
+            create_markdown,
+            delete_markdown
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -505,6 +562,29 @@ mod tests {
         let err = list_markdown(tmp.join("不不存在").to_string_lossy().to_string())
             .expect_err("不存在目录应报错");
         assert!(err.contains("目录不存在"), "错误应可读：{}", err);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// 新建/删除：重名递增后缀 + 仅删 md 普通文件
+    #[test]
+    fn create_and_delete_markdown() {
+        let tmp = std::env::temp_dir().join("np-create-del-test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        let a = create_markdown(tmp.to_string_lossy().to_string()).expect("新建应成功");
+        assert_eq!(a.name, "未命名.md");
+        assert!(Path::new(&a.path).is_file(), "文件应真实存在");
+        let b = create_markdown(tmp.to_string_lossy().to_string()).expect("二次新建应成功");
+        assert_eq!(b.name, "未命名-2.md", "重名应递增后缀");
+
+        delete_markdown(a.path.clone()).expect("删除应成功");
+        assert!(!Path::new(&a.path).exists(), "删除后不应存在");
+
+        // 目录与符号链接拒绝删除
+        let err = delete_markdown(tmp.to_string_lossy().to_string()).expect_err("目录应拒绝");
+        assert!(err.contains("仅支持删除"), "错误应可读：{}", err);
 
         let _ = fs::remove_dir_all(&tmp);
     }

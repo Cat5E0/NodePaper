@@ -25,7 +25,6 @@ interface MastheadProps {
   onToggleShelf: () => void;
   onToggleToc: () => void;
   onToggleEdit: () => void;
-  onPaste: () => void;
   onSizeUp: () => void;
   onSizeDown: () => void;
   onSelectTheme: (key: string) => void;
@@ -80,7 +79,6 @@ export function Masthead(props: MastheadProps) {
     onToggleShelf,
     onToggleToc,
     onToggleEdit,
-    onPaste,
     onSizeUp,
     onSizeDown,
     onSelectTheme,
@@ -159,7 +157,6 @@ export function Masthead(props: MastheadProps) {
           {openMenu === "file" && (
             <div className="menu-dropdown" role="menu">
               <Entry label="打开文件夹…" kbd="O" onClick={onOpen} onClose={close} />
-              <Entry label="粘贴文本…" kbd="P" onClick={onPaste} onClose={close} />
               <div className="menu-sep" />
               <Entry label="回到卷首" onClick={onHome} onClose={close} />
             </div>
