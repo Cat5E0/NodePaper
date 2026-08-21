@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "desktop",
+  "productName": "NodePaper",
   "version": "0.1.0",
   "identifier": "com.lin.desktop",
   "build": {
@@ -12,9 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "desktop",
-        "width": 800,
-        "height": 600
+        "title": "NodePaper",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 880,
+        "minHeight": 560,
+        "decorations": false,
+        "hiddenTitle": true
       }
     ],
     "security": {

@@ -48,6 +48,11 @@ body {
 }
 .masthead.is-scrolled { border-color: var(--np-line); }
 
+/* macOS Overlay 标题栏：交通灯占左上约 78px，品牌让位；
+   自绘窗口控制钮隐藏（交通灯已是原生控件） */
+.os-mac .masthead { padding-left: 78px; }
+.os-mac .win-ctrl { display: none; }
+
 .brand {
   display: flex;
   align-items: baseline;
