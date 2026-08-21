@@ -30,6 +30,7 @@ interface MastheadProps {
   onSelectTheme: (key: string) => void;
   onShowShortcuts: () => void;
   onShowAbout: () => void;
+  onDoctor: () => void;
 }
 
 type MenuKey = "file" | "view" | "theme" | "help" | null;
@@ -84,6 +85,7 @@ export function Masthead(props: MastheadProps) {
     onSelectTheme,
     onShowShortcuts,
     onShowAbout,
+    onDoctor,
   } = props;
 
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
@@ -250,6 +252,7 @@ export function Masthead(props: MastheadProps) {
           </button>
           {openMenu === "help" && (
             <div className="menu-dropdown" role="menu">
+              <Entry label="环境诊断…" onClick={onDoctor} onClose={close} />
               <Entry label="快捷键…" onClick={onShowShortcuts} onClose={close} />
               <Entry label="关于 NodePaper" onClick={onShowAbout} onClose={close} />
             </div>

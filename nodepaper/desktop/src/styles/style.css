@@ -853,6 +853,64 @@ html[data-theme="apple"] h4 { font-weight: 600; }
 }
 
 /* ============================================================
+   环境诊断浮层
+   ============================================================ */
+.doctor-card { width: min(600px, 100%); }
+.doctor-list { display: flex; flex-direction: column; padding: .4rem 1.2rem .6rem; }
+.doctor-row {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: .65rem .1rem;
+  border-bottom: 1px solid var(--np-line-soft);
+}
+.doctor-row:last-child { border-bottom: 0; }
+.doctor-ic { flex: 0 0 auto; display: inline-flex; margin-top: 2px; }
+.doctor-ic.ok { color: var(--np-ok); }
+.doctor-ic.miss { color: var(--np-warn); }
+.doctor-meta { flex: 1 1 auto; min-width: 0; }
+.doctor-name {
+  font-weight: 600;
+  color: var(--np-ink-strong);
+  font-size: .9rem;
+}
+.doctor-ver { color: var(--np-ink-mute); font-weight: 400; font-size: .78rem; }
+.doctor-sub {
+  font-size: .74rem;
+  color: var(--np-ink-mute);
+  font-family: var(--np-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: .15rem;
+}
+.doctor-bar {
+  margin-top: .5rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--np-line-soft);
+  overflow: hidden;
+}
+/* 进度是匀速增长的量，linear；100ms 步进与事件节流对齐 */
+.doctor-bar i {
+  display: block;
+  height: 100%;
+  background: var(--np-accent);
+  transition: width 100ms linear;
+}
+.doctor-act { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; }
+.doctor-btn { padding: .3rem .7rem; font-size: .78rem; display: inline-flex; align-items: center; gap: .3rem; }
+.doctor-err { color: var(--np-err); font-size: .8rem; padding: 0 1.2rem .6rem; margin: 0; word-break: break-all; }
+.doctor-note {
+  padding: .7rem 1.2rem .9rem;
+  margin: 0;
+  border-top: 1px solid var(--np-line-soft);
+  color: var(--np-ink-mute);
+  font-size: .74rem;
+  line-height: 1.6;
+}
+
+/* ============================================================
    自定义标题栏：窗口控制按钮
    ============================================================ */
 .win-ctrl {

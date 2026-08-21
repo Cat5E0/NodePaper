@@ -18,6 +18,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::Manager;
 
+mod tools;
+
+/// 环境变量锁：工具查找依赖进程级 env，并行测试会互相污染。
+/// 涉及 NODEPAPER_* env 的测试段必须持有此锁（lib 与 tools 测试共用）。
+#[cfg(test)]
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// .md / .markdown 后缀匹配（书架与阅读共用；不引入 regex 依赖）
 fn is_markdown_name(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
@@ -41,14 +48,16 @@ fn compile_latex(app: tauri::AppHandle, md: String) -> Result<CompileOutcome, St
         find_profile_dir(app.path().resource_dir().ok().as_deref()).ok_or_else(|| {
             "未找到 profiles/cumcm（可用环境变量 NODEPAPER_PROFILE_DIR 指定）".to_string()
         })?;
-    let pandoc = find_pandoc().ok_or_else(|| {
-        "未找到 pandoc，请安装 pandoc 3.x 或用 NODEPAPER_PANDOC 指定路径".to_string()
-    })?;
+    let pandoc =
+        tools::find_pandoc(app.path().app_data_dir().ok().as_deref()).ok_or_else(|| {
+            "未找到 pandoc，请安装 pandoc 3.x，或到「帮助 → 环境诊断」下载".to_string()
+        })?;
     run_compile(
         &md,
         &profile_dir,
         &pandoc,
         find_core_binary(app.path().resource_dir().ok().as_deref()),
+        app.path().app_data_dir().ok().as_deref(),
     )
     .map_err(|e| e)
 }
@@ -245,7 +254,7 @@ fn find_profile_dir(resource_root: Option<&Path>) -> Option<PathBuf> {
 /// core 的 build/export 链依赖 powershell.exe 仅 Windows 可达；macOS 桌面
 /// 编译模式用 pandoc 直连。core 在位时用于未来的 validate/doctor 集成，
 /// 此处先探测并写入日志。
-fn find_core_binary(resource_root: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn find_core_binary(resource_root: Option<&Path>) -> Option<PathBuf> {
     if let Ok(env_core) = std::env::var("NODEPAPER_CORE") {
         let p = PathBuf::from(env_core);
         if p.is_file() {
@@ -262,32 +271,15 @@ fn find_core_binary(resource_root: Option<&Path>) -> Option<PathBuf> {
     p.is_file().then_some(p)
 }
 
-/// 定位 pandoc：环境变量 NODEPAPER_PANDOC → PATH。
-fn find_pandoc() -> Option<PathBuf> {
-    if let Ok(env_pandoc) = std::env::var("NODEPAPER_PANDOC") {
-        let p = PathBuf::from(env_pandoc);
-        if p.is_file() {
-            return Some(p);
-        }
-    }
-    let name = if cfg!(windows) {
-        "pandoc.exe"
-    } else {
-        "pandoc"
-    };
-    // which 语义：PATH 逐段探测，避免依赖系统 which
-    let path_var = std::env::var_os("PATH")?;
-    std::env::split_paths(&path_var)
-        .map(|dir| dir.join(name))
-        .find(|p| p.is_file())
-}
-
 /// 转换链主体：写临时工程 → 组装对齐参数 → 执行 pandoc → 回读 .tex。
+/// data 为应用数据目录（app_data_dir），供 crossref 在自取 bin/ 中被发觉；
+/// 测试与无壳环境传 None。
 fn run_compile(
     md: &str,
     profile: &Path,
     pandoc: &Path,
     core: Option<PathBuf>,
+    data: Option<&Path>,
 ) -> Result<CompileOutcome, String> {
     // 目录名含 pid + 原子序号，避免同毫秒并发（如并行测试）碰撞
     static SEQ: AtomicU64 = AtomicU64::new(0);
@@ -324,11 +316,7 @@ fn run_compile(
         "Pandoc: {}\n",
         pandoc_version.lines().next().unwrap_or("未知版本")
     ));
-    let crossref = find_on_path(if cfg!(windows) {
-        "pandoc-crossref.exe"
-    } else {
-        "pandoc-crossref"
-    });
+    let crossref = tools::find_crossref(data);
     match &crossref {
         Some(p) => {
             let v = run_capture(p, &["--version"]);
@@ -437,14 +425,7 @@ fn run_compile(
     })
 }
 
-fn find_on_path(name: &str) -> Option<PathBuf> {
-    let path_var = std::env::var_os("PATH")?;
-    std::env::split_paths(&path_var)
-        .map(|dir| dir.join(name))
-        .find(|p| p.is_file())
-}
-
-fn run_capture(bin: &Path, args: &[&str]) -> String {
+pub(crate) fn run_capture(bin: &Path, args: &[&str]) -> String {
     Command::new(bin)
         .args(args)
         .output()
@@ -462,7 +443,9 @@ pub fn run() {
             list_markdown,
             read_markdown,
             create_markdown,
-            delete_markdown
+            delete_markdown,
+            tools::diagnose_tools,
+            tools::install_tool
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -471,11 +454,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard};
-
-    /// 环境变量锁：find_profile_dir 依赖进程级 env，并行测试会互相污染。
-    /// 涉及 NODEPAPER_* env 的测试段必须持有此锁。
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use std::sync::MutexGuard;
 
     fn env_lock() -> MutexGuard<'static, ()> {
         ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
@@ -493,7 +472,7 @@ mod tests {
                 return;
             }
         };
-        let pandoc = match find_pandoc() {
+        let pandoc = match tools::find_pandoc(None) {
             Some(p) => p,
             None => {
                 eprintln!("skip: 未找到 pandoc");
@@ -501,7 +480,7 @@ mod tests {
             }
         };
         let md = "# 摘要之前的标题\n\n::: abstract\n这是一段摘要，用于验证 extract-abstract 过滤器。\n:::\n\n## 第一节点\n\n正文一段，含 **加粗** 与 `code`。\n\n$$E = mc^2$$\n";
-        let out = run_compile(md, &profile, &pandoc, None).expect("转换应成功");
+        let out = run_compile(md, &profile, &pandoc, None, None).expect("转换应成功");
         assert!(out.tex.contains("\\documentclass"), "应生成完整 LaTeX 文档");
         assert!(out.tex.contains("第一节点"), "正文应进入 .tex");
         assert!(out.log.contains("Pandoc"), "日志应含 pandoc 版本");
@@ -599,7 +578,7 @@ mod tests {
                 return;
             }
         };
-        let pandoc = match find_pandoc() {
+        let pandoc = match tools::find_pandoc(None) {
             Some(p) => p,
             None => {
                 eprintln!("skip: 未找到 pandoc");
@@ -612,6 +591,7 @@ mod tests {
             "# t\n\n引用不存在条目 [@missing-ref]\n",
             &profile,
             &pandoc,
+            None,
             None,
         )
         .expect_err("未收录引用应失败");

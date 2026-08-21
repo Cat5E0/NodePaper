@@ -12,6 +12,7 @@ import type { CompileState } from "./components/EditStage";
 import type { ScrollState } from "./components/Stage";
 import { Toc } from "./components/Toc";
 import { DropVeil } from "./components/DropVeil";
+import { DoctorLayer } from "./components/DoctorLayer";
 import { InfoLayer } from "./components/InfoLayer";
 import { ContextMenuProvider } from "./components/ContextMenu";
 import type { CtxItem } from "./components/ContextMenu";
@@ -71,6 +72,7 @@ export default function App() {
 
   const [dropOpen, setDropOpen] = useState(false);
   const [infoKind, setInfoKind] = useState<null | "shortcuts" | "about">(null);
+  const [doctorOpen, setDoctorOpen] = useState(false);
 
   /* 主题 / 字号 —— 写到 :root */
   useEffect(() => {
@@ -289,6 +291,7 @@ export default function App() {
         }}
         onShowShortcuts={() => setInfoKind("shortcuts")}
         onShowAbout={() => setInfoKind("about")}
+        onDoctor={() => setDoctorOpen(true)}
       />
 
       <div className="workspace">
@@ -330,6 +333,8 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <DoctorLayer open={doctorOpen} onClose={() => setDoctorOpen(false)} />
 
       <DropVeil open={dropOpen} />
 
