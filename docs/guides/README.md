@@ -4,7 +4,7 @@
 
 ## 已发布指南
 
-- [项目编写、排版与导出](project-authoring.md)：单/多文件组织、`nodepaper.yaml`、摘要首页、Markdown 表格、受控 LaTeX Fragment、构建产物边界、导出与 Overleaf、排错。
+- [项目编写、排版与导出](project-authoring.md)：单/多文件组织、`nodepaper.yaml`、摘要首页、Markdown 表格、受控 LaTeX Fragment、构建产物边界、LaTeX 工程导出（含 Overleaf 的免费版限时）、排错。
 - [TikZ / PGF Fragment](tikz-pgf.md)：外部导出、声明、插入、字体/路径限制和排错。
 
 ## 阅读路径

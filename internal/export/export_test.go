@@ -791,12 +791,17 @@ func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 // Overleaf is where an export is most likely to be compiled by someone who did
 // not produce it, and it is the one target with a setting that must be changed
 // by hand: it defaults to pdfLaTeX, whose failure names fontspec internals and
-// never mentions the compiler.
+// never mentions the compiler. It is also the one target with a compile time
+// limit the recipient cannot raise from inside the document, so the section
+// states the free-plan cap before the upload steps rather than after them.
 func TestReadmeExplainsOverleaf(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
 		text := readme(mode)
 		for _, needle := range []string{
 			"Compiling on Overleaf",
+			"after 10",
+			"240 seconds",
+			"7-day trial",
 			"Upload Project",
 			"Compiler > XeLaTeX",
 			"defaults to pdfLaTeX",
@@ -813,6 +818,14 @@ func TestReadmeExplainsOverleaf(t *testing.T) {
 	// paper.tex when the archive wraps it in a folder.
 	if !strings.Contains(readme(BibInline), "not the enclosing folder") {
 		t.Error("README.txt does not say to zip the contents rather than the folder")
+	}
+	// Order matters more than presence: a cap disclosed after the upload steps
+	// is read only by someone who already spent the time it was meant to save.
+	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
+		text := readme(mode)
+		if strings.Index(text, "after 10") > strings.Index(text, "Upload Project") {
+			t.Errorf("%s README.txt states the Overleaf time limit after the upload steps", mode)
+		}
 	}
 }
 

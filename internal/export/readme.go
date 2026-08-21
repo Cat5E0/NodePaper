@@ -84,6 +84,13 @@ func readme(mode BibMode) string {
 
 	b.WriteString("Compiling on Overleaf\n")
 	b.WriteString("---------------------\n")
+	b.WriteString("Read this before you start: Overleaf's free plan stops a compile after 10\n")
+	b.WriteString("seconds, and a full paper of this kind does not finish in that time - it runs\n")
+	b.WriteString("to dozens of pages and needs several XeLaTeX passes, and the preamble alone\n")
+	b.WriteString("(ctex and xeCJK instantiating CJK fonts) can exceed the cap on a cold\n")
+	b.WriteString("container, so cutting the document down is not a reliable workaround. Overleaf\n")
+	b.WriteString("works on a paid plan, which allows 240 seconds, or on its 7-day trial of one.\n")
+	b.WriteString("Otherwise compile locally with the command chain above; it has no time limit.\n\n")
 	b.WriteString("1. If this export is already a .zip, upload it unchanged. If it is a directory,\n")
 	b.WriteString("   zip its contents while keeping paper.tex at the top level, with images/\n")
 	b.WriteString("   and any fragment .tex files beside it")

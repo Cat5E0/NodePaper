@@ -199,24 +199,17 @@ nodepaper validate
 
 Fix whatever Validate reports before going on.
 
-### 5. Get the finished document: export, then compile on Overleaf
+### 5. Get the finished document: export a LaTeX project
 
 ```powershell
-nodepaper export . --to ..\paper-latex.zip
+nodepaper export . --to ..\paper-latex
 ```
 
-What you get is not a PDF but a self-contained LaTeX project: `paper.tex`, `references.bib`, only the images the paper references, any fragments it `\input{}`s, and a `README.txt` spelling out the compile steps and the packages they need.
+What you get is not a PDF but a self-contained LaTeX project: `paper.tex`, `references.bib`, only the images the paper references, any fragments it `\input{}`s, and a `README.txt` spelling out the compile steps and the packages they need. Point `--to` at a directory to get a folder; point it at a `.zip` to get an Overleaf-uploadable archive.
 
-When `--to` ends in `.zip` (case-insensitive), export creates a ZIP directly. Its files sit at the archive root with no wrapper directory, so the result can be uploaded through **New Project → Upload Project**. Point `--to` at a directory when you want to inspect or edit the export first. Then:
+Export is for **people who already work in LaTeX and want to take over the sources or move them into another environment**. It is a one-way handover: edits made after export do not flow back into the Markdown project.
 
-- Set **Menu → Compiler** to **XeLaTeX**. Overleaf defaults to pdfLaTeX, which fails here with an error that does not point at the real cause;
-- Chinese fonts follow the machine doing the compiling: Noto CJK on Overleaf, the SimSun families on your own Windows box. **The page differs slightly; no characters are dropped**.
-
-At this point you can see the real typeset result, without a local TeX installation.
-
-**What to do next**: if you only wanted to see the result, or you intended to hand over a LaTeX project anyway, you are done. If you will revise repeatedly — especially during a competition — zipping and uploading every revision costs real time, so install TeX and switch to a single `nodepaper build`.
-
-Export is **one-way**: edits made on Overleaf do not flow back into the Markdown project. Treat it as a handover, not a sync.
+> **About Overleaf**: the exported project can be uploaded to Overleaf (set the compiler to XeLaTeX), but a full CUMCM paper is dozens of pages and needs several XeLaTeX passes, which **will not finish inside Overleaf's free-plan 10-second compile cap** ([official Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)). To compile a full paper on Overleaf you need a paid plan (240 s) or its 7-day free trial; otherwise the smoother path is to install a local TeX and use `nodepaper build` below.
 
 ## Producing a PDF locally: installing TeX
 

@@ -311,6 +311,14 @@ func TestTextWriterExportZipIsReadyForOverleaf(t *testing.T) {
 	if strings.Contains(out, "xelatex paper.tex") {
 		t.Fatalf("ZIP output should not tell the user to cd into it and compile: %s", out)
 	}
+	// Overleaf is the secondary route, so the local one is named first and the
+	// free-plan cap travels with the Overleaf line rather than being omitted.
+	if !strings.Contains(out, "10 seconds") {
+		t.Fatalf("ZIP output does not state the Overleaf free-plan compile cap: %s", out)
+	}
+	if strings.Index(out, "README.txt") > strings.Index(out, "Upload Project") {
+		t.Fatalf("ZIP output puts Overleaf ahead of the local compile route: %s", out)
+	}
 }
 
 func TestTextWriterClean(t *testing.T) {

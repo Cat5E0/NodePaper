@@ -118,7 +118,7 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 - `[@key]` 与 `[@key1; @key2]` 文献引用；
 - 跨 Source 的 `@sec:`、`@fig:`、`@tbl:` 和 `@eq:` 引用。
 
-不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file`、`tikz-basic`、`pgf-basic` 和 `layout-stress`。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
+不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file`、`nocite-only`、`tikz-basic`、`pgf-basic` 和 `layout-stress`，随后用 `-TildeWorkRoot` 再跑一遍 `minimal-valid`，共 8 个场景。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
 
 `layout-stress` 覆盖受控 LaTeX Fragment、跨页长表格、多页代码、Pandoc 内置高亮、长 URL/路径、公式、图片、脚注和附录。`highlight-showcase` 只用于 Tango、Pygments、Kate 的聚焦视觉比较，不承担完整排版压力验收。E2E 检查生成 LaTeX 契约、A4、PDF 文字顺序与边界、字体嵌入、稳定标记、零关键 Warning，并支持：
 

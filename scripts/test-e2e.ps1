@@ -201,7 +201,26 @@ try {
     if ($texText.Contains($root)) {
         throw "generated LaTeX contains an absolute source-tree path"
     }
-    if (-not $texText.Contains("\citeproc{ref-")) {
+    # A nocite-only project has no inline citation by definition, so the linked
+    # form never appears; citeproc still renders the nocite entries into the
+    # reference list as \bibitem[\citeproctext]{ref-...}. Assert that shape here,
+    # and assert the absence of the inline form as well: that absence is exactly
+    # what let the M4-23 export defect through, so it belongs in the contract
+    # rather than being silently exempted.
+    if ($Fixture -eq "nocite-only") {
+        if ($texText.Contains("\citeproc{ref-")) {
+            throw "nocite-only generated LaTeX contains an inline Citeproc citation"
+        }
+        foreach ($required in @("\bibitem[\citeproctext]{ref-wang2024bikesharing}", "\bibitem[\citeproctext]{ref-smith2023forecast}")) {
+            if (-not $texText.Contains($required)) {
+                throw "nocite-only generated LaTeX is missing a nocite reference entry: $required"
+            }
+        }
+        if ($texText.Contains("ref-unused2020entry")) {
+            throw "nocite-only generated LaTeX pulled in an entry that is neither cited nor nocited"
+        }
+    }
+    elseif (-not $texText.Contains("\citeproc{ref-")) {
         throw "generated LaTeX does not contain linked Citeproc citations"
     }
     if ($Fixture -eq "highlight-showcase") {
@@ -480,7 +499,20 @@ try {
     # Poppler may place either both brackets, only the number, or the opening
     # bracket and number inside the anchor depending on glyph positioning.
     $linkedCitationPattern = '(?:<a href="[^"]+#[0-9]+">\[1\]</a>|\[<a href="[^"]+#[0-9]+">1</a>\]|<a href="[^"]+#[0-9]+">\[1</a>\])'
-    if ($linkXmlText -notmatch $linkedCitationPattern) {
+    # A nocite-only project has no inline citation, so there is no [1] in the
+    # body that could carry a link; the reference list is still present and still
+    # numbered. Assert the inverse of the normal contract instead of skipping:
+    # no linked inline citation at all, and the entry that is neither cited nor
+    # nocited stays out of the list.
+    if ($Fixture -eq "nocite-only") {
+        if ($linkXmlText -match $linkedCitationPattern) {
+            throw "nocite-only PDF contains a linked inline citation"
+        }
+        if ($pdfText.Contains("An Uncited Bibliography Entry")) {
+            throw "nocite-only PDF lists an entry that is neither cited nor nocited"
+        }
+    }
+    elseif ($linkXmlText -notmatch $linkedCitationPattern) {
         throw "PDF citation [1] does not contain an internal bibliography link"
     }
     if ($pdfText -match '@(fig|tbl|eq|sec):' -or $pdfText -match '@[A-Za-z][A-Za-z0-9_.:+/-]*') {

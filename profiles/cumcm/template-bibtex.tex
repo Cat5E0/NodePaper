@@ -217,7 +217,19 @@ $endif$
 % template, so that line never appears and the single declaration below is the
 % only one. Do not add another one, and do not pass -V biblio-style.
 \usepackage{gbt7714}
-\bibliographystyle{gbt7714-numerical}
+% gbt7714 renamed the styles in v3.0: gbt7714-numerical became
+% gbt7714-numeric, and the old name now emits a deprecation warning on
+% Overleaf (TeX Live 2024+) while TeX Live 2025 and older MiKTeX still ship
+% v2.x, where only the old name exists. Pick the new name when the package
+% defines it and fall back to the old one otherwise; exactly one
+% \bibliographystyle reaches the .aux either way.
+\makeatletter
+\@ifundefined{bibstyle@gbt7714-numeric}{%
+  \bibliographystyle{gbt7714-numerical}% gbt7714 v2.x (TeX Live 2023-2025, older MiKTeX)
+}{%
+  \bibliographystyle{gbt7714-numeric}% gbt7714 v3+ (Overleaf, newer TeX Live): avoids the deprecation warning
+}
+\makeatother
 \PassOptionsToPackage{unicode=true,bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,bookmarksdepth=3,pdfpagemode=UseOutlines}{hyperref}
 \usepackage{hyperref}
 \usepackage{cleveref}

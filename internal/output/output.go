@@ -185,8 +185,15 @@ func (tw *TextWriter) Export(result app.ExportResult) {
 	}
 	fmt.Fprintln(tw.W, "Next:")
 	if result.Zipped {
-		fmt.Fprintf(tw.W, "  upload \"%s\" with Overleaf > New Project > Upload Project\n", exportPath)
-		fmt.Fprintln(tw.W, "  extract the ZIP and open README.txt for local compile commands")
+		// Local TeX is the primary route and Overleaf the secondary one, so the
+		// local line comes first and the Overleaf line carries the free-plan
+		// compile cap: a full paper of this kind does not finish inside it, and
+		// a recipient who learns that only after uploading has already spent
+		// the time the notice was meant to save.
+		fmt.Fprintln(tw.W, "  extract the ZIP and open README.txt for the local compile commands")
+		fmt.Fprintf(tw.W, "  or upload \"%s\" with Overleaf > New Project > Upload Project\n", exportPath)
+		fmt.Fprintln(tw.W, "  (compiler must be XeLaTeX; Overleaf's free plan stops a compile after")
+		fmt.Fprintln(tw.W, "  10 seconds, which a full paper does not finish inside)")
 		return
 	}
 	fmt.Fprintf(tw.W, "  cd \"%s\"\n", result.ExportDir)

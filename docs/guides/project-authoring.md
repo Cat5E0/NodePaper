@@ -256,7 +256,7 @@ nodepaper clean . --all
 
 这会删除本地生成物，先确认其中没有只存在于本机、尚未备份的 PDF。
 
-## 8. 导出可编辑 LaTeX 与 Overleaf ZIP
+## 8. 导出可编辑的 LaTeX 工程
 
 `build` 生成 PDF；`export` 生成的是可编辑 LaTeX 交付物，而不是 PDF。基本的文件夹导出：
 
@@ -264,15 +264,17 @@ nodepaper clean . --all
 nodepaper export . --to ..\paper-latex
 ```
 
-需要直接上传 Overleaf 的 ZIP：
+需要一个压缩包交付（打包发给别人，或上传到接受 ZIP 的平台）：
 
 ```powershell
 nodepaper export . --to ..\paper-latex.zip
 ```
 
-`--to` 以 `.zip` 结尾时（不区分大小写）生成 ZIP；其中的文件直接放在 ZIP 根目录，不额外套一层目录。在 Overleaf 选择 **New Project → Upload Project** 后上传即可。`--to` 指向文件夹时生成目录，适合先检查或继续编辑；手动压缩时应压缩该目录的内容，而非再多包一层目录。
+`--to` 以 `.zip` 结尾时（不区分大小写）生成 ZIP；其中的文件直接放在 ZIP 根目录，不额外套一层目录。`--to` 指向文件夹时生成目录，适合先检查或继续编辑；手动压缩时应压缩该目录的内容，而非再多包一层目录。
 
-导出的文件是从 Markdown 源项目**单向**生成的。之后在 Overleaf 改动，不会回写到 Markdown 项目；长期维护仍应改源项目，再重新导出。
+导出是给**已经会用 LaTeX、要接手精修或搬进别的环境**的人用的。想要的只是 PDF 时，装本地 TeX 走 `nodepaper build` 更短。
+
+导出的文件是从 Markdown 源项目**单向**生成的。之后在 LaTeX 侧改动，不会回写到 Markdown 项目；长期维护仍应改源项目，再重新导出。
 
 常用可选项：
 
@@ -289,7 +291,11 @@ nodepaper export . --to ..\paper-latex.zip --force
 
 `--bib` 可取 `bibtex`、`biblatex` 或 `inline`。`--verify` 需要本机相应的 TeX 工具；工具缺失时会给出 Warning，导出本身仍完成。若目标不是空目录或 ZIP 已存在，默认会拒绝覆盖，应确认目标后再加 `--force`。将导出目标放在 Project 根目录内会触发提醒，因为它容易被误提交；建议使用项目外的交付目录。
 
-Overleaf 中将编译器切换为 **XeLaTeX**；如果平台没有自动选中，也把主文档设为 `paper.tex`。Linux/Overleaf 与本机的字体回退不同，版面可能有轻微差异，因此重要交付仍应在目标环境检查首页、宽表和参考文献。
+### Overleaf
+
+导出的工程可以上传 Overleaf（**New Project → Upload Project**，编译器切换为 **XeLaTeX**，必要时把主文档设为 `paper.tex`），但先看清这条限制：**Overleaf 免费版编译限时 10 秒**（[官方 Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)，付费版 240 秒）。一份完整论文几十页、要跑多遍 XeLaTeX，在 10 秒内跑不完；瓶颈在 preamble 的 ctex + xeCJK 字体实例化，冷启动下连三页的最小样本也会超时，所以**把文档改小不是可行的绕法**。要在 Overleaf 编译完整论文，需要付费会员或其 7 天免费试用；否则更顺的路线是装本地 TeX 用 `nodepaper build`。
+
+Linux/Overleaf 与本机的字体回退不同，版面可能有轻微差异，因此重要交付仍应在目标环境检查首页、宽表和参考文献。
 
 ## 9. 构建前后的最小检查清单
 
@@ -300,7 +306,7 @@ nodepaper validate .
 # 2. 生成 PDF
 nodepaper build .
 
-# 3. 需要交付给他人或 Overleaf 时，导出并在本机可用时验证
+# 3. 需要把 LaTeX 工程交付给他人时，导出并在本机可用时验证
 nodepaper export . --to ..\paper-latex.zip --verify
 ```
 
@@ -323,7 +329,7 @@ nodepaper export . --to ..\paper-latex.zip --verify
 | Fragment 未被插入或校验失败 | 检查路径是否相对 Project 根目录、是否在 `latexFragments` 白名单、`\input{...}` 是否完全一致，以及 Fragment 是否含嵌套输入或不允许的导言区命令。 |
 | 改了 `.nodepaper/build/paper.tex` 但下次又丢失 | 这是生成文件。把修改转回 Markdown、`nodepaper.yaml`、图片或已声明 Fragment。 |
 | `export` 拒绝已有目标 | 先确认不会覆盖不相关交付物，再加 `--force`。 |
-| 上传 Overleaf 后无法编译 | 检查编译器为 XeLaTeX、主文档为 `paper.tex`；再查看导出目录中的 `README.txt`。 |
+| 上传 Overleaf 后无法编译 | 先看是不是免费版 10 秒超时（见 §8 的 Overleaf 小节）；不是超时则检查编译器为 XeLaTeX、主文档为 `paper.tex`，再查看导出目录中的 `README.txt`。 |
 
 ## 当前边界与尚未提供的设置
 

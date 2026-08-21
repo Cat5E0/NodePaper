@@ -199,24 +199,17 @@ nodepaper validate
 
 先把 Validate 报出的 Diagnostic 修掉，再往下走。
 
-### 5. 出成品：导出后在 Overleaf 编译
+### 5. 出成品：导出 LaTeX 工程
 
 ```powershell
-nodepaper export . --to ..\paper-latex.zip
+nodepaper export . --to ..\paper-latex
 ```
 
-导出的不是 PDF，而是一份可独立编译的 LaTeX 工程：`paper.tex`、`references.bib`、论文实际用到的图片、`\input{}` 的 Fragment，以及一份写明编译步骤和所需宏包的 `README.txt`。
+导出的不是 PDF，而是一份可独立编译的 LaTeX 工程：`paper.tex`、`references.bib`、论文实际用到的图片、`\input{}` 的 Fragment，以及一份写明编译步骤和所需宏包的 `README.txt`。把 `--to` 指向目录会导出成文件夹；指向 `.zip` 会直接生成可在 Overleaf 上传的 ZIP。
 
-`--to` 以 `.zip` 结尾时（不区分大小写），导出会直接生成 ZIP；文件位于 ZIP 根目录，不套多余文件夹，可以在 Overleaf 选择 **New Project → Upload Project** 直接上传。把 `--to` 指向一个文件夹时，则导出为目录，适合先检查或继续编辑。
+导出是给**已经会用 LaTeX、想接手精修或搬进别的环境**的人用的。它是一条单方向的交接：导出后在别处改的内容不会回流到 Markdown 项目。
 
-- 在 **Menu → Compiler** 里选 **XeLaTeX**。Overleaf 默认是 pdfLaTeX，不改会编译失败，而报错看不出真实原因；
-- 中文字体按编译环境自动切换：Overleaf 上用 Noto CJK，你自己的 Windows 上用宋体/黑体。**版面会有细微差别，但不会掉字**。
-
-到这一步你已经能看到真实排版效果了，全程无需本地 TeX 环境。
-
-**接下来怎么选**：只想先看看效果，或者这次本来就打算交一份 LaTeX 工程，到此为止就够了。如果要反复改稿——尤其是比赛那几天——每改一版都打包上传很费时间，建议装 TeX 换成一条 `nodepaper build` 直接出 PDF。
-
-导出是**单向**的：在 Overleaf 上改的内容不会回到 Markdown 项目。把它当成交接点，不是同步。
+> **关于 Overleaf**：导出的工程可以上传 Overleaf（编译器选 XeLaTeX），但一份完整的 CUMCM 论文几十页、要跑多遍 XeLaTeX，在 Overleaf **免费版 10 秒编译限时**（[官方 Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)）内跑不完。想在 Overleaf 编译完整论文，要么用付费会员（240 秒），要么用会员的 7 天免费试用；否则更顺的路线是装本地 TeX，用下面一条 `nodepaper build` 直接出 PDF。
 
 ## 在本机直接出 PDF：安装 TeX
 
