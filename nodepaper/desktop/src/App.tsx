@@ -7,6 +7,7 @@ import { Masthead } from "./components/Masthead";
 import { Brush } from "./components/Brush";
 import { Shelf } from "./components/Shelf";
 import { Stage } from "./components/Stage";
+import { EditStage } from "./components/EditStage";
 import type { ScrollState } from "./components/Stage";
 import { Toc } from "./components/Toc";
 import { PasteLayer } from "./components/PasteLayer";
@@ -51,6 +52,7 @@ export default function App() {
   const [shelfCollapsed, setShelfCollapsed] = useState(true);
   const [tocCollapsed, setTocCollapsed] = useState(false);
   const [focus, setFocus] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   const [scrollState, setScrollState] = useState<ScrollState>({
     scrolled: false,
@@ -138,9 +140,10 @@ export default function App() {
       { label: "放大字号", onClick: sizeUp },
       { label: "缩小字号", onClick: sizeDown },
       { label: "目录", check: !tocCollapsed, onClick: () => setTocCollapsed((v) => !v) },
+      { label: "编辑模式", check: editMode, onClick: () => setEditMode((v) => !v) },
       { label: "专注模式", check: focus, onClick: () => setFocus((v) => !v) },
     ];
-  }, [handleOpen, sizeUp, sizeDown, tocCollapsed, focus]);
+  }, [handleOpen, sizeUp, sizeDown, tocCollapsed, editMode, focus]);
 
   /* 拖放（Tauri webview 原生事件，浏览器 dragdrop 在此被禁用） */
   useEffect(() => {
@@ -188,6 +191,9 @@ export default function App() {
       } else if (k === "f") {
         e.preventDefault();
         setFocus((v) => !v);
+      } else if (k === "e") {
+        e.preventDefault();
+        setEditMode((v) => !v);
       }
     };
     document.addEventListener("keydown", onKey);
@@ -202,11 +208,13 @@ export default function App() {
         shelfCollapsed={shelfCollapsed}
         tocCollapsed={tocCollapsed}
         focus={focus}
+        editMode={editMode}
         onHome={() => setMd(SAMPLE)}
         onOpen={handleOpen}
         onToggleShelf={() => setShelfCollapsed((v) => !v)}
         onToggleToc={() => setTocCollapsed((v) => !v)}
         onToggleFocus={() => setFocus((v) => !v)}
+        onToggleEdit={() => setEditMode((v) => !v)}
         onPaste={() => setPasteOpen(true)}
         onSizeUp={sizeUp}
         onSizeDown={sizeDown}
@@ -235,12 +243,22 @@ export default function App() {
         <Toc collapsed={tocCollapsed} items={toc} activeId={scrollState.activeId} />
 
         <div className="stage-wrap">
-          <Brush />
-          <Stage
-            html={html}
-            onScrollState={setScrollState}
-            buildContextMenu={buildReaderItems}
-          />
+          {!editMode && <Brush />}
+          {editMode ? (
+            <EditStage
+              md={md}
+              html={html}
+              onEdit={setMd}
+              onScrollState={setScrollState}
+              buildContextMenu={buildReaderItems}
+            />
+          ) : (
+            <Stage
+              html={html}
+              onScrollState={setScrollState}
+              buildContextMenu={buildReaderItems}
+            />
+          )}
         </div>
       </div>
 
@@ -264,6 +282,8 @@ export default function App() {
           <dd>打开文件夹</dd>
           <dt>T</dt>
           <dd>显示 / 隐藏目录</dd>
+          <dt>E</dt>
+          <dd>进入 / 退出编辑模式</dd>
           <dt>F</dt>
           <dd>进入 / 退出专注模式</dd>
           <dt>Esc</dt>

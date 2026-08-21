@@ -1,4 +1,5 @@
 // 阅读舞台：自身为滚动容器。渲染 Markdown HTML、按 h2 切 section、逐节浮起、滚动墨笔/目录高亮。
+// mode="preview" 供编辑模式右侧预览：保留滚动位置、跳过逐节动画，避免每次键入闪烁归顶。
 import { useEffect, useRef } from "react";
 import { inView, animate } from "motion";
 import { groupIntoSections } from "../lib/markdown";
@@ -14,9 +15,10 @@ interface StageProps {
   html: string;
   onScrollState: (s: ScrollState) => void;
   buildContextMenu?: () => CtxItem[];
+  mode?: "read" | "preview";
 }
 
-export function Stage({ html, onScrollState, buildContextMenu }: StageProps) {
+export function Stage({ html, onScrollState, buildContextMenu, mode = "read" }: StageProps) {
   const { open } = useContextMenu();
   const stageRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
@@ -29,26 +31,32 @@ export function Stage({ html, onScrollState, buildContextMenu }: StageProps) {
     const art = articleRef.current;
     if (!stage || !art) return;
 
+    const preview = mode === "preview";
+    const prevTop = preview ? stage.scrollTop : 0;
+
     art.innerHTML = html;
     groupIntoSections(art);
 
-    // 逐节浮起
-    const sections = art.querySelectorAll("section");
-    sections.forEach((s) => {
-      s.style.opacity = "0";
-      s.style.transform = "translateY(10px)";
-    });
-    const stopInView = inView(
-      "section",
-      (info: any) => {
-        animate(
-          info.target,
-          { opacity: [0, 1], y: [10, 0] },
-          { duration: 0.7, easing: [0.2, 0.7, 0.2, 1] } as any
-        );
-      },
-      { root: stage, margin: "0px 0px -10% 0px" }
-    );
+    // 逐节浮起（仅阅读模式；预览模式下直接可见）
+    let stopInView: (() => void) | undefined;
+    if (!preview) {
+      const sections = art.querySelectorAll("section");
+      sections.forEach((s) => {
+        s.style.opacity = "0";
+        s.style.transform = "translateY(10px)";
+      });
+      stopInView = inView(
+        "section",
+        (info: any) => {
+          animate(
+            info.target,
+            { opacity: [0, 1], y: [10, 0] },
+            { duration: 0.7, easing: [0.2, 0.7, 0.2, 1] } as any
+          );
+        },
+        { root: stage, margin: "0px 0px -10% 0px" }
+      );
+    }
 
     const headingEls = [...art.querySelectorAll<HTMLElement>("h2[id], h3[id]")];
     const brush = document.getElementById("brushHead");
@@ -79,15 +87,17 @@ export function Stage({ html, onScrollState, buildContextMenu }: StageProps) {
     };
 
     stage.addEventListener("scroll", onScroll, { passive: true });
-    stage.scrollTo({ top: 0 });
+    // 阅读模式回到顶部；预览模式保留原滚动位置
+    if (preview) stage.scrollTop = prevTop;
+    else stage.scrollTo({ top: 0 });
     update();
 
     return () => {
-      stopInView();
+      stopInView?.();
       stage.removeEventListener("scroll", onScroll);
       if (scrollRaf) cancelAnimationFrame(scrollRaf);
     };
-  }, [html]);
+  }, [html, mode]);
 
   return (
     <main

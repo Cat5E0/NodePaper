@@ -215,6 +215,63 @@ body {
 }
 .brush .head.is-reading::before { transform: translateX(-50%) scale(1); }
 
+/* ---------- 编辑模式：分栏双栏（左源码 / 右预览） ---------- */
+.edit-split {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  font-family: var(--np-font-ui);
+}
+.edit-pane {
+  flex: 0 0 50%;
+  display: flex;
+  flex-direction: column;
+  background: var(--np-surface-raise);
+  border-right: 1px solid var(--np-line);
+  min-width: 0;
+}
+.edit-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  padding: 1rem 1.3rem .7rem;
+  border-bottom: 1px solid var(--np-line-soft);
+}
+.edit-head b {
+  font-family: var(--np-font-ui);
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--np-ink-strong);
+}
+.edit-head .edit-head-en {
+  font-family: var(--np-font-display);
+  font-style: italic;
+  font-size: .85rem;
+  color: var(--np-ink-mute);
+  letter-spacing: .04em;
+}
+.edit-area {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  padding: 1.1rem 1.3rem 3rem;
+  font-family: var(--np-font-mono);
+  font-size: .84rem;
+  line-height: 1.7;
+  color: var(--np-ink-body);
+}
+.edit-area::placeholder { color: var(--np-ink-mute); }
+.edit-view {
+  flex: 1 1 50%;
+  min-width: 0;
+  display: flex;
+}
+.edit-view .stage { flex: 1 1 auto; }
+
 /* ---------- 正文排版（书房：衬线体系） ---------- */
 .article {
   font-family: var(--np-font-serif-en), var(--np-font-serif-zh);

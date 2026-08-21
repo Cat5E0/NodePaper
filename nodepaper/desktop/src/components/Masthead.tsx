@@ -20,11 +20,13 @@ interface MastheadProps {
   shelfCollapsed: boolean;
   tocCollapsed: boolean;
   focus: boolean;
+  editMode: boolean;
   onHome: () => void;
   onOpen: () => void;
   onToggleShelf: () => void;
   onToggleToc: () => void;
   onToggleFocus: () => void;
+  onToggleEdit: () => void;
   onPaste: () => void;
   onSizeUp: () => void;
   onSizeDown: () => void;
@@ -75,11 +77,13 @@ export function Masthead(props: MastheadProps) {
     shelfCollapsed,
     tocCollapsed,
     focus,
+    editMode,
     onHome,
     onOpen,
     onToggleShelf,
     onToggleToc,
     onToggleFocus,
+    onToggleEdit,
     onPaste,
     onSizeUp,
     onSizeDown,
@@ -188,6 +192,13 @@ export function Masthead(props: MastheadProps) {
                 kbd="T"
                 check={!tocCollapsed}
                 onClick={onToggleToc}
+                onClose={close}
+              />
+              <Entry
+                label="编辑模式"
+                kbd="E"
+                check={editMode}
+                onClick={onToggleEdit}
                 onClose={close}
               />
               <Entry
