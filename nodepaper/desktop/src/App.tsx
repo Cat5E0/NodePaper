@@ -8,8 +8,7 @@ import { Brush } from "./components/Brush";
 import { Shelf } from "./components/Shelf";
 import { Stage } from "./components/Stage";
 import { EditStage } from "./components/EditStage";
-import { CompileStage } from "./components/CompileStage";
-import type { CompileState } from "./components/CompileStage";
+import type { CompileState } from "./components/EditStage";
 import type { ScrollState } from "./components/Stage";
 import { Toc } from "./components/Toc";
 import { PasteLayer } from "./components/PasteLayer";
@@ -57,8 +56,8 @@ export default function App() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [shelfCollapsed, setShelfCollapsed] = useState(true);
   const [tocCollapsed, setTocCollapsed] = useState(false);
-  /* 三态工作模式：阅读 / 编辑（双栏预览）/ 编译（md → LaTeX） */
-  const [mode, setMode] = useState<"read" | "edit" | "compile">("read");
+  /* 两态工作模式：阅读 / 编辑（双栏：源码 + 预览·LaTeX·日志） */
+  const [mode, setMode] = useState<"read" | "edit">("read");
   const [compile, setCompile] = useState<CompileState | null>(null);
 
   const [scrollState, setScrollState] = useState<ScrollState>({
@@ -173,7 +172,6 @@ export default function App() {
       { label: "缩小字号", onClick: sizeDown },
       { label: "目录", check: !tocCollapsed, onClick: () => setTocCollapsed((v) => !v) },
       { label: "编辑模式", check: mode === "edit", onClick: () => setMode((m) => (m === "edit" ? "read" : "edit")) },
-      { label: "编译模式", check: mode === "compile", onClick: () => setMode((m) => (m === "compile" ? "read" : "compile")) },
     ];
   }, [handleOpen, sizeUp, sizeDown, tocCollapsed, mode]);
 
@@ -223,9 +221,6 @@ export default function App() {
       } else if (k === "e") {
         e.preventDefault();
         setMode((m) => (m === "edit" ? "read" : "edit"));
-      } else if (k === "c") {
-        e.preventDefault();
-        setMode((m) => (m === "compile" ? "read" : "compile"));
       }
     };
     document.addEventListener("keydown", onKey);
@@ -240,13 +235,11 @@ export default function App() {
         shelfCollapsed={shelfCollapsed}
         tocCollapsed={tocCollapsed}
         editMode={mode === "edit"}
-        compileMode={mode === "compile"}
         onHome={() => setMd(SAMPLE)}
         onOpen={handleOpen}
         onToggleShelf={() => setShelfCollapsed((v) => !v)}
         onToggleToc={() => setTocCollapsed((v) => !v)}
         onToggleEdit={() => setMode((m) => (m === "edit" ? "read" : "edit"))}
-        onToggleCompile={() => setMode((m) => (m === "compile" ? "read" : "compile"))}
         onPaste={() => setPasteOpen(true)}
         onSizeUp={sizeUp}
         onSizeDown={sizeDown}
@@ -280,19 +273,11 @@ export default function App() {
             <EditStage
               md={md}
               html={html}
+              compileState={compile}
               editSizeIdx={editSizeIdx}
               editSizeCount={EDIT_SIZES.length}
               onEditSizeUp={editSizeUp}
               onEditSizeDown={editSizeDown}
-              onEdit={setMd}
-              onScrollState={setScrollState}
-              buildContextMenu={buildReaderItems}
-            />
-          ) : mode === "compile" ? (
-            <CompileStage
-              md={md}
-              html={html}
-              compileState={compile}
               onEdit={setMd}
               onCompile={() => runCompile(md)}
               onScrollState={setScrollState}
@@ -330,8 +315,8 @@ export default function App() {
           <dd>显示 / 隐藏目录</dd>
           <dt>E</dt>
           <dd>进入 / 退出编辑模式</dd>
-          <dt>C</dt>
-          <dd>进入 / 退出编译模式</dd>
+          <dt>Ctrl+Enter</dt>
+          <dd>编辑模式内编译 LaTeX</dd>
           <dt>Esc</dt>
           <dd>关闭浮层、菜单</dd>
           <dt>右键</dt>

@@ -268,14 +268,7 @@ body {
   transition: font-size .15s ease;
 }
 .edit-area::placeholder { color: var(--np-ink-mute); }
-.edit-view {
-  flex: 1 1 50%;
-  min-width: 0;
-  display: flex;
-}
-.edit-view .stage { flex: 1 1 auto; }
-
-/* ---------- 编译模式：右栏为渲染/LaTeX/日志三视图 ---------- */
+/* ---------- 编辑模式右栏：预览 / LaTeX / 日志三视图 ---------- */
 .compile-view {
   flex: 1 1 50%;
   min-width: 0;
