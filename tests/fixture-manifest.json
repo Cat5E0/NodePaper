@@ -39,6 +39,14 @@
       "purpose": "full multi-file and cross-file references"
     },
     {
+      "path": "nocite-only",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "nocite-only project (no inline citations); guards the M4-23 export defect where --natbib/--biblatex do not read nocite and the exported .tex must carry \u005cnocite{...} so bibtex/biber see a citation command"
+    },
+    {
       "path": "invalid-yaml",
       "command": "validate",
       "expectedSuccess": false,

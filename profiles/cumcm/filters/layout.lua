@@ -63,6 +63,16 @@ end
 -- renewing it inside a group keeps the change from leaking. The trailing form
 -- is used when the document has no references heading at all, and there the
 -- package-drawn heading is the only one, so it is kept.
+--
+-- nocite carries the citations a Citeproc build would resolve silently from
+-- the YAML `nocite:` field. --natbib and --biblatex do not read that field, so
+-- without help here a nocite-only project (no inline [@key] anywhere) exports
+-- a .tex that contains no \citation command at all, and bibtex/biber then
+-- fails with "I found no \citation commands". nocite_block turns each Cite
+-- node the Citeproc route would have honoured into a \nocite{key} raw block,
+-- emitted immediately before \bibliography/\printbibliography so it lands
+-- inside the same references scope. It runs only on the two export routes:
+-- the Citeproc build resolves nocite itself and must stay untouched.
 local BIB_COMMANDS = {
   natbib = {
     anchored = "\\begingroup\\renewcommand{\\bibsection}{}\\bibliography{references}\\endgroup",
@@ -73,6 +83,49 @@ local BIB_COMMANDS = {
     trailing = "\\printbibliography",
   },
 }
+
+-- nocite_keys walks the `nocite` metadata the same way Citeproc does: it keeps
+-- only Cite nodes (the form `@key` parses to) and ignores bare strings such
+-- as `'*'` or a key written without `@`, which Citeproc itself does not treat as
+-- a nocite entry either. In Pandoc's Lua API a `MetaInlines` value is an Inlines
+-- list and a `MetaList` value is a list of MetaValues, so the two forms are
+-- walked uniformly by recursing one level. Duplicate keys are removed once, in
+-- first-seen order, so the exported .aux lists each entry exactly once.
+local function collect_cite_ids(node, seen, keys)
+  if node == nil or type(node) ~= "table" and type(node) ~= "userdata" then
+    return
+  end
+  if node.t == "Cite" and node.citations ~= nil then
+    for _, citation in ipairs(node.citations) do
+      local id = citation.id
+      if id ~= nil and id ~= "" and not seen[id] then
+        seen[id] = true
+        table.insert(keys, id)
+      end
+    end
+    return
+  end
+  for _, child in ipairs(node) do
+    collect_cite_ids(child, seen, keys)
+  end
+end
+
+local function nocite_keys(meta)
+  if meta == nil then
+    return {}
+  end
+  local seen = {}
+  local keys = {}
+  collect_cite_ids(meta, seen, keys)
+  return keys
+end
+
+local function nocite_block(keys)
+  if #keys == 0 then
+    return nil
+  end
+  return pandoc.RawBlock("latex", "\\nocite{" .. table.concat(keys, ",") .. "}")
+end
 
 local function add_unnumbered(header)
   if not header.classes:includes("unnumbered") then
@@ -282,6 +335,15 @@ function Pandoc(doc)
   if bib_commands ~= nil then
     bib_command = bib_index ~= nil and bib_commands.anchored or bib_commands.trailing
   end
+  -- natbib/biblatex do not read Pandoc's `nocite` metadata, so a nocite-only
+  -- project would export without a single \citation command. The raw block
+  -- is emitted just before \bibliography/\printbibliography so it shares the
+  -- same references scope; on the Citeproc route bib_commands is nil and this
+  -- stays a no-op, leaving the build's behaviour untouched.
+  local nocite_raw = nil
+  if bib_commands ~= nil then
+    nocite_raw = nocite_block(nocite_keys(doc.meta["nocite"]))
+  end
 
   local output = pandoc.List()
   for index, block in ipairs(doc.blocks) do
@@ -312,10 +374,16 @@ function Pandoc(doc)
       output:insert(block)
     end
     if bib_command ~= nil and index == bib_index then
+      if nocite_raw ~= nil then
+        output:insert(nocite_raw)
+      end
       output:insert(pandoc.RawBlock("latex", bib_command))
     end
   end
   if bib_command ~= nil and bib_index == nil then
+    if nocite_raw ~= nil then
+      output:insert(nocite_raw)
+    end
     output:insert(pandoc.RawBlock("latex", bib_command))
   end
   doc.blocks = output

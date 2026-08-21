@@ -14,6 +14,7 @@ tests/
 │   ├── powershell-baseline-valid/
 │   ├── complete-single-file/
 │   ├── complete-multi-file/
+│   ├── nocite-only/
 │   ├── invalid-yaml/
 │   ├── missing-frontmatter/
 │   ├── missing-abstract/
@@ -65,6 +66,10 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 ### `complete-multi-file`
 
 拆分为 7 个 Markdown Source，包含跨文件章节、公式、图表和文献引用。
+
+### `nocite-only`
+
+正文不含任何行内文献引用，所有参考文献条目只通过 Front Matter 的 `nocite:` 字段列出（复现 A163 风格的合法写法）。`references.bib` 还含一条既不 nocite 也不引用的条目，用于确认导出只把 nocite 键转成 `\nocite{}`。它专门固定 M4-23 修复的导出缺陷：`nodepaper export --bib bibtex|biblatex` 在 nocite-only 项目上原先会导出一份没有任何 `\citation` 命令的 `.tex`，导致 bibtex/biber 报 “I found no `\citation` commands” 失败。
 
 ## 图片
 
