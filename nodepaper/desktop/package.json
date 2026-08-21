@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "icons": "pwsh -NoProfile -File ../../scripts/build/Update-DesktopIcons.ps1"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
