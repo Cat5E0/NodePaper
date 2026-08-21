@@ -18,6 +18,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::Manager;
 
+/// .md / .markdown 后缀匹配（书架与阅读共用；不引入 regex 依赖）
+fn is_markdown_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown")
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileOutcome {
@@ -45,6 +51,95 @@ fn compile_latex(app: tauri::AppHandle, md: String) -> Result<CompileOutcome, St
         find_core_binary(app.path().resource_dir().ok().as_deref()),
     )
     .map_err(|e| e)
+}
+
+/// 书架文件条目；字段名与前端 FileEntry 约定一致
+#[derive(Debug, Serialize)]
+pub struct FileEntry {
+    /// 绝对路径，用于读取
+    pub path: String,
+    /// 相对根目录的路径（/ 分隔），用于书架展示与排序
+    pub rel: String,
+    /// 文件名
+    pub name: String,
+}
+
+/// 递归列出目录下所有 .md / .markdown 文件（书架数据源）。
+/// 跳过隐藏目录与 node_modules / target / .git 等生成物目录；
+/// 目录 symlink 不跟随，防循环。返回按 rel 排序。
+#[tauri::command]
+fn list_markdown(dir: String) -> Result<Vec<FileEntry>, String> {
+    let root = PathBuf::from(&dir);
+    if !root.is_dir() {
+        return Err(format!("目录不存在或不可读：{}", dir));
+    }
+    const SKIP_DIRS: [&str; 4] = ["node_modules", "target", ".git", ".venv"];
+    let mut out = Vec::new();
+    // 迭代式递归（栈），深度上限防御异常嵌套
+    let mut stack: Vec<(PathBuf, String, usize)> = vec![(root.clone(), String::new(), 0)];
+    while let Some((dir_path, rel_prefix, depth)) = stack.pop() {
+        if depth > 16 {
+            continue;
+        }
+        let entries = fs::read_dir(&dir_path)
+            .map_err(|e| format!("读取目录失败 {}：{}", dir_path.display(), e))?;
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            // file_type 不跟随 symlink：目录链接不入选，防循环
+            let Ok(ft) = entry.file_type() else { continue };
+            if ft.is_dir() {
+                if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
+                    continue;
+                }
+                let rel = if rel_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}/{}", rel_prefix, name)
+                };
+                stack.push((entry.path(), rel, depth + 1));
+            } else if is_markdown_name(&name) {
+                let rel = if rel_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{}/{}", rel_prefix, name)
+                };
+                out.push(FileEntry {
+                    path: entry.path().to_string_lossy().to_string(),
+                    rel,
+                    name,
+                });
+            }
+        }
+    }
+    out.sort_by(|a, b| a.rel.cmp(&b.rel));
+    Ok(out)
+}
+
+/// 读取 Markdown 文本（阅读区数据源）。
+/// 只收 .md / .markdown；大小上限 10MB，防误读巨型文件卡死渲染。
+#[tauri::command]
+fn read_markdown(path: String) -> Result<String, String> {
+    let p = Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&name) {
+        return Err(format!("仅支持 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::metadata(p).map_err(|e| format!("读取文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    const MAX_BYTES: u64 = 10 * 1024 * 1024;
+    if meta.len() > MAX_BYTES {
+        return Err(format!(
+            "文件超过 10MB 上限（{} MB）：{}",
+            meta.len() / 1024 / 1024,
+            path
+        ));
+    }
+    fs::read_to_string(p).map_err(|e| format!("读取失败 {}：{}", path, e))
 }
 
 /// 由内到外定位 profiles/cumcm：环境变量 → bundle 资源目录（打包态）→
@@ -305,8 +400,13 @@ fn run_capture(bin: &Path, args: &[&str]) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![compile_latex])
+        .invoke_handler(tauri::generate_handler![
+            compile_latex,
+            list_markdown,
+            read_markdown
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -369,6 +469,43 @@ mod tests {
         let found = found.unwrap();
         assert!(found.is_absolute(), "返回路径必须是绝对路径: {:?}", found);
         assert_eq!(found.canonicalize().ok(), fs::canonicalize(&dir).ok());
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// 文件命令：嵌套列举（跳过隐藏/生成物目录）+ 扩展名校验 + 内容读回
+    #[test]
+    fn file_commands_walk_and_read() {
+        let tmp = std::env::temp_dir().join("np-file-cmd-test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("chapters")).unwrap();
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        fs::create_dir_all(tmp.join("node_modules")).unwrap();
+        fs::write(tmp.join("paper.md"), "# 根文档\n").unwrap();
+        fs::write(tmp.join("chapters").join("c1.markdown"), "## 第一章\n").unwrap();
+        fs::write(tmp.join(".git").join("hidden.md"), "不应出现\n").unwrap();
+        fs::write(tmp.join("node_modules").join("dep.md"), "不应出现\n").unwrap();
+        fs::write(tmp.join("cover.txt"), "非 md\n").unwrap();
+
+        let items = list_markdown(tmp.to_string_lossy().to_string()).expect("列举应成功");
+        let rels: Vec<&str> = items.iter().map(|i| i.rel.as_str()).collect();
+        assert_eq!(
+            rels,
+            vec!["chapters/c1.markdown", "paper.md"],
+            "应递归且跳过生成物目录"
+        );
+        assert!(items[0].path.contains("chapters"), "path 应为绝对可读路径");
+
+        let text = read_markdown(items[1].path.clone()).expect("读回应成功");
+        assert_eq!(text, "# 根文档\n");
+
+        let err = read_markdown(tmp.join("cover.txt").to_string_lossy().to_string())
+            .expect_err("非 md 应拒绝");
+        assert!(err.contains("仅支持"), "错误应可读：{}", err);
+
+        let err = list_markdown(tmp.join("不不存在").to_string_lossy().to_string())
+            .expect_err("不存在目录应报错");
+        assert!(err.contains("目录不存在"), "错误应可读：{}", err);
+
         let _ = fs::remove_dir_all(&tmp);
     }
 
