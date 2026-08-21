@@ -3,8 +3,8 @@ param(
 )
 
 . (Join-Path $PSScriptRoot "test-common.ps1")
-$root = Get-NodePaperRepoRoot
-Push-Location $root
+$core = Get-NodePaperCoreRoot
+Push-Location $core
 try {
     Assert-GoFormatting
     Invoke-NodePaperGo -Arguments @("test", "-count=1", "./...")

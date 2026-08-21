@@ -240,7 +240,7 @@ try {
     }
     Write-Host "Go toolchain verified: $actualToolchain (pinned by go.mod)"
 
-    Push-Location $worktree
+    Push-Location (Join-Path $worktree "nodepaper\core")
     try {
         $previousGoos = $env:GOOS
         $previousGoarch = $env:GOARCH
@@ -250,7 +250,7 @@ try {
             $env:GOARCH = "amd64"
             $env:CGO_ENABLED = "0"
             Write-Host 'go build -trimpath -ldflags "-X main.version=' $Version '"'
-            & $go build -trimpath -ldflags "-X main.version=$Version" -o (Join-Path $packageDir "nodepaper.exe") ./nodepaper/core/cmd/nodepaper
+            & $go build -trimpath -ldflags "-X main.version=$Version" -o (Join-Path $packageDir "nodepaper.exe") ./cmd/nodepaper
             if ($LASTEXITCODE -ne 0) {
                 throw "go build failed with exit code $LASTEXITCODE"
             }
