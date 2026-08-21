@@ -853,6 +853,53 @@ html[data-theme="apple"] h4 { font-weight: 600; }
 }
 
 /* ============================================================
+   命名浮层（新建 / 重命名）
+   ============================================================ */
+.prompt-card { width: min(420px, 100%); }
+.prompt-body {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.2rem .2rem;
+}
+.prompt-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--np-line);
+  border-right: 0;
+  border-radius: var(--np-radius-sm) 0 0 var(--np-radius-sm);
+  background: transparent;
+  padding: .5rem .7rem;
+  font-family: var(--np-font-ui);
+  font-size: .9rem;
+  color: var(--np-ink-body);
+  outline: 0;
+}
+.prompt-input:focus-visible { border-color: var(--np-accent); }
+/* 后缀徽标贴在输入框右侧，明示将存为 .md */
+.prompt-ext {
+  flex: 0 0 auto;
+  padding: .5rem .7rem;
+  border: 1px solid var(--np-line);
+  border-radius: 0 var(--np-radius-sm) var(--np-radius-sm) 0;
+  color: var(--np-ink-mute);
+  font-family: var(--np-font-mono);
+  font-size: .8rem;
+  background: var(--np-state-hover);
+}
+.prompt-err {
+  color: var(--np-err);
+  font-size: .78rem;
+  margin: .5rem 1.2rem 0;
+  word-break: break-all;
+}
+.prompt-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+  padding: .9rem 1.2rem .9rem;
+}
+
+/* ============================================================
    环境诊断浮层
    ============================================================ */
 .doctor-card { width: min(600px, 100%); }

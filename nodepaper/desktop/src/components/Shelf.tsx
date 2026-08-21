@@ -14,6 +14,7 @@ interface ShelfProps {
   onOpenFolder: () => void;
   onCreate: () => void;
   onDelete: (entry: FileEntry) => void;
+  onRename: (entry: FileEntry) => void;
 }
 
 interface NodeProps {
@@ -22,9 +23,10 @@ interface NodeProps {
   activePath: string | null;
   onOpenFile: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
+  onRename: (entry: FileEntry) => void;
 }
 
-function NodeView({ node, depth, activePath, onOpenFile, onDelete }: NodeProps) {
+function NodeView({ node, depth, activePath, onOpenFile, onDelete, onRename }: NodeProps) {
   const { open } = useContextMenu();
   return (
     <ul className={depth === 0 ? "tree" : "tree tree-sub"}>
@@ -36,6 +38,7 @@ function NodeView({ node, depth, activePath, onOpenFile, onDelete }: NodeProps) 
           activePath={activePath}
           onOpenFile={onOpenFile}
           onDelete={onDelete}
+          onRename={onRename}
         />
       ))}
       {node.files.map((f) => (
@@ -53,6 +56,7 @@ function NodeView({ node, depth, activePath, onOpenFile, onDelete }: NodeProps) 
               open(e.clientX, e.clientY, [
                 { label: "打开", onClick: () => onOpenFile(f) },
                 { type: "sep" },
+                { label: "重命名…", onClick: () => onRename(f) },
                 { label: "删除…", onClick: () => onDelete(f) },
               ]);
             }}
@@ -71,12 +75,14 @@ function DirEntry({
   activePath,
   onOpenFile,
   onDelete,
+  onRename,
 }: {
   dir: ShelfDir;
   depth: number;
   activePath: string | null;
   onOpenFile: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
+  onRename: (entry: FileEntry) => void;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -91,6 +97,7 @@ function DirEntry({
         activePath={activePath}
         onOpenFile={onOpenFile}
         onDelete={onDelete}
+        onRename={onRename}
       />
     </li>
   );
@@ -105,6 +112,7 @@ export function Shelf({
   onOpenFolder,
   onCreate,
   onDelete,
+  onRename,
 }: ShelfProps) {
   const { open } = useContextMenu();
   return (
@@ -138,6 +146,7 @@ export function Shelf({
             activePath={activePath}
             onOpenFile={onOpenFile}
             onDelete={onDelete}
+            onRename={onRename}
           />
         ) : (
           <div className="shelf-empty">

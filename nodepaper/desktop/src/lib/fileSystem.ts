@@ -28,9 +28,14 @@ export async function readMarkdown(path: string): Promise<string> {
   return invoke<string>("read_markdown", { path });
 }
 
-/** 在目录下新建空白笔记（未命名.md，重名自动递增后缀），返回新文件条目 */
-export async function createMarkdown(dir: string): Promise<FileEntry> {
-  return invoke<FileEntry>("create_markdown", { dir });
+/** 在目录下新建空白笔记；name 为空回退 未命名.md，重名报错。返回新文件条目 */
+export async function createMarkdown(dir: string, name: string): Promise<FileEntry> {
+  return invoke<FileEntry>("create_markdown", { dir, name });
+}
+
+/** 重命名 Markdown（同目录，自动补 .md），返回新条目 */
+export async function renameMarkdown(path: string, newName: string): Promise<FileEntry> {
+  return invoke<FileEntry>("rename_markdown", { path, newName });
 }
 
 /** 删除 Markdown 文件（不可逆，调用方须先弹确认框） */

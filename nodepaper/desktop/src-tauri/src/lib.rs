@@ -151,39 +151,115 @@ fn read_markdown(path: String) -> Result<String, String> {
     fs::read_to_string(p).map_err(|e| format!("读取失败 {}：{}", path, e))
 }
 
-/// 在目录下新建空白 Markdown（未命名.md，重名自动 -2/-3 递增）。
-/// 返回新文件条目，前端刷新书架并直接打开进入编辑。
+/// 文件名清洗：去空白、拦截 Windows 保留字符与控制符、限长。
+/// 返回不含扩展名的 stem；新建与重命名共用同一规则。
+fn sanitize_stem(raw: &str) -> Result<String, String> {
+    let s = raw.trim().trim_end_matches(['.', ' ']).to_string();
+    if s.is_empty() {
+        return Err("名称不能为空".to_string());
+    }
+    if s.chars().count() > 80 {
+        return Err("名称过长（最多 80 字符）".to_string());
+    }
+    // Windows 保留字符 + 控制符；/ 与 \\ 同时阻断跨目录注入
+    if s.chars().any(|c| {
+        matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || (c as u32) < 32
+    }) {
+        return Err("名称含非法字符（/ \\ : * ? \" < > |）".to_string());
+    }
+    Ok(s)
+}
+
+/// 在目录下新建 Markdown。name 为空时回退为 未命名[-N].md；
+/// 显式命名时同名直接报错（命名环节用户应知晓冲突，不静默加后缀）。
+/// name 允许带或不带 .md/.markdown 后缀，统一存为 .md。
 #[tauri::command]
-fn create_markdown(dir: String) -> Result<FileEntry, String> {
+fn create_markdown(dir: String, name: Option<String>) -> Result<FileEntry, String> {
     let root = PathBuf::from(&dir);
     if !root.is_dir() {
         return Err(format!("目录不存在或不可读：{}", dir));
     }
-    // 找第一个不存在的 未命名[-N].md
-    let mut target: Option<PathBuf> = None;
-    for i in 1..1000u32 {
-        let stem = if i == 1 {
-            "未命名".to_string()
-        } else {
-            format!("未命名-{}", i)
-        };
-        let p = root.join(format!("{}.md", stem));
-        if !p.exists() {
-            target = Some(p);
-            break;
+    let file_name = match name {
+        // 显式命名：sanitize_stem 会拦截空白名（用户应知晓，而非静默回退匿名）
+        Some(n) => {
+            let stem = sanitize_stem(
+                n.trim()
+                    .trim_end_matches(".md")
+                    .trim_end_matches(".markdown"),
+            )?;
+            let f = format!("{}.md", stem);
+            if root.join(&f).exists() {
+                return Err(format!("同名文件已存在：{}", f));
+            }
+            f
         }
-    }
-    let path = target.ok_or("目录下同名文件过多，无法新建")?;
+        None => {
+            // 匿名新建：找第一个不存在的 未命名[-N].md
+            let mut pick = None;
+            for i in 1..1000u32 {
+                let stem = if i == 1 {
+                    "未命名".to_string()
+                } else {
+                    format!("未命名-{}", i)
+                };
+                let f = format!("{}.md", stem);
+                if !root.join(&f).exists() {
+                    pick = Some(f);
+                    break;
+                }
+            }
+            pick.ok_or("目录下同名文件过多，无法新建")?
+        }
+    };
+    let path = root.join(&file_name);
     fs::write(&path, "").map_err(|e| format!("创建失败 {}：{}", path.display(), e))?;
-    let name = path
+    Ok(FileEntry {
+        path: path.to_string_lossy().to_string(),
+        rel: file_name.clone(),
+        name: file_name,
+    })
+}
+
+/// 重命名 Markdown（同目录）。new_name 允许带或不带 .md 后缀，统一 .md。
+/// 名字实质未变时无感返回；返回条目的 rel 仅含文件名（书架刷新由前端
+/// list_markdown 重建，不依赖此值）。
+#[tauri::command]
+fn rename_markdown(path: String, new_name: String) -> Result<FileEntry, String> {
+    let p = Path::new(&path);
+    let old_name = p
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    let rel = name.clone();
+    if !is_markdown_name(&old_name) {
+        return Err(format!("仅支持重命名 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("查看文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    let stem = sanitize_stem(
+        new_name
+            .trim()
+            .trim_end_matches(".md")
+            .trim_end_matches(".markdown"),
+    )?;
+    let file_name = format!("{}.md", stem);
+    if file_name == old_name {
+        return Ok(FileEntry {
+            path: p.to_string_lossy().to_string(),
+            rel: old_name.clone(),
+            name: old_name,
+        });
+    }
+    let dest = p.parent().ok_or("无法定位父目录")?.join(&file_name);
+    if dest.exists() {
+        return Err(format!("同名文件已存在：{}", file_name));
+    }
+    fs::rename(p, &dest).map_err(|e| format!("重命名失败：{}", e))?;
     Ok(FileEntry {
-        path: path.to_string_lossy().to_string(),
-        rel,
-        name,
+        path: dest.to_string_lossy().to_string(),
+        rel: file_name.clone(),
+        name: file_name,
     })
 }
 
@@ -443,6 +519,7 @@ pub fn run() {
             list_markdown,
             read_markdown,
             create_markdown,
+            rename_markdown,
             delete_markdown,
             tools::diagnose_tools,
             tools::install_tool
@@ -545,23 +622,48 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
     }
 
-    /// 新建/删除：重名递增后缀 + 仅删 md 普通文件
+    /// 新建/重命名/删除：命名校验、重名冲突、仅操作 md 普通文件
     #[test]
-    fn create_and_delete_markdown() {
+    fn create_rename_delete_markdown() {
         let tmp = std::env::temp_dir().join("np-create-del-test");
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
 
-        let a = create_markdown(tmp.to_string_lossy().to_string()).expect("新建应成功");
+        // 匿名新建仍递增
+        let a = create_markdown(tmp.to_string_lossy().to_string(), None).expect("新建应成功");
         assert_eq!(a.name, "未命名.md");
         assert!(Path::new(&a.path).is_file(), "文件应真实存在");
-        let b = create_markdown(tmp.to_string_lossy().to_string()).expect("二次新建应成功");
+        let b = create_markdown(tmp.to_string_lossy().to_string(), None).expect("二次新建应成功");
         assert_eq!(b.name, "未命名-2.md", "重名应递增后缀");
+
+        // 显式命名：自动补 .md；重名报错；非法字符报错；空白名回退匿名规则拒绝
+        let c = create_markdown(tmp.to_string_lossy().to_string(), Some("第一章".into()))
+            .expect("显式命名应成功");
+        assert_eq!(c.name, "第一章.md");
+        let err = create_markdown(tmp.to_string_lossy().to_string(), Some("第一章.md".into()))
+            .expect_err("重名应报错");
+        assert!(err.contains("同名文件已存在"), "{}", err);
+        let err = create_markdown(tmp.to_string_lossy().to_string(), Some("a/b".into()))
+            .expect_err("路径分隔符应拒绝");
+        assert!(err.contains("非法字符"), "{}", err);
+        let err = create_markdown(tmp.to_string_lossy().to_string(), Some("  ".into()))
+            .expect_err("空白名应拒绝");
+        assert!(err.contains("不能为空"), "{}", err);
+
+        // 重命名：同目录、目标冲突报错、改名后旧路径失效
+        let renamed = rename_markdown(c.path.clone(), "开篇".into()).expect("重命名应成功");
+        assert_eq!(renamed.name, "开篇.md");
+        assert!(!Path::new(&c.path).exists());
+        assert!(Path::new(&renamed.path).is_file());
+        let err =
+            rename_markdown(renamed.path.clone(), "未命名".into()).expect_err("目标重名应报错");
+        assert!(err.contains("同名文件已存在"), "{}", err);
+        // 名字实质未变：返回原条目不报错
+        let same = rename_markdown(renamed.path.clone(), "开篇.md".into()).expect("同名应无感");
+        assert_eq!(same.path, renamed.path);
 
         delete_markdown(a.path.clone()).expect("删除应成功");
         assert!(!Path::new(&a.path).exists(), "删除后不应存在");
-
-        // 目录与符号链接拒绝删除
         let err = delete_markdown(tmp.to_string_lossy().to_string()).expect_err("目录应拒绝");
         assert!(err.contains("仅支持删除"), "错误应可读：{}", err);
 

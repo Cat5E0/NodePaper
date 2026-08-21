@@ -13,6 +13,7 @@ import type { ScrollState } from "./components/Stage";
 import { Toc } from "./components/Toc";
 import { DropVeil } from "./components/DropVeil";
 import { DoctorLayer } from "./components/DoctorLayer";
+import { PromptLayer } from "./components/PromptLayer";
 import { InfoLayer } from "./components/InfoLayer";
 import { ContextMenuProvider } from "./components/ContextMenu";
 import type { CtxItem } from "./components/ContextMenu";
@@ -26,6 +27,7 @@ import {
   listMarkdown,
   readMarkdown,
   createMarkdown,
+  renameMarkdown,
   deleteMarkdown,
   MD_RE,
 } from "./lib/fileSystem";
@@ -127,19 +129,47 @@ export default function App() {
     }
   }, [loadEntry, refreshShelf]);
 
-  /* 新建笔记：根目录下建未命名.md，刷新书架并直接打开进入编辑 */
-  const handleCreate = useCallback(async () => {
+  /* 命名浮层：新建（预填空）与重命名（预填当前名）共用
+     promptErr 存后端校验错误（重名/非法字符），浮层保持打开供修改 */
+  const [prompt, setPrompt] = useState<null | { kind: "create"; dir: string } | { kind: "rename"; entry: FileEntry }>(null);
+  const [promptErr, setPromptErr] = useState<string | null>(null);
+
+  const openCreatePrompt = useCallback(() => {
     const dir = shelf?.dir;
     if (!dir) return;
-    try {
-      const entry = await createMarkdown(dir);
-      await refreshShelf(dir);
-      loadEntry(entry);
-      setMode("edit");
-    } catch (e) {
-      console.error("新建笔记失败", e);
-    }
-  }, [shelf, refreshShelf, loadEntry]);
+    setPromptErr(null);
+    setPrompt({ kind: "create", dir });
+  }, [shelf]);
+
+  const openRenamePrompt = useCallback((entry: FileEntry) => {
+    setPromptErr(null);
+    setPrompt({ kind: "rename", entry });
+  }, []);
+
+  const handlePromptConfirm = useCallback(
+    async (name: string) => {
+      if (!prompt) return;
+      setPromptErr(null);
+      try {
+        if (prompt.kind === "create") {
+          const entry = await createMarkdown(prompt.dir, name);
+          setPrompt(null);
+          await refreshShelf(prompt.dir);
+          loadEntry(entry);
+          setMode("edit");
+        } else {
+          const entry = await renameMarkdown(prompt.entry.path, name);
+          setPrompt(null);
+          if (shelf) await refreshShelf(shelf.dir);
+          // 重命名的是当前打开的文件：跟随新路径重开（内容不变）
+          if (activePath === prompt.entry.path) loadEntry(entry);
+        }
+      } catch (e) {
+        setPromptErr(String(e));
+      }
+    },
+    [prompt, shelf, activePath, refreshShelf, loadEntry]
+  );
 
   /* 删除文件：原生确认框防误删；删的是当前文件则回示例卷首 */
   const handleDelete = useCallback(
@@ -302,8 +332,9 @@ export default function App() {
           activePath={activePath}
           onOpenFile={loadEntry}
           onOpenFolder={handleOpen}
-          onCreate={handleCreate}
+          onCreate={openCreatePrompt}
           onDelete={handleDelete}
+          onRename={openRenamePrompt}
         />
 
         <Toc collapsed={tocCollapsed} items={toc} activeId={scrollState.activeId} />
@@ -333,6 +364,22 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <PromptLayer
+        open={prompt !== null}
+        title={prompt?.kind === "rename" ? "重命名笔记" : "新建笔记"}
+        initial={
+          prompt?.kind === "rename"
+            ? prompt.entry.name.replace(/\.(md|markdown)$/i, "")
+            : "未命名"
+        }
+        error={promptErr}
+        onCancel={() => {
+          setPrompt(null);
+          setPromptErr(null);
+        }}
+        onConfirm={handlePromptConfirm}
+      />
 
       <DoctorLayer open={doctorOpen} onClose={() => setDoctorOpen(false)} />
 
