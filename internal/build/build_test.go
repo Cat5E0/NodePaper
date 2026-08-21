@@ -755,8 +755,14 @@ func TestCleanBoundariesAndActiveLock(t *testing.T) {
 		}
 	}
 
-	if diags, err := Clean(projectDir, false); err != nil || hasErrorDiagnostics(diags) {
+	root, diags, err := Clean(projectDir, false)
+	if err != nil || hasErrorDiagnostics(diags) {
 		t.Fatalf("Clean() = %#v, %v", diags, err)
+	}
+	// The resolved root, not the argument: the CLI prints this back and used to
+	// echo whatever was typed, so "clean ." reported Project: "." .
+	if !samePath(root, projectDir) {
+		t.Fatalf("Clean() root = %q, want the resolved project root %q", root, projectDir)
 	}
 	if _, err := os.Stat(buildDir); !os.IsNotExist(err) {
 		t.Fatalf("build directory remains: %v", err)
@@ -770,7 +776,7 @@ func TestCleanBoundariesAndActiveLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer held.Release()
-	diags, err := Clean(projectDir, true)
+	_, diags, err = Clean(projectDir, true)
 	if err != nil || !containsDiagnosticCode(diags, "NP1203") {
 		t.Fatalf("Clean() with lock = %#v, %v; want NP1203", diags, err)
 	}
@@ -816,6 +822,25 @@ func argumentValue(args []string, name string) string {
 
 func hasDiagnosticCode(result Result, code string) bool {
 	return containsDiagnosticCode(result.Diagnostics, code)
+}
+
+// Clean outside a project must report NP1001 as a diagnostic, not as an error.
+// Returning an error made the CLI print a bare line and, under --format json,
+// print that line instead of a JSON document - clean was the only command whose
+// machine-readable output could not be parsed.
+func TestCleanReportsMissingProjectAsDiagnostic(t *testing.T) {
+	dir := t.TempDir()
+
+	root, diags, err := Clean(dir, false)
+	if err != nil {
+		t.Fatalf("Clean() outside a project returned an error instead of a diagnostic: %v", err)
+	}
+	if root != "" {
+		t.Fatalf("Clean() root = %q, want empty when no project was found", root)
+	}
+	if !containsDiagnosticCode(diags, "NP1001") {
+		t.Fatalf("Clean() outside a project = %#v, want NP1001", diags)
+	}
 }
 
 func hasErrorDiagnostics(diags []diagnostic.Diagnostic) bool {

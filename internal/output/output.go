@@ -59,6 +59,12 @@ func (tw *TextWriter) Doctor(result app.DoctorResult) {
 	}
 	fmt.Fprintln(tw.W)
 	tw.writeSuccess(result.Success)
+	// Doctor can fail before any check runs - project discovery is the common
+	// case - and then the checks above are empty and the reason lives only in
+	// the diagnostics. Without this the text output said "Failed" and nothing
+	// else while --format json carried NP1001, which breaks the rule that both
+	// formats render the same diagnostic data.
+	tw.writeDiagnostics(result.Diagnostics)
 	if IsTerminalSuccess(result.Diagnostics, result.Success) {
 		if result.ProjectRoot == "" {
 			fmt.Fprintln(tw.W, "Next: run nodepaper init <project-directory>")

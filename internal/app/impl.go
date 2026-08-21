@@ -128,13 +128,13 @@ func (a *appImpl) Export(ctx context.Context, req ExportRequest) (ExportResult, 
 }
 
 func (a *appImpl) Clean(ctx context.Context, req CleanRequest) (CleanResult, error) {
-	diags, err := build.Clean(req.ProjectDir, req.All)
+	root, diags, err := build.Clean(req.ProjectDir, req.All)
 	if err != nil {
 		return CleanResult{}, err
 	}
 	return CleanResult{
 		Success:     !hasErrorDiags(diags),
-		ProjectRoot: req.ProjectDir,
+		ProjectRoot: root,
 		Diagnostics: diags,
 	}, nil
 }

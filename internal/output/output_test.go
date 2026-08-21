@@ -92,6 +92,30 @@ func TestTextWriterDoctorSuccess(t *testing.T) {
 	}
 }
 
+// Doctor fails before any check runs whenever project discovery fails, so the
+// checks list is empty and the reason exists only as a diagnostic. The text
+// output used to print "Failed" and nothing else here while --format json
+// carried the code, which left the operator with no way to tell why.
+func TestTextWriterDoctorRendersDiagnosticsWhenNoCheckRan(t *testing.T) {
+	var buf bytes.Buffer
+	tw := &TextWriter{W: &buf}
+
+	tw.Doctor(app.DoctorResult{
+		Success: false,
+		Diagnostics: []diagnostic.Diagnostic{
+			makeDiag(diagnostic.SeverityError, "NP1001", "NodePaper project not found from D:\\tmp.", `D:\tmp`, 0,
+				"Pass a directory containing nodepaper.yaml or run the command inside a NodePaper project."),
+		},
+	})
+
+	out := buf.String()
+	for _, needle := range []string{"NP1001", "NodePaper project not found", "Suggestion: Pass a directory containing nodepaper.yaml"} {
+		if !strings.Contains(out, needle) {
+			t.Fatalf("doctor text output dropped %q, leaving the failure unexplained:\n%s", needle, out)
+		}
+	}
+}
+
 func TestTextWriterIndentsMultiLineDiagnosticSuggestion(t *testing.T) {
 	var buf bytes.Buffer
 	tw := &TextWriter{W: &buf}

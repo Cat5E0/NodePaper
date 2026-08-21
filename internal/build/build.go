@@ -664,10 +664,24 @@ func atomicPublish(src, dst string) error {
 
 // Clean removes build artifacts from a project.
 // When all is true, dist/ is also removed.
-func Clean(projectDir string, all bool) ([]diagnostic.Diagnostic, error) {
+// Clean removes the local build outputs and returns the resolved project root
+// alongside the diagnostics. It reports a failed discovery as a diagnostic
+// rather than an error, the way Run and validate.Run do: returning an error
+// here made the CLI print a bare message and, under --format json, emit that
+// message instead of a JSON document, so clean was the one command whose
+// machine-readable output could not be parsed.
+func Clean(projectDir string, all bool) (string, []diagnostic.Diagnostic, error) {
 	p, err := project.Discover(projectDir)
 	if err != nil {
-		return nil, err
+		if de, ok := err.(*project.DiscoveryError); ok {
+			return "", []diagnostic.Diagnostic{de.Diagnostic}, nil
+		}
+		return "", []diagnostic.Diagnostic{{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1001",
+			Message:  fmt.Sprintf("cannot discover project: %v", err),
+			Source:   "clean",
+		}}, nil
 	}
 
 	var diags []diagnostic.Diagnostic
@@ -675,7 +689,7 @@ func Clean(projectDir string, all bool) ([]diagnostic.Diagnostic, error) {
 	// Check for active build lock before cleaning.
 	lockPath := buildlock.LockPath(p.Root)
 	if info, err := os.Stat(lockPath); err == nil && info.Mode().IsRegular() {
-		return []diagnostic.Diagnostic{{
+		return p.Root, []diagnostic.Diagnostic{{
 			Severity:   diagnostic.SeverityError,
 			Code:       "NP1203",
 			Message:    "Cannot clean while a build is in progress or a lock file exists.",
@@ -706,7 +720,7 @@ func Clean(projectDir string, all bool) ([]diagnostic.Diagnostic, error) {
 		}
 	}
 
-	return diags, nil
+	return p.Root, diags, nil
 }
 
 // ---------- helpers ------------------------------------------------------
