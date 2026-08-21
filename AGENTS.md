@@ -42,6 +42,7 @@ NodePaper 是面向 Windows 的命令行工具，将包含 `nodepaper.yaml` 的 
 * `scripts/`：PowerShell 构建、测试与发布脚本；`scripts/build/Build-Paper.ps1` 是 LaTeX 编译入口。
 * `profiles/`：论文 profile（当前仅 `cumcm/`，LaTeX 模板 + `profile.json`）。
 * `packaging/`：安装包与工具链清单（Inno Setup、windows-x64 工具链钉版）。
+* `CONTRIBUTING.md` 与 `CHANGELOG.md`：贡献指南与重大更改日志。
 * `licenses/` 与 `THIRD_PARTY_NOTICES.md`：第三方许可，随依赖变更同步。
 * `skills/`：项目可复用 Skill。
 * `.github/workflows/`：`ci`（gofmt/vet/test/race/govulncheck，windows-latest）、`export-linux`、`miktex-e2e`、`release-build`。
