@@ -45,9 +45,11 @@ export function Stage({ html, onScrollState, buildContextMenu, mode = "read", sc
     art.innerHTML = html;
     groupIntoSections(art);
 
-    // 逐节浮起（仅阅读模式；预览模式下直接可见）
+    // 逐节浮起（仅阅读模式；预览模式下直接可见）。
+    // 减弱动效偏好下直接呈现，不做位移揭示。
     let stopInView: (() => void) | undefined;
-    if (!preview) {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!preview && !reduceMotion) {
       const sections = art.querySelectorAll("section");
       sections.forEach((s) => {
         s.style.opacity = "0";
@@ -58,8 +60,9 @@ export function Stage({ html, onScrollState, buildContextMenu, mode = "read", sc
         (info: any) => {
           animate(
             info.target,
-            { opacity: [0, 1], y: [10, 0] },
-            { duration: 0.7, easing: [0.2, 0.7, 0.2, 1] } as any
+            // transform 字符串而非 y shorthand：直接走合成器，主线程繁忙时不掉帧
+            { opacity: [0, 1], transform: ["translateY(10px)", "translateY(0px)"] },
+            { duration: 0.45, easing: [0.2, 0.7, 0.2, 1] } as any
           );
         },
         { root: stage, margin: "0px 0px -10% 0px" }

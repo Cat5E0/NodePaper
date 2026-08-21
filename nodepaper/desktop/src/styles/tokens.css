@@ -77,6 +77,8 @@
   --np-dur-base: 200ms;
   --np-dur-slow: 350ms;
   --np-ease-out: cubic-bezier(.2, .7, .2, 1);
+  /* 屏内移动（折叠箭头、滑块）专用：对称加速减速 */
+  --np-ease-in-out: cubic-bezier(.65, 0, .35, 1);
   --np-z-base: 0;
   --np-z-brush: 5;
   --np-z-masthead: 20;

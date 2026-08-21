@@ -44,7 +44,7 @@ body {
   background: linear-gradient(to bottom, var(--np-surface-page) 60%, color-mix(in srgb, var(--np-surface-page) 0%, transparent));
   border-bottom: 1px solid transparent;
   font-family: var(--np-font-ui);
-  transition: transform var(--np-dur-slow) ease, border-color .4s ease;
+  transition: border-color .4s ease;
 }
 .masthead.is-scrolled { border-color: var(--np-line); }
 
@@ -86,9 +86,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: .4rem;
-  transition: color var(--np-dur-base) ease, background var(--np-dur-base) ease;
+  transition: color var(--np-dur-base) ease, background var(--np-dur-base) ease, transform var(--np-dur-fast) var(--np-ease-out);
 }
 .tool:hover { color: var(--np-ink-strong); background: var(--np-state-hover); }
+.tool:active { transform: scale(0.96); }
 .tool.active { color: var(--np-accent); background: var(--np-accent-chip); }
 .tool:focus-visible { outline: 2px solid var(--np-focus-ring); outline-offset: 1px; }
 .tool svg { width: 15px; height: 15px; }
@@ -211,7 +212,7 @@ body {
   border-radius: 50%;
   background: var(--np-ink-strong);
   transform: translateX(-50%) scale(var(--head-scale, .4));
-  transition: transform .3s ease;
+  transition: transform .3s var(--np-ease-out);
 }
 .brush .head.is-reading::before { transform: translateX(-50%) scale(1); }
 
@@ -630,9 +631,10 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   padding: .45rem .9rem;
   border-radius: var(--np-btn-radius);
   letter-spacing: .03em;
-  transition: all var(--np-dur-base) ease;
+  transition: color var(--np-dur-base) ease, background var(--np-dur-base) ease, border-color var(--np-dur-base) ease, transform var(--np-dur-fast) var(--np-ease-out);
 }
 .btn:hover { color: var(--np-ink-strong); border-color: var(--np-ink-mute); }
+.btn:active { transform: scale(0.97); }
 .btn.primary { background: var(--np-btn-primary-bg); border-color: var(--np-btn-primary-bg); color: var(--np-btn-primary-fg); }
 .btn.primary:hover { background: var(--np-accent-hover); border-color: var(--np-accent-hover); }
 
@@ -654,8 +656,10 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   height: 1.9rem;
   font-size: .95rem;
   font-family: var(--np-font-ui);
+  transition: color var(--np-dur-fast) var(--np-ease-out), background var(--np-dur-fast) var(--np-ease-out), transform 100ms var(--np-ease-out);
 }
 .size-ctrl button:hover { color: var(--np-ink-strong); background: var(--np-state-hover); }
+.size-ctrl button:active { transform: scale(0.9); }
 .size-ctrl span {
   padding: 0 .3rem;
   font-size: .7rem;
@@ -679,9 +683,15 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   opacity: 0;
   visibility: hidden;
   transform: translateY(-6px);
-  transition: opacity var(--np-dur-base) ease, transform var(--np-dur-base) ease, visibility var(--np-dur-base);
+  /* 退场快于进场：关闭要利落；进场跟手 */
+  transition: opacity 120ms var(--np-ease-out), transform 120ms var(--np-ease-out), visibility 120ms;
 }
-.theme-menu.open { opacity: 1; visibility: visible; transform: none; }
+.theme-menu.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity var(--np-dur-base) var(--np-ease-out), transform var(--np-dur-base) var(--np-ease-out), visibility var(--np-dur-base);
+}
 .theme-opt {
   appearance: none;
   border: 0;
@@ -699,6 +709,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   transition: background .15s ease, color .15s ease;
 }
 .theme-opt:hover { background: var(--np-state-hover); color: var(--np-ink-strong); }
+.theme-opt:active { background: var(--np-state-active); }
 .theme-opt .swatch {
   flex: 0 0 auto;
   width: 22px;
@@ -818,7 +829,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
   flex: 0 0 auto;
-  transition: transform var(--np-dur-base) ease;
+  transition: transform var(--np-dur-base) var(--np-ease-in-out);
 }
 .tree-dir.open > .tree-fold .caret { transform: rotate(90deg); }
 .tree-file a {
@@ -851,7 +862,15 @@ html[data-theme="apple"] h4 { font-weight: 600; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  /* 减弱而非清零：位移/缩放动画全部移除，
+     保留短促的颜色与透明度过渡维持状态可读 */
+  * {
+    animation: none !important;
+    transition-duration: 120ms !important;
+    transition-property: color, background-color, border-color, opacity, visibility !important;
+  }
+  .theme-menu { transform: none; }
+  .tool:active, .btn:active, .size-ctrl button:active { transform: none; }
 }
 
 /* ============================================================
@@ -940,7 +959,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   box-shadow: var(--np-menu-shadow);
   padding: .4rem;
   font-family: var(--np-font-ui);
-  animation: menuIn var(--np-dur-fast) ease;
+  animation: menuIn var(--np-dur-fast) var(--np-ease-out);
 }
 @keyframes menuIn {
   from { opacity: 0; transform: translateY(-4px); }
@@ -964,6 +983,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   transition: background .12s ease, color .12s ease;
 }
 .menu-entry:hover:not(.disabled) { background: var(--np-state-hover); color: var(--np-ink-strong); }
+.menu-entry:active:not(.disabled) { background: var(--np-state-active); }
 .menu-entry.disabled { opacity: 0.4; cursor: default; }
 .menu-entry .entry-check {
   width: 1rem;
@@ -999,7 +1019,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   box-shadow: var(--np-menu-shadow);
   padding: .4rem;
   font-family: var(--np-font-ui);
-  animation: menuIn .1s ease;
+  animation: menuIn .1s var(--np-ease-out);
 }
 .context-menu .ctx-item {
   appearance: none;
@@ -1019,6 +1039,7 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   transition: background .12s ease, color .12s ease;
 }
 .context-menu .ctx-item:hover:not(.disabled) { background: var(--np-state-hover); color: var(--np-ink-strong); }
+.context-menu .ctx-item:active:not(.disabled) { background: var(--np-state-active); }
 .context-menu .ctx-item.disabled { opacity: 0.4; cursor: default; }
 .context-menu .ctx-check {
   width: 1rem;
