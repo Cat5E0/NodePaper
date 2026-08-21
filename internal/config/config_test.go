@@ -263,3 +263,63 @@ output:
 		t.Fatalf("Output.File = %q", cfg.Output.File)
 	}
 }
+
+// M4-00 D2 confirmed titleAbstractSkip and abstractKeywordsSkip alongside
+// abstractLinespread, but only abstractLinespread was wired up: the two gaps
+// shipped as literal lengths in template.tex, so the effect existed and the knob
+// did not. These cover the defaults, the pointer that lets 0 mean "no gap"
+// rather than "unset", and the bounds.
+func TestAbstractSkipsDefaultToTheValuesTheTemplateUsedToHardCode(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.TitleAbstractSkip != nil || cfg.AbstractKeywordsSkip != nil {
+		t.Fatalf("unset fields should stay nil, got %v and %v", cfg.TitleAbstractSkip, cfg.AbstractKeywordsSkip)
+	}
+	if got := cfg.TitleAbstractSkipEm(); got != 0.5 {
+		t.Errorf("TitleAbstractSkipEm() = %v, want the 0.5em template literal", got)
+	}
+	if got := cfg.AbstractKeywordsSkipEm(); got != 0.8 {
+		t.Errorf("AbstractKeywordsSkipEm() = %v, want the 0.8em template literal", got)
+	}
+}
+
+func TestAbstractSkipsAcceptAnExplicitZero(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\ntitleAbstractSkip: 0\nabstractKeywordsSkip: 0\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	// A plain float64 field would make this indistinguishable from unset and the
+	// defaults would come back, silently ignoring the author.
+	if got := cfg.TitleAbstractSkipEm(); got != 0 {
+		t.Errorf("TitleAbstractSkipEm() = %v, want 0 to mean no gap", got)
+	}
+	if got := cfg.AbstractKeywordsSkipEm(); got != 0 {
+		t.Errorf("AbstractKeywordsSkipEm() = %v, want 0 to mean no gap", got)
+	}
+}
+
+func TestAbstractSkipsKeepConfiguredValues(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\ntitleAbstractSkip: 1.2\nabstractKeywordsSkip: 0.3\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got := cfg.TitleAbstractSkipEm(); got != 1.2 {
+		t.Errorf("TitleAbstractSkipEm() = %v, want 1.2", got)
+	}
+	if got := cfg.AbstractKeywordsSkipEm(); got != 0.3 {
+		t.Errorf("AbstractKeywordsSkipEm() = %v, want 0.3", got)
+	}
+}
+
+func TestAbstractSkipsRejectOutOfRangeValues(t *testing.T) {
+	for _, key := range []string{"titleAbstractSkip", "abstractKeywordsSkip"} {
+		for _, value := range []string{"-0.1", "5.1"} {
+			source := "version: 1\nprofile: cumcm\nsource: paper.md\n" + key + ": " + value + "\n"
+			if _, err := Parse([]byte(source)); err == nil {
+				t.Errorf("%s: %s was accepted, want a range error", key, value)
+			}
+		}
+	}
+}

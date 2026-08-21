@@ -12,6 +12,14 @@ latexFragments:
   - equations/long-objective.tex
   - figures/tikz-diagram.tex
   - figures/mpl-plot.pgf
+# Non-default abstract gaps, deliberately distinct from each other and from the
+# 0.5em / 0.8em defaults, so the E2E static contract proves the value travels the
+# whole way: nodepaper.yaml -> Go -> sources.json -> Convert script -> Pandoc
+# metadata -> template.tex. M4-00 D2 confirmed both fields in 2026-08; only
+# abstractLinespread had been wired up until then.
+titleAbstractSkip: 1.2
+abstractKeywordsSkip: 0.3
+
 appendix:
   numbering: alpha
 output:

@@ -357,7 +357,11 @@ $if(abstract)$
 % 是 \everypar 钩子而不是 @endpe 标志。这里清空 \everypar 即可，且不改动
 % center 自身的垂直间距，版面除首行缩进外保持不变。
 \everypar{}
+$if(nodepaper-title-abstract-skip)$
+\vspace{$nodepaper-title-abstract-skip$em}
+$else$
 \vspace{0.5em}
+$endif$
 $if(nodepaper-abstract-linespread)$
 {\linespread{$nodepaper-abstract-linespread$}\selectfont
 $abstract$
@@ -368,7 +372,11 @@ $endif$
 $endif$
 
 $if(keywords)$
+$if(nodepaper-abstract-keywords-skip)$
+\vspace{$nodepaper-abstract-keywords-skip$em}
+$else$
 \vspace{0.8em}
+$endif$
 \noindent{\heiti 关键词：}$for(keywords)$$keywords$$sep$；$endfor$
 $endif$
 

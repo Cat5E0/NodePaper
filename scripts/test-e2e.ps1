@@ -251,6 +251,17 @@ try {
         }
     }
     if ($Fixture -eq "layout-stress") {
+        # The fixture sets titleAbstractSkip / abstractKeywordsSkip to values that
+        # are neither the defaults nor each other, so finding both lengths here
+        # proves the whole chain carried them: nodepaper.yaml -> Go ->
+        # sources.json -> Convert script -> Pandoc metadata -> template. Before
+        # M4-00 D2's two fields were implemented these gaps were literals, and a
+        # project could not change them at all.
+        foreach ($required in @("\vspace{1.2em}", "\vspace{0.3em}")) {
+            if (-not $texText.Contains($required)) {
+                throw "layout-stress: a configured abstract gap did not reach the LaTeX: $required"
+            }
+        }
         foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}", "\input{tables/complex-result.tex}", "\input{equations/long-objective.tex}", "\input{figures/tikz-diagram.tex}", "\input{figures/mpl-plot.pgf}")) {
             if (-not $texText.Contains($required)) {
                 throw "layout-stress LaTeX contract is missing: $required"

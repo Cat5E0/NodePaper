@@ -299,23 +299,27 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		absoluteFragments = append(absoluteFragments, file.Path)
 	}
 	manifestData, err := json.MarshalIndent(struct {
-		Sources            []string `json:"sources"`
-		LatexFragments     []string `json:"latexFragments"`
-		AppendixNumbering  string   `json:"appendixNumbering"`
-		HighlightStyle     string   `json:"highlightStyle"`
-		LineSpread         float64  `json:"linespread"`
-		AbstractLineSpread float64  `json:"abstractLinespread"`
-		MathFont           string   `json:"mathFont"`
-		AppendixNewPage    bool     `json:"appendixNewPage"`
+		Sources              []string `json:"sources"`
+		LatexFragments       []string `json:"latexFragments"`
+		AppendixNumbering    string   `json:"appendixNumbering"`
+		HighlightStyle       string   `json:"highlightStyle"`
+		LineSpread           float64  `json:"linespread"`
+		AbstractLineSpread   float64  `json:"abstractLinespread"`
+		TitleAbstractSkip    float64  `json:"titleAbstractSkip"`
+		AbstractKeywordsSkip float64  `json:"abstractKeywordsSkip"`
+		MathFont             string   `json:"mathFont"`
+		AppendixNewPage      bool     `json:"appendixNewPage"`
 	}{
-		Sources:            absoluteSources,
-		LatexFragments:     absoluteFragments,
-		AppendixNumbering:  cfg.Appendix.Numbering,
-		HighlightStyle:     cfg.Highlight.Style,
-		LineSpread:         cfg.LineSpread,
-		AbstractLineSpread: cfg.AbstractLineSpread,
-		MathFont:           cfg.MathFont,
-		AppendixNewPage:    cfg.Appendix.NewPageEnabled(),
+		Sources:              absoluteSources,
+		LatexFragments:       absoluteFragments,
+		AppendixNumbering:    cfg.Appendix.Numbering,
+		HighlightStyle:       cfg.Highlight.Style,
+		LineSpread:           cfg.LineSpread,
+		AbstractLineSpread:   cfg.AbstractLineSpread,
+		TitleAbstractSkip:    cfg.TitleAbstractSkipEm(),
+		AbstractKeywordsSkip: cfg.AbstractKeywordsSkipEm(),
+		MathFont:             cfg.MathFont,
+		AppendixNewPage:      cfg.Appendix.NewPageEnabled(),
 	}, "", "  ")
 	if err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{

@@ -179,6 +179,26 @@ if ($abstractLinespread -lt 0.85 -or $abstractLinespread -gt $linespread) {
     throw "Unsupported abstractLinespread value: $abstractLinespread (allowed [0.85, linespread=$linespread])"
 }
 $abstractLinespreadMetadata = $abstractLinespread.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+# The two abstract gaps, in em. M4-00 D2 confirmed them at 0.5em and 0.8em
+# alongside abstractLinespread; the defaults below match the literals template.tex
+# carried before the fields existed, so a manifest written by an older build - or
+# by a project that sets neither - renders exactly as it did.
+$titleAbstractSkip = 0.5
+if ($null -ne $manifestValue.titleAbstractSkip) {
+    $titleAbstractSkip = [double]$manifestValue.titleAbstractSkip
+}
+if ($titleAbstractSkip -lt 0 -or $titleAbstractSkip -gt 5) {
+    throw "Unsupported titleAbstractSkip value: $titleAbstractSkip (allowed [0, 5] em)"
+}
+$titleAbstractSkipMetadata = $titleAbstractSkip.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+$abstractKeywordsSkip = 0.8
+if ($null -ne $manifestValue.abstractKeywordsSkip) {
+    $abstractKeywordsSkip = [double]$manifestValue.abstractKeywordsSkip
+}
+if ($abstractKeywordsSkip -lt 0 -or $abstractKeywordsSkip -gt 5) {
+    throw "Unsupported abstractKeywordsSkip value: $abstractKeywordsSkip (allowed [0, 5] em)"
+}
+$abstractKeywordsSkipMetadata = $abstractKeywordsSkip.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $mathFont = [string]$manifestValue.mathFont
 if ([string]::IsNullOrWhiteSpace($mathFont)) {
     $mathFont = "cm"
@@ -293,6 +313,8 @@ $arguments += @(
     "--metadata", "nodepaper-appendix-newpage=$appendixNewPageMetadata",
     "--metadata", "nodepaper-linespread=$linespreadMetadata",
     "--metadata", "nodepaper-abstract-linespread=$abstractLinespreadMetadata",
+    "--metadata", "nodepaper-title-abstract-skip=$titleAbstractSkipMetadata",
+    "--metadata", "nodepaper-abstract-keywords-skip=$abstractKeywordsSkipMetadata",
     "--metadata", "nodepaper-mathfont=$mathFont",
     "--metadata", "nodepaper-mathfont-newtx=$mathFontNewtx",
     "--metadata", "nodepaper-font-fallback=$fontFallback",
@@ -328,6 +350,8 @@ Write-Output "Appendix new page: $appendixNewPageMetadata"
 Write-Output "Highlight style: $highlightStyle"
 Write-Output "Linespread: $linespreadMetadata"
 Write-Output "Abstract linespread: $abstractLinespreadMetadata"
+Write-Output "Title-abstract skip: ${titleAbstractSkipMetadata}em"
+Write-Output "Abstract-keywords skip: ${abstractKeywordsSkipMetadata}em"
 Write-Output "Math font route: $mathFont"
 Write-Output "Pandoc command: $pandoc $($arguments -join ' ')"
 & $pandoc @arguments

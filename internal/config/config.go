@@ -22,8 +22,19 @@ type ProjectConfig struct {
 	Highlight          HighlightConfig `yaml:"highlight,omitempty"`
 	LineSpread         float64         `yaml:"linespread,omitempty"`
 	AbstractLineSpread float64         `yaml:"abstractLinespread,omitempty"`
-	MathFont           string          `yaml:"mathFont,omitempty"`
-	Output             OutputConfig    `yaml:"output,omitempty"`
+	// TitleAbstractSkip is the vertical gap between the abstract heading and
+	// the abstract body; AbstractKeywordsSkip the one between the abstract body
+	// and the keywords line. Both are in em. M4-00 D2 confirmed them together
+	// with abstractLinespread on 2026-08-06 at 0.5em and 0.8em, but only
+	// abstractLinespread was wired up: the two defaults shipped as literal
+	// \vspace lengths in template.tex, so the effect was there and the knob was
+	// not. Pointers rather than plain floats because 0 is a meaningful value
+	// here - no gap at all - and the zero-means-unset shortcut the other
+	// numeric fields use would make it unreachable.
+	TitleAbstractSkip    *float64     `yaml:"titleAbstractSkip,omitempty"`
+	AbstractKeywordsSkip *float64     `yaml:"abstractKeywordsSkip,omitempty"`
+	MathFont             string       `yaml:"mathFont,omitempty"`
+	Output               OutputConfig `yaml:"output,omitempty"`
 }
 
 // AppendixConfig controls numbering after the retained level-one appendix
@@ -38,6 +49,36 @@ type AppendixConfig struct {
 // The default is true when the field is not set.
 func (a AppendixConfig) NewPageEnabled() bool {
 	return a.NewPage == nil || *a.NewPage
+}
+
+// DefaultTitleAbstractSkipEm and DefaultAbstractKeywordsSkipEm are the M4-00 D2
+// values that template.tex carried as literals before the fields existed, so an
+// unset project renders byte-identically to before.
+const (
+	DefaultTitleAbstractSkipEm    = 0.5
+	DefaultAbstractKeywordsSkipEm = 0.8
+
+	// maxAbstractSkipEm bounds both gaps. The abstract shares page one with the
+	// title and keywords, and the point of these knobs is to keep a long
+	// abstract on that page; anything past a few em works against that, so the
+	// range is deliberately narrow rather than "any length LaTeX accepts".
+	maxAbstractSkipEm = 5.0
+)
+
+// TitleAbstractSkipEm returns the configured gap in em, or the default.
+func (c ProjectConfig) TitleAbstractSkipEm() float64 {
+	if c.TitleAbstractSkip == nil {
+		return DefaultTitleAbstractSkipEm
+	}
+	return *c.TitleAbstractSkip
+}
+
+// AbstractKeywordsSkipEm returns the configured gap in em, or the default.
+func (c ProjectConfig) AbstractKeywordsSkipEm() float64 {
+	if c.AbstractKeywordsSkip == nil {
+		return DefaultAbstractKeywordsSkipEm
+	}
+	return *c.AbstractKeywordsSkip
 }
 
 // HighlightConfig selects one of the finite, reviewed built-in Pandoc styles.
@@ -142,6 +183,20 @@ func validate(cfg ProjectConfig) error {
 	}
 	if cfg.AbstractLineSpread < 0.85 || cfg.AbstractLineSpread > cfg.LineSpread {
 		return fmt.Errorf("abstractLinespread must be between 0.85 and linespread (%v)", cfg.LineSpread)
+	}
+	for _, skip := range []struct {
+		name  string
+		value *float64
+	}{
+		{"titleAbstractSkip", cfg.TitleAbstractSkip},
+		{"abstractKeywordsSkip", cfg.AbstractKeywordsSkip},
+	} {
+		if skip.value == nil {
+			continue
+		}
+		if *skip.value < 0 || *skip.value > maxAbstractSkipEm {
+			return fmt.Errorf("%s must be between 0 and %v (em)", skip.name, maxAbstractSkipEm)
+		}
 	}
 	switch cfg.MathFont {
 	case "cm", "newtx":

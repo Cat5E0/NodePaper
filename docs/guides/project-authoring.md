@@ -86,6 +86,8 @@ reference-section-title: 参考文献
 | `highlight.style` | `tango`（默认）、`pygments` 或 `kate`。控制代码块高亮主题。 |
 | `linespread` | 正文行距，范围 `1.0`–`1.3`，默认 `1.25`。 |
 | `abstractLinespread` | 摘要与关键词区域的行距，范围 `0.85`–`linespread`，默认 `0.95`。 |
+| `titleAbstractSkip` | 摘要标题到摘要正文的垂直间距，单位 em，范围 `0`–`5`，默认 `0.5`。写 `0` 表示不留空隙。 |
+| `abstractKeywordsSkip` | 摘要正文到关键词的垂直间距，单位 em，范围 `0`–`5`，默认 `0.8`。写 `0` 表示不留空隙。 |
 | `mathFont` | `cm`（默认）或 `newtx`。 |
 | `output.file` | 可选；构建 PDF 的目标相对路径，默认 `dist/paper.pdf`。 |
 
@@ -124,6 +126,15 @@ nodepaper build .
 ```yaml
 abstractLinespread: 0.90
 ```
+
+行距压到 `0.85`（下限）仍不够时，再收摘要区的两处垂直间距——它们比行距更不容易被读者察觉：
+
+```yaml
+titleAbstractSkip: 0.2      # 摘要标题到正文，默认 0.5em
+abstractKeywordsSkip: 0.3   # 摘要正文到关键词，默认 0.8em
+```
+
+单位是 em，范围 `0`–`5`，写 `0` 就是完全不留空隙。三者都改完仍装不下，才应考虑精简摘要本身。
 
 它只作用于摘要和关键词区域，正文仍保持 `linespread` 的设定。建议从默认 `0.95` 开始，每次以 `0.01` 或 `0.02` 小步下调，运行 `nodepaper build .` 后人工检查 PDF 首页。`0.90` 是已被真实多文件语料采用的值，不是所有论文都必须使用的固定答案。
 
@@ -333,6 +344,6 @@ nodepaper export . --to ..\paper-latex.zip --verify
 
 ## 当前边界与尚未提供的设置
 
-以下不是遗漏的配置键，而是当前 v0.1 没有提供的能力：摘要段距/关键词间距的独立 YAML 设置、Markdown 表题与表注字体的独立 YAML 设置，以及对 `pgfplots` 的兼容性保证。不要自行添加看似合理的字段；配置解析会拒绝未知字段。
+以下不是遗漏的配置键，而是当前 v0.1 没有提供的能力：Markdown 表题与表注字体的独立 YAML 设置，以及对 `pgfplots` 的兼容性保证。（摘要区的两处间距原先也在此列，已于 2026-08-21 实现为 `titleAbstractSkip` 与 `abstractKeywordsSkip`，见上表。论文标题到摘要标题之间的间距仍是模板固定值，没有配置入口。）不要自行添加看似合理的字段；配置解析会拒绝未知字段。
 
 这些能力如进入后续版本，会在发布说明和本指南中明确标为可用。在此之前，应通过现有 Markdown 表格属性、受控 Fragment 或最小复现问题来处理，而不是依赖未承诺的行为。

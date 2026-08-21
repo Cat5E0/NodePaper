@@ -362,8 +362,12 @@ highlight:
   style: tango
 linespread: 1.25
 abstractLinespread: 0.95
+titleAbstractSkip: 0.5
+abstractKeywordsSkip: 0.8
 mathFont: cm
 ```
+
+`abstractLinespread` sets the line spacing of the abstract and keywords on their own. When the abstract pushes the keywords onto page two, lower it a little and re-check page one before touching the body spacing. If that is still tight, `titleAbstractSkip` (abstract heading to abstract body) and `abstractKeywordsSkip` (abstract body to keywords) tighten those two vertical gaps; both are in em, range `0`-`5`, and `0` means no gap at all.
 
 ## Markdown examples
 

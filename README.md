@@ -365,10 +365,12 @@ highlight:
   style: tango
 linespread: 1.25
 abstractLinespread: 0.95
+titleAbstractSkip: 0.5
+abstractKeywordsSkip: 0.8
 mathFont: cm
 ```
 
-`abstractLinespread` 可单独调整摘要与关键词的行距；摘要刚好把关键词挤到第二页时，优先小幅降低它并重新检查首页，而不要先改动正文行距。其他容易踩坑的写法见[用户指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/README.md)。
+`abstractLinespread` 可单独调整摘要与关键词的行距；摘要刚好把关键词挤到第二页时，优先小幅降低它并重新检查首页，而不要先改动正文行距。还嫌紧的话，`titleAbstractSkip`（摘要标题到摘要正文）和 `abstractKeywordsSkip`（摘要正文到关键词）可以再压这两处垂直间距，单位是 em，范围 `0`–`5`，写 `0` 就是不留空隙。其他容易踩坑的写法见[用户指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/README.md)。
 
 ## Markdown 示例
 
