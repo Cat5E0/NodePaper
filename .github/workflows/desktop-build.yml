@@ -34,6 +34,12 @@ jobs:
             platform: windows-x64
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - uses: pnpm/action-setup@v4
         # version 取自 package.json 的 packageManager 字段
       - uses: actions/setup-node@v4
@@ -47,6 +53,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: nodepaper/desktop/src-tauri
+      - name: 构建 Go core 到 binaries/（随 tauri 打包内嵌）
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ../desktop/binaries | Out-Null
+          if ($IsWindows) {
+            go build -o ../desktop/binaries/nodepaper-windows-x64.exe ./cmd/nodepaper
+          } else {
+            go build -o ../desktop/binaries/nodepaper-macos-aarch64 ./cmd/nodepaper
+          }
+          Get-ChildItem ../desktop/binaries
+        working-directory: nodepaper/core
       - name: pnpm install（锁文件）
         run: pnpm install --frozen-lockfile
         working-directory: nodepaper/desktop

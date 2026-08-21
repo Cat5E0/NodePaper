@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
+use tauri::Manager;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,26 +30,44 @@ pub struct CompileOutcome {
 }
 
 #[tauri::command]
-fn compile_latex(md: String) -> Result<CompileOutcome, String> {
-    let profile_dir = find_profile_dir().ok_or_else(|| {
-        "未找到 profiles/cumcm（可用环境变量 NODEPAPER_PROFILE_DIR 指定）".to_string()
-    })?;
+fn compile_latex(app: tauri::AppHandle, md: String) -> Result<CompileOutcome, String> {
+    let profile_dir =
+        find_profile_dir(app.path().resource_dir().ok().as_deref()).ok_or_else(|| {
+            "未找到 profiles/cumcm（可用环境变量 NODEPAPER_PROFILE_DIR 指定）".to_string()
+        })?;
     let pandoc = find_pandoc().ok_or_else(|| {
         "未找到 pandoc，请安装 pandoc 3.x 或用 NODEPAPER_PANDOC 指定路径".to_string()
     })?;
-    run_compile(&md, &profile_dir, &pandoc).map_err(|e| e)
+    run_compile(
+        &md,
+        &profile_dir,
+        &pandoc,
+        find_core_binary(app.path().resource_dir().ok().as_deref()),
+    )
+    .map_err(|e| e)
 }
 
-/// 由内到外定位 profiles/cumcm：环境变量 → 可执行文件祖先 → 工作目录祖先。
-/// tauri dev 工作目录是 nodepaper/desktop，仓库根在其上两级。
-fn find_profile_dir() -> Option<PathBuf> {
-    let target = Path::new("profiles/cumcm/profile.json");
+/// 由内到外定位 profiles/cumcm：环境变量 → bundle 资源目录（打包态）→
+/// 可执行文件/工作目录祖先（tauri dev 态，仓库根在其上两级）。
+/// 返回路径一律 canonicalize：相对路径会随 pandoc 子进程 cwd（临时工程）
+/// 改变含义，--template / --lua-filter 将解析失败。
+fn find_profile_dir(resource_root: Option<&Path>) -> Option<PathBuf> {
+    let absolutize = |p: PathBuf| fs::canonicalize(&p).ok().or(Some(p));
     if let Ok(env_dir) = std::env::var("NODEPAPER_PROFILE_DIR") {
         let p = PathBuf::from(env_dir);
         if p.join("profile.json").exists() {
-            return Some(p);
+            return absolutize(p);
         }
     }
+    // 打包态：bundle.resources 把 profiles/cumcm 映射到资源目录
+    if let Some(root) = resource_root {
+        let p = root.join("profiles/cumcm");
+        if p.join("profile.json").exists() {
+            return absolutize(p);
+        }
+    }
+    // dev 态：仓库根在 cwd（nodepaper/desktop）或 exe 的祖先上
+    let target = Path::new("profiles/cumcm/profile.json");
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(exe) = std::env::current_exe() {
         let mut dir = exe.parent().map(|d| d.to_path_buf());
@@ -68,7 +87,29 @@ fn find_profile_dir() -> Option<PathBuf> {
         .into_iter()
         .map(|base| base.join(target))
         .find(|p| p.exists())
-        .map(|p| p.parent().unwrap().to_path_buf())
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .and_then(absolutize)
+}
+
+/// 定位内嵌的 nodepaper core 二进制（bundle.resources 的 binaries/）。
+/// core 的 build/export 链依赖 powershell.exe 仅 Windows 可达；macOS 桌面
+/// 编译模式用 pandoc 直连。core 在位时用于未来的 validate/doctor 集成，
+/// 此处先探测并写入日志。
+fn find_core_binary(resource_root: Option<&Path>) -> Option<PathBuf> {
+    if let Ok(env_core) = std::env::var("NODEPAPER_CORE") {
+        let p = PathBuf::from(env_core);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    let root = resource_root?;
+    let name = if cfg!(windows) {
+        "nodepaper-windows-x64.exe"
+    } else {
+        "nodepaper-macos-aarch64"
+    };
+    let p = root.join("binaries").join(name);
+    p.is_file().then_some(p)
 }
 
 /// 定位 pandoc：环境变量 NODEPAPER_PANDOC → PATH。
@@ -92,7 +133,12 @@ fn find_pandoc() -> Option<PathBuf> {
 }
 
 /// 转换链主体：写临时工程 → 组装对齐参数 → 执行 pandoc → 回读 .tex。
-fn run_compile(md: &str, profile: &Path, pandoc: &Path) -> Result<CompileOutcome, String> {
+fn run_compile(
+    md: &str,
+    profile: &Path,
+    pandoc: &Path,
+    core: Option<PathBuf>,
+) -> Result<CompileOutcome, String> {
     // 目录名含 pid + 原子序号，避免同毫秒并发（如并行测试）碰撞
     static SEQ: AtomicU64 = AtomicU64::new(0);
     let stamp = SystemTime::now()
@@ -142,6 +188,19 @@ fn run_compile(md: &str, profile: &Path, pandoc: &Path) -> Result<CompileOutcome
             ));
         }
         None => log.push_str("pandoc-crossref: 未安装，跳过交叉引用编号（不影响正文转换）\n"),
+    }
+    match &core {
+        Some(p) => {
+            let v = run_capture(p, &["--version"]);
+            log.push_str(&format!(
+                "nodepaper-core: {} ({})\n",
+                v.lines().next().unwrap_or("未知版本").trim(),
+                p.display()
+            ));
+        }
+        None => log.push_str(
+            "nodepaper-core: 未内嵌（build/export 链仅 Windows 可达，编译模式已用 pandoc 直连）\n",
+        ),
     }
 
     // 资源搜索路径：临时工程 + profile（分隔符平台差异：Windows ; / unix :）
@@ -255,12 +314,22 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    /// 环境变量锁：find_profile_dir 依赖进程级 env，并行测试会互相污染。
+    /// 涉及 NODEPAPER_* env 的测试段必须持有此锁。
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn env_lock() -> MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     /// 真实链路测试：需要 pandoc。未安装时跳过（CI 无 pandoc 环境不红）。
     /// NODEPAPER_PANDOC / NODEPAPER_PROFILE_DIR 可注入测试工具路径。
     #[test]
     fn compile_sample_md_to_latex() {
-        let profile = match find_profile_dir() {
+        let _guard = env_lock();
+        let profile = match find_profile_dir(None) {
             Some(p) => p,
             None => {
                 eprintln!("skip: 未找到 profiles/cumcm");
@@ -275,15 +344,38 @@ mod tests {
             }
         };
         let md = "# 摘要之前的标题\n\n::: abstract\n这是一段摘要，用于验证 extract-abstract 过滤器。\n:::\n\n## 第一节点\n\n正文一段，含 **加粗** 与 `code`。\n\n$$E = mc^2$$\n";
-        let out = run_compile(md, &profile, &pandoc).expect("转换应成功");
+        let out = run_compile(md, &profile, &pandoc, None).expect("转换应成功");
         assert!(out.tex.contains("\\documentclass"), "应生成完整 LaTeX 文档");
         assert!(out.tex.contains("第一节点"), "正文应进入 .tex");
         assert!(out.log.contains("Pandoc"), "日志应含 pandoc 版本");
+        assert!(
+            out.log.contains("nodepaper-core"),
+            "日志应报告 core 探测结果: {}",
+            out.log
+        );
+    }
+
+    /// 资源目录解析：模拟打包态 layout（resource_root 下有 profiles/cumcm）
+    #[test]
+    fn profile_resolves_from_resource_root() {
+        let _guard = env_lock();
+        std::env::remove_var("NODEPAPER_PROFILE_DIR");
+        let tmp = std::env::temp_dir().join("np-resource-root-test");
+        let dir = tmp.join("profiles/cumcm");
+        fs::create_dir_all(&dir).expect("建目录");
+        fs::write(dir.join("profile.json"), "{}").expect("写标记");
+        let found = find_profile_dir(Some(&tmp));
+        assert!(found.is_some(), "应从资源目录命中");
+        let found = found.unwrap();
+        assert!(found.is_absolute(), "返回路径必须是绝对路径: {:?}", found);
+        assert_eq!(found.canonicalize().ok(), fs::canonicalize(&dir).ok());
+        let _ = fs::remove_dir_all(&tmp);
     }
 
     #[test]
     fn fail_path_reports_stderr() {
-        let profile = match find_profile_dir() {
+        let _guard = env_lock();
+        let profile = match find_profile_dir(None) {
             Some(p) => p,
             None => {
                 eprintln!("skip: 未找到 profiles/cumcm");
@@ -299,8 +391,13 @@ mod tests {
         };
         // citeproc 对未收录引用报 warning，--fail-if-warnings 将其升级为硬错误；
         // 这是用户真实会碰到的失败（引了 bib 里没有的文献），核心链同样失败
-        let err = run_compile("# t\n\n引用不存在条目 [@missing-ref]\n", &profile, &pandoc)
-            .expect_err("未收录引用应失败");
+        let err = run_compile(
+            "# t\n\n引用不存在条目 [@missing-ref]\n",
+            &profile,
+            &pandoc,
+            None,
+        )
+        .expect_err("未收录引用应失败");
         assert!(err.contains("转换失败"), "错误信息应可读：{}", err);
     }
 }

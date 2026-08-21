@@ -29,7 +29,7 @@
 *.bbl
 *.blg
 *.run.xml
-skill/
+skills/
 AGENTS.md
 # Compiled outputs at project root
 /Paper.pdf
@@ -40,6 +40,8 @@ AGENTS.md
 # Bundled third-party binaries and pinned build toolchains (fetched, verified
 # and never committed)
 /tools/
+# 桌面端内嵌的 nodepaper core 二进制（desktop-build/desktop CI 构建时生成）
+/nodepaper/desktop/binaries/
 
 # Python
 __pycache__/
