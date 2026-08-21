@@ -1,0 +1,95 @@
+% Fictional entries for NodePaper citation-shape regression only.
+% Citation numbers are assigned by order of first appearance in paper.md, so
+% the order of first use below is what pins the expected numbering:
+%   zhao2024scheduling -> 1   (cited three times, one of them glued to CJK)
+%   qian2023network    -> 2   (glued to CJK, mid-sentence)
+%   sun2022range / zhou2022range   -> 3, 4  (two consecutive numbers)
+%   wu2021triple / xu2021triple / yan2021triple -> 5, 6, 7 (three consecutive)
+%   listed2020nocite   -> 8   (nocite only: in the list, no inline marker)
+%   unused2019entry          (neither cited nor nocited: must never appear)
+
+@article{zhao2024scheduling,
+  author  = {赵敏 and 孙立},
+  title   = {虚构城市共享单车调度序列的分段求解方法（测试条目）},
+  journal = {虚构系统工程学报},
+  year    = {2024},
+  volume  = {14},
+  number  = {2},
+  pages   = {40--55},
+  note    = {仅用于 NodePaper 引用形态测试}
+}
+
+@article{qian2023network,
+  author  = {钱伟},
+  title   = {虚构站点网络的容量约束建模（测试条目）},
+  journal = {虚构运筹学报},
+  year    = {2023},
+  volume  = {9},
+  number  = {4},
+  pages   = {12--26},
+  note    = {仅用于 NodePaper 引用形态测试}
+}
+
+@article{sun2022range,
+  author  = {孙彤},
+  title   = {虚构需求序列的平滑处理（测试条目其一）},
+  journal = {虚构应用数学通报},
+  year    = {2022},
+  volume  = {5},
+  number  = {1},
+  pages   = {1--9},
+  note    = {与 zhou2022range 成对，用于两个连续序号的合并形态}
+}
+
+@article{zhou2022range,
+  author  = {周凯},
+  title   = {虚构需求序列的平滑处理（测试条目其二）},
+  journal = {虚构应用数学通报},
+  year    = {2022},
+  volume  = {5},
+  number  = {2},
+  pages   = {10--18},
+  note    = {与 sun2022range 成对，用于两个连续序号的合并形态}
+}
+
+@inproceedings{wu2021triple,
+  author    = {吴桐},
+  title     = {虚构调度算法比较（测试条目其一）},
+  booktitle = {虚构建模方法研讨会论文集},
+  year      = {2021},
+  pages     = {61--68},
+  note      = {与 xu2021triple、yan2021triple 三者连号，用于三个连续序号的范围形态}
+}
+
+@inproceedings{xu2021triple,
+  author    = {徐岚},
+  title     = {虚构调度算法比较（测试条目其二）},
+  booktitle = {虚构建模方法研讨会论文集},
+  year      = {2021},
+  pages     = {69--76},
+  note      = {与 wu2021triple、yan2021triple 三者连号}
+}
+
+@inproceedings{yan2021triple,
+  author    = {严宇},
+  title     = {虚构调度算法比较（测试条目其三）},
+  booktitle = {虚构建模方法研讨会论文集},
+  year      = {2021},
+  pages     = {77--84},
+  note      = {与 wu2021triple、xu2021triple 三者连号}
+}
+
+@book{listed2020nocite,
+  author    = {林致},
+  title     = {虚构建模方法导论（仅经 nocite 列出）},
+  publisher = {虚构高等教育出版社},
+  year      = {2020},
+  note      = {正文没有任何行内引用指向它，只通过 Front Matter 的 nocite 进入文献表}
+}
+
+@misc{unused2019entry,
+  author = {Test, Unused},
+  title  = {An Entry That Is Neither Cited Nor Nocited},
+  year   = {2019},
+  note   = {Must never reach the reference list or an exported \nocite: guards the uncited-entry exclusion}
+}

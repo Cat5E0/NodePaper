@@ -47,6 +47,14 @@
       "purpose": "nocite-only project (no inline citations); guards the M4-23 export defect where --natbib/--biblatex do not read nocite and the exported .tex must carry \u005cnocite{...} so bibtex/biber see a citation command"
     },
     {
+      "path": "citation-shapes",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "inline citation shapes no other fixture covers: a marker glued to a CJK character mid-sentence, one key cited three times, inline citations coexisting with nocite, and two vs three consecutive citation numbers; also the reproduction case for the open questions on marker spacing next to CJK and on the range-collapse threshold"
+    },
+    {
       "path": "invalid-yaml",
       "command": "validate",
       "expectedSuccess": false,

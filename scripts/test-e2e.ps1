@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $inspectDir = ""
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
-    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "tikz-basic", "pgf-basic", "layout-stress")) {
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "tikz-basic", "pgf-basic", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
     # One extra pass over the smallest fixture, under a path containing "~".
@@ -223,6 +223,26 @@ try {
     elseif (-not $texText.Contains("\citeproc{ref-")) {
         throw "generated LaTeX does not contain linked Citeproc citations"
     }
+    # citation-shapes pins the inline-citation shapes no other fixture carries:
+    # a key cited more than once must resolve to one shared target, a key that
+    # arrives only through nocite must still reach the reference list, and a key
+    # that is neither cited nor nocited must reach neither. The rendered form of
+    # the marker itself (spacing next to CJK, and whether two consecutive
+    # numbers collapse to a range) is deliberately NOT asserted: those are open
+    # typography questions for the maintainer, and pinning today's output would
+    # turn an undecided question into a golden.
+    if ($Fixture -eq "citation-shapes") {
+        $repeated = ([regex]::Matches($texText, [regex]::Escape("\citeproc{ref-zhao2024scheduling}"))).Count
+        if ($repeated -ne 3) {
+            throw "citation-shapes: the thrice-cited key resolved to $repeated linked citations, want 3"
+        }
+        if (-not $texText.Contains("ref-listed2020nocite")) {
+            throw "citation-shapes: the nocite-only entry is missing from the reference list"
+        }
+        if ($texText.Contains("unused2019entry")) {
+            throw "citation-shapes: an entry that is neither cited nor nocited reached the generated LaTeX"
+        }
+    }
     if ($Fixture -eq "highlight-showcase") {
         foreach ($required in @("\RecustomVerbatimEnvironment{Highlighting}", "breaknonspaceingroup=true", "\definecolor{nodepapercodeframe}", "\begin{mdframed}")) {
             if (-not $texText.Contains($required)) {
@@ -317,15 +337,32 @@ try {
         throw "two builds did not create distinct log files"
     }
 
-    # M4-23 regression: a nocite-only project (no inline [@key] anywhere) must
-    # export a .tex that carries \nocite{...}, because --natbib and --biblatex
-    # do not read Pandoc's nocite metadata and bibtex/biber otherwise see no
-    # \citation command. The Citeproc build above proves nocite works on the
-    # main route; this block fixes the export routes that the Citeproc proof
-    # does not cover. It runs only for the fixture written to exercise it, so
-    # the other E2E cases keep their existing shape and runtime.
-    if ($Fixture -eq "nocite-only") {
-        $exportWorkRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-nocite-export-" + [Guid]::NewGuid().ToString("N"))
+    # Export-route bibliography regression. --natbib and --biblatex do not read
+    # Pandoc's nocite metadata, so entries that arrive only through nocite would
+    # leave the exported .tex with no \citation command at all and fail
+    # bibtex/biber (M4-23). The Citeproc build above proves the main route; this
+    # block covers the export routes that proof cannot reach. Two fixtures drive
+    # it, each with its own expectations, so the remaining E2E cases keep their
+    # existing shape and runtime:
+    #   nocite-only     - nocite is the only source of entries
+    #   citation-shapes - inline citations and nocite together, which is the
+    #                     combination a faithful real paper needs and which the
+    #                     emitted \nocite must not disturb
+    $exportExpectations = @{
+        "nocite-only" = @{
+            RequiredNocite         = "\nocite{wang2024bikesharing,smith2023forecast}"
+            ForbiddenKey           = "unused2020entry"
+            RequiresInlineCitation = $false
+        }
+        "citation-shapes" = @{
+            RequiredNocite         = "\nocite{listed2020nocite}"
+            ForbiddenKey           = "unused2019entry"
+            RequiresInlineCitation = $true
+        }
+    }
+    if ($exportExpectations.ContainsKey($Fixture)) {
+        $expect = $exportExpectations[$Fixture]
+        $exportWorkRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-export-regression-" + [Guid]::NewGuid().ToString("N"))
         $exportSource = Join-Path $exportWorkRoot "project"
         New-Item -ItemType Directory -Force -Path $exportSource | Out-Null
         Copy-Item -Path (Join-Path $fixtureRoot "*") -Destination $exportSource -Recurse -Force
@@ -334,24 +371,37 @@ try {
                 $exportTarget = Join-Path $exportWorkRoot "latex-$bibMode"
                 & $exePath export $exportSource --to $exportTarget --bib $bibMode --format json
                 if ($LASTEXITCODE -ne 0) {
-                    throw "nocite-only export --bib $bibMode failed with exit code $LASTEXITCODE"
+                    throw "$Fixture export --bib $bibMode failed with exit code $LASTEXITCODE"
                 }
                 $exportedTex = Join-Path $exportTarget "paper.tex"
                 if (-not (Test-Path -LiteralPath $exportedTex -PathType Leaf)) {
-                    throw "nocite-only export --bib $bibMode produced no paper.tex: $exportedTex"
+                    throw "$Fixture export --bib $bibMode produced no paper.tex: $exportedTex"
                 }
                 $exportedTexText = Get-Content -LiteralPath $exportedTex -Raw -Encoding UTF8
-                # The two nocite keys must arrive as one \nocite{} command,
+                # The nocite keys must arrive as one \nocite{} command,
                 # immediately before \bibliography{references} / \printbibliography,
                 # so bibtex/biber record a citation command instead of failing.
-                if (-not $exportedTexText.Contains("\nocite{wang2024bikesharing,smith2023forecast}")) {
-                    throw "nocite-only export --bib $bibMode did not emit \nocite with the nocite keys: $exportedTex"
+                if (-not $exportedTexText.Contains($expect.RequiredNocite)) {
+                    throw "$Fixture export --bib $bibMode did not emit $($expect.RequiredNocite): $exportedTex"
                 }
                 # An entry that is neither cited nor in nocite must not be
                 # forced into the reference list; the exported .tex must not
-                # name it in a \nocite.
-                if ($exportedTexText -match '\\nocite\{[^}]*unused2020entry') {
-                    throw "nocite-only export --bib $bibMode pulled an uncited entry into \nocite: $exportedTex"
+                # name it in a \nocite, nor anywhere else.
+                if ($exportedTexText -match ('\\nocite\{[^}]*' + [regex]::Escape($expect.ForbiddenKey))) {
+                    throw "$Fixture export --bib $bibMode pulled an uncited entry into \nocite: $exportedTex"
+                }
+                if ($expect.RequiresInlineCitation) {
+                    # The emitted \nocite must not replace or suppress the real
+                    # inline citations: both have to reach the same .tex, which
+                    # is the shape a paper that cites some entries and merely
+                    # lists others depends on.
+                    $inlineCommand = if ($bibMode -eq "bibtex") { "\citep{" } else { "\autocite{" }
+                    if (-not $exportedTexText.Contains($inlineCommand)) {
+                        throw "$Fixture export --bib $bibMode lost its inline citations ($inlineCommand missing): $exportedTex"
+                    }
+                    if ($exportedTexText.Contains($expect.ForbiddenKey)) {
+                        throw "$Fixture export --bib $bibMode carries the neither-cited-nor-nocited key: $exportedTex"
+                    }
                 }
             }
             # inline mode renders the reference list into the .tex itself
@@ -359,12 +409,12 @@ try {
             # LaTeX with no bibtex pass to read it.
             & $exePath export $exportSource --to (Join-Path $exportWorkRoot "latex-inline") --bib inline --format json
             if ($LASTEXITCODE -ne 0) {
-                throw "nocite-only export --bib inline failed with exit code $LASTEXITCODE"
+                throw "$Fixture export --bib inline failed with exit code $LASTEXITCODE"
             }
             $inlineTex = Join-Path $exportWorkRoot "latex-inline\paper.tex"
             $inlineTexText = Get-Content -LiteralPath $inlineTex -Raw -Encoding UTF8
             if ($inlineTexText -match '\\nocite\{') {
-                throw "nocite-only export --bib inline emitted a \nocite command: $inlineTex"
+                throw "$Fixture export --bib inline emitted a \nocite command: $inlineTex"
             }
         }
         finally {
@@ -485,8 +535,17 @@ try {
         }
     }
     $referencesHeading = ([string][char]0x53C2) + ([char]0x8003) + ([char]0x6587) + ([char]0x732E)
-    if (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains("Demand Forecasting for Shared Mobility Systems")) {
-        throw "PDF is missing the Citeproc-generated bibliography"
+    # The probe is one bibliography entry that must have rendered, so an empty
+    # or dropped reference list fails here rather than passing on the heading
+    # alone. Most fixtures share one bib and so share the default probe;
+    # citation-shapes ships its own entries and names its own. Keep every probe
+    # ASCII so this file needs no [char] construction for it.
+    $bibliographyProbe = switch ($Fixture) {
+        "citation-shapes" { "2021: 61-68" }
+        default           { "Demand Forecasting for Shared Mobility Systems" }
+    }
+    if (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains($bibliographyProbe)) {
+        throw "PDF is missing the Citeproc-generated bibliography (probe: $bibliographyProbe)"
     }
     $linkBase = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-links-" + [Guid]::NewGuid().ToString("N"))
     & $pdfToHtml.Source -xml -hidden -nodrm $pdf $linkBase | Out-Null
@@ -519,6 +578,9 @@ try {
         throw "PDF contains an unresolved citation or cross-reference"
     }
 
+    if ($Fixture -eq "citation-shapes" -and $pdfText.Contains("Neither Cited")) {
+        throw "citation-shapes PDF lists the entry that is neither cited nor nocited"
+    }
     if ($Fixture -eq "tikz-basic" -and -not $pdfText.Contains("NP-TIKZ-BASIC-01")) {
         throw "tikz-basic PDF is missing its compiled Fragment marker"
     }

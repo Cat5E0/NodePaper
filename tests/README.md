@@ -15,6 +15,7 @@ tests/
 │   ├── complete-single-file/
 │   ├── complete-multi-file/
 │   ├── nocite-only/
+│   ├── citation-shapes/
 │   ├── invalid-yaml/
 │   ├── missing-frontmatter/
 │   ├── missing-abstract/
@@ -71,6 +72,19 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 
 正文不含任何行内文献引用，所有参考文献条目只通过 Front Matter 的 `nocite:` 字段列出（复现 A163 风格的合法写法）。`references.bib` 还含一条既不 nocite 也不引用的条目，用于确认导出只把 nocite 键转成 `\nocite{}`。它专门固定 M4-23 修复的导出缺陷：`nodepaper export --bib bibtex|biblatex` 在 nocite-only 项目上原先会导出一份没有任何 `\citation` 命令的 `.tex`，导致 bibtex/biber 报 “I found no `\citation` commands” 失败。
 
+### `citation-shapes`
+
+固定其他 Fixture 都不覆盖的行内引用写法。既有 Fixture 的引用一律是「空格 + 方括号 + 句末」，而真实论文里的引用常常紧贴中文、出现在句中。本 Fixture 覆盖四种形态：
+
+- **引用标记紧贴 CJK 字符且位于句中**（`……甲类站点网络[@key]和乙类站点网络[@key2]等`）；
+- **同一引用键在不同位置被引用三次**，须解析为同一个链接目标与同一序号；
+- **行内引用与 `nocite` 并存**——这是「引用了一部分、只列出另一部分」的真实论文所需的组合，`nocite` 补发的 `\nocite{}` 不得挤掉真实的行内引用；
+- **两个与三个连续序号**各一组，用于固定合并行为的差异。
+
+`references.bib` 的注释写明了各键的首次出现顺序即预期序号（1～8），另含一条既不引用也不 nocite 的条目，用于确认它既不进文献表也不进导出的 `\nocite{}`。
+
+本 Fixture 同时是两个**尚未定性**的排版问题的复现用例：① citeproc 路由在上标引用标记后留有空隙（`问题[1] 。`），而导出的 gbt7714 路由紧贴（`问题[1]。`）；② 连续序号的合并阈值不同——citeproc 三个连续才压成 `[5–7]`（en dash）、两个留 `[3,4]`，gbt7714 两个即压成 `[3-4]`（hyphen）。**E2E 刻意不断言标记的渲染形态**，只断言结构（同键同目标、nocite 键入表、未引用条目不入表），以免把未拍板的取舍固化成 Golden。
+
 ## 图片
 
 图片已经包含在 Fixture 中：
@@ -118,7 +132,7 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 - `[@key]` 与 `[@key1; @key2]` 文献引用；
 - 跨 Source 的 `@sec:`、`@fig:`、`@tbl:` 和 `@eq:` 引用。
 
-不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file`、`nocite-only`、`tikz-basic`、`pgf-basic` 和 `layout-stress`，随后用 `-TildeWorkRoot` 再跑一遍 `minimal-valid`，共 8 个场景。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
+不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file`、`nocite-only`、`citation-shapes`、`tikz-basic`、`pgf-basic` 和 `layout-stress`，随后用 `-TildeWorkRoot` 再跑一遍 `minimal-valid`，共 9 个场景。其中 `nocite-only` 与 `citation-shapes` 额外触发导出路由的文献回归块（`--bib bibtex|biblatex|inline` 三种模式）。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
 
 `layout-stress` 覆盖受控 LaTeX Fragment、跨页长表格、多页代码、Pandoc 内置高亮、长 URL/路径、公式、图片、脚注和附录。`highlight-showcase` 只用于 Tango、Pygments、Kate 的聚焦视觉比较，不承担完整排版压力验收。E2E 检查生成 LaTeX 契约、A4、PDF 文字顺序与边界、字体嵌入、稳定标记、零关键 Warning，并支持：
 
