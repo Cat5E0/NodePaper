@@ -14,6 +14,7 @@ import { Toc } from "./components/Toc";
 import { DropVeil } from "./components/DropVeil";
 import { DoctorLayer } from "./components/DoctorLayer";
 import { PromptLayer } from "./components/PromptLayer";
+import { PenLine } from "lucide-react";
 import { InfoLayer } from "./components/InfoLayer";
 import { ContextMenuProvider } from "./components/ContextMenu";
 import type { CtxItem } from "./components/ContextMenu";
@@ -355,12 +356,30 @@ export default function App() {
               onScrollState={setScrollState}
               buildContextMenu={buildReaderItems}
             />
-          ) : (
+          ) : md.trim() ? (
             <Stage
               html={html}
               onScrollState={setScrollState}
               buildContextMenu={buildReaderItems}
             />
+          ) : (
+            /* 空文档引导：新建笔记/清空内容后的阅读态，指向编辑而非空白页 */
+            <div className="stage empty-stage" role="status">
+              <div className="empty-hint">
+                <PenLine size={22} />
+                <p>这篇笔记还是空的</p>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => setMode("edit")}
+                >
+                  进入编辑模式
+                </button>
+                <span className="empty-kbd">
+                  或按 <kbd>E</kbd>
+                </span>
+              </div>
+            </div>
           )}
         </div>
       </div>

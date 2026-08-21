@@ -853,6 +853,41 @@ html[data-theme="apple"] h4 { font-weight: 600; }
 }
 
 /* ============================================================
+   空文档引导（阅读态 + 无内容时指向编辑模式）
+   ============================================================ */
+.empty-stage {
+  display: grid;
+  place-items: center;
+}
+.empty-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .8rem;
+  color: var(--np-ink-mute);
+  text-align: center;
+  padding: 2rem;
+}
+.empty-hint svg { color: var(--np-ink-mute); opacity: .55; }
+.empty-hint p {
+  margin: 0;
+  font-family: var(--np-font-serif-en), var(--np-font-serif-zh);
+  font-size: 1.02rem;
+  color: var(--np-ink-soft);
+}
+.empty-kbd {
+  font-size: .76rem;
+  color: var(--np-ink-mute);
+}
+.empty-kbd kbd {
+  font-family: var(--np-font-mono);
+  border: 1px solid var(--np-line);
+  border-radius: var(--np-radius-xs);
+  padding: 0 .35em;
+  background: var(--np-state-hover);
+}
+
+/* ============================================================
    命名浮层（新建 / 重命名）
    ============================================================ */
 .prompt-card { width: min(420px, 100%); }
