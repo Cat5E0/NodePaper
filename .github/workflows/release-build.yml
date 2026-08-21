@@ -9,6 +9,23 @@
 # Windows 10), the PDF manual review and the release checklist, then creates
 # the GitHub Release draft manually. `scripts/test-release.ps1` is the
 # mechanical validation entry for that exact ZIP.
+#
+# Deliberately not triggered by pushing a tag. Two reasons, in order:
+#
+#   1. One version means one build. Building here as well as locally would put
+#      two artifacts with different hashes behind the same version number,
+#      which is the failure DESIGN.md's "version number and build identity"
+#      section exists to prevent -- rc.9 once labelled two different builds.
+#      The artifact the maintainer verified is the artifact that ships.
+#   2. It could not have worked anyway. On a tag push actions/checkout force
+#      fetches the resolved commit into refs/tags/<tag>, replacing the
+#      annotated tag object with a lightweight ref, so the `git cat-file -t`
+#      check that Assert-NodePaperBuildIdentity requires for every public
+#      stage sees "commit" instead of "tag". v0.1.0-beta.1 was the repository's
+#      first tag ever, so the run it triggered was also the first to expose
+#      this; it failed without producing an artifact and without touching the
+#      release, which had been built and verified locally from the real
+#      annotated tag.
 
 name: release-build
 
@@ -29,9 +46,6 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: read
