@@ -7,10 +7,10 @@
 **/dist/
 
 # Lock-state Fixture inputs are source test data, not generated artifacts.
-!tests/fixtures/damaged-lock/.nodepaper/
-!tests/fixtures/damaged-lock/.nodepaper/build.lock
-!tests/fixtures/stale-lock/.nodepaper/
-!tests/fixtures/stale-lock/.nodepaper/build.lock
+!nodepaper/core/tests/fixtures/damaged-lock/.nodepaper/
+!nodepaper/core/tests/fixtures/damaged-lock/.nodepaper/build.lock
+!nodepaper/core/tests/fixtures/stale-lock/.nodepaper/
+!nodepaper/core/tests/fixtures/stale-lock/.nodepaper/build.lock
 
 # Logs
 /logs/
@@ -29,7 +29,8 @@
 *.bbl
 *.blg
 *.run.xml
-
+skill/
+AGENTS.md
 # Compiled outputs at project root
 /Paper.pdf
 /Paper.tex

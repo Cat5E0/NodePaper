@@ -228,7 +228,7 @@ try {
     # as a failure -- which is how rc.3 through rc.7 were built on a different
     # toolchain from rc.2 and rc.8 without anyone noticing.
     $expectedToolchain = ""
-    foreach ($line in (Get-Content -LiteralPath (Join-Path $worktree "go.mod") -Encoding UTF8)) {
+    foreach ($line in (Get-Content -LiteralPath (Join-Path $worktree "nodepaper\core\go.mod") -Encoding UTF8)) {
         if ($line -match '^\s*toolchain\s+(go\S+)\s*$') { $expectedToolchain = $Matches[1]; break }
     }
     if ([string]::IsNullOrWhiteSpace($expectedToolchain)) {
@@ -250,7 +250,7 @@ try {
             $env:GOARCH = "amd64"
             $env:CGO_ENABLED = "0"
             Write-Host 'go build -trimpath -ldflags "-X main.version=' $Version '"'
-            & $go build -trimpath -ldflags "-X main.version=$Version" -o (Join-Path $packageDir "nodepaper.exe") ./cmd/nodepaper
+            & $go build -trimpath -ldflags "-X main.version=$Version" -o (Join-Path $packageDir "nodepaper.exe") ./nodepaper/core/cmd/nodepaper
             if ($LASTEXITCODE -ne 0) {
                 throw "go build failed with exit code $LASTEXITCODE"
             }
@@ -341,7 +341,7 @@ try {
 
     # Runnable CUMCM example: the public fictional complete-single-file
     # Fixture is the only example that passes the current CUMCM Profile.
-    $exampleSource = Join-Path $worktree "tests\fixtures\complete-single-file"
+    $exampleSource = Join-Path $worktree "nodepaper\core\tests\fixtures\complete-single-file"
     if (-not (Test-Path -LiteralPath $exampleSource -PathType Container)) {
         throw "Example Fixture missing: $exampleSource"
     }

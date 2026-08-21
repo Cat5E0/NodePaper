@@ -4,7 +4,8 @@ param(
 
 . (Join-Path $PSScriptRoot "test-common.ps1")
 $root = Get-NodePaperRepoRoot
-Push-Location $root
+$core = Get-NodePaperCoreRoot
+Push-Location $core
 try {
     $packages = @(
         "./internal/validate",

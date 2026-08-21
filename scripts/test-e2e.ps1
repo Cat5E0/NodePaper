@@ -31,7 +31,7 @@ if ([string]::IsNullOrWhiteSpace($Fixture)) {
 
 . (Join-Path $PSScriptRoot "test-common.ps1")
 $root = Get-NodePaperRepoRoot
-$fixtureRoot = Join-Path $root "tests\fixtures\$Fixture"
+$fixtureRoot = Join-Path $root "nodepaper\core\tests\fixtures\$Fixture"
 if (-not (Test-Path -LiteralPath $fixtureRoot -PathType Container)) {
     throw "Fixture not found: $fixtureRoot"
 }
@@ -118,7 +118,7 @@ try {
     $profileBefore = Get-FixtureSnapshot $profileDir
 
     $go = Get-NodePaperGo
-    Push-Location $root
+    Push-Location (Get-NodePaperCoreRoot)
     try {
         & $go build -o $exePath ./cmd/nodepaper
         if ($LASTEXITCODE -ne 0) {

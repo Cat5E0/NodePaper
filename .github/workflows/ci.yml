@@ -31,10 +31,11 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - name: gofmt
         shell: pwsh
         run: |
-          $files = & gofmt -l cmd internal
+          $files = & gofmt -l nodepaper/core/cmd nodepaper/core/internal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($files) {
             Write-Error "Go files are not formatted:`n$($files -join [Environment]::NewLine)"
@@ -51,8 +52,10 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - name: go vet
         run: go vet ./...
+        working-directory: nodepaper/core
 
   test:
     name: go test
@@ -64,8 +67,10 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - name: go test (unit + integration)
         run: go test -count=1 ./...
+        working-directory: nodepaper/core
 
   race:
     name: Race detector
@@ -77,8 +82,10 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - name: go test -race
         run: go test -race -count=1 ./...
+        working-directory: nodepaper/core
 
   govulncheck:
     name: govulncheck
@@ -90,5 +97,7 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: true
+          cache-dependency-path: nodepaper/core/go.sum
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+        working-directory: nodepaper/core
