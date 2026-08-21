@@ -12,6 +12,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -20,6 +21,40 @@ use crate::run_capture;
 
 /// 前端进度事件通道
 pub const EVENT_INSTALL: &str = "np:tool-install";
+
+/// 下载完成事件（前端据此刷新诊断；与进度事件分离，
+/// 避免浮层关闭期间错过完成时机）
+pub const EVENT_INSTALL_DONE: &str = "np:tool-install-done";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallDone {
+    pub key: String,
+    pub ok: bool,
+    /// 失败时的可读错误
+    pub error: Option<String>,
+    /// 成功时的安装路径
+    pub path: Option<String>,
+}
+
+/// 在下载任务集：同 key 互斥，防止并发双下载写同一临时文件。
+/// （跨进程/重启不保留；重启后临时文件可被同 key 任务覆盖，无害）
+static ACTIVE: OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+
+fn active_set() -> &'static std::sync::Mutex<std::collections::HashSet<String>> {
+    ACTIVE.get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()))
+}
+
+/// 幂等标记：已在下载则返回 false
+fn mark_active(key: &str) -> bool {
+    let mut set = active_set().lock().unwrap_or_else(|e| e.into_inner());
+    set.insert(key.to_string())
+}
+
+fn clear_active(key: &str) {
+    let mut set = active_set().lock().unwrap_or_else(|e| e.into_inner());
+    set.remove(key);
+}
 
 // ---------------------------------------------------------------- 下载清单
 
@@ -260,12 +295,40 @@ struct InstallProgress {
 
 /// 下载并安装外部工具。确认弹窗由前端原生 ask 完成；此处为
 /// 下载（流式 + 进度事件）→ 大小校验 → 解压就位。返回安装路径。
+/// 任务在后端持续到落盘为止：浮层关闭不影响下载；同 key 重复
+/// 触发会被互斥拒绝。完成时发 np:tool-install-done 事件。
 #[tauri::command]
 pub async fn install_tool(app: AppHandle, key: String) -> Result<String, String> {
     let spec = manifest()
         .into_iter()
         .find(|s| s.key == key)
         .ok_or_else(|| format!("未知工具：{}", key))?;
+    if !mark_active(&key) {
+        return Err(format!("{} 正在下载中，请勿重复触发", spec.label));
+    }
+    // 任何退出路径都要解除互斥并广播完成
+    let result = install_tool_inner(&app, &spec).await;
+    clear_active(&key);
+    let done = match &result {
+        Ok(p) => InstallDone {
+            key: key.clone(),
+            ok: true,
+            error: None,
+            path: Some(p.clone()),
+        },
+        Err(e) => InstallDone {
+            key: key.clone(),
+            ok: false,
+            error: Some(e.clone()),
+            path: None,
+        },
+    };
+    let _ = app.emit(EVENT_INSTALL_DONE, done);
+    result
+}
+
+async fn install_tool_inner(app: &AppHandle, spec: &ToolSpec) -> Result<String, String> {
+    let key = spec.key;
     let data = app
         .path()
         .app_data_dir()
@@ -307,7 +370,7 @@ pub async fn install_tool(app: AppHandle, key: String) -> Result<String, String>
             let _ = app.emit(
                 EVENT_INSTALL,
                 InstallProgress {
-                    key: key.clone(),
+                    key: key.to_string(),
                     received,
                     total,
                     pct,

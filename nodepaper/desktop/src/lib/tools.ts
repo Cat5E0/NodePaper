@@ -22,12 +22,30 @@ export interface InstallProgress {
 }
 
 export const TOOL_INSTALL_EVENT = "np:tool-install";
+export const TOOL_INSTALL_DONE_EVENT = "np:tool-install-done";
+
+/** 全局下载状态（App 层持有，浮层关闭不丢失） */
+export interface InstallState {
+  key: string;
+  pct: number;
+  /** running 期间后端互斥，重复触发会被拒绝 */
+  status: "running" | "ok" | "err";
+  error?: string;
+}
+
+export interface InstallDone {
+  key: string;
+  ok: boolean;
+  error: string | null;
+  path: string | null;
+}
 
 export function diagnoseTools(): Promise<ToolStatus[]> {
   return invoke<ToolStatus[]>("diagnose_tools");
 }
 
-/** 下载并安装（确认弹窗由调用方完成）；resolve 返回安装路径 */
+/** 下载并安装（确认弹窗由调用方完成）；resolve 返回安装路径。
+ * 后端同 key 互斥；任务在后端持续到落盘，关闭浮层不影响。 */
 export function installTool(key: string): Promise<string> {
   return invoke<string>("install_tool", { key });
 }

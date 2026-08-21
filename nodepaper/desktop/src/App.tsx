@@ -14,6 +14,8 @@ import { Toc } from "./components/Toc";
 import { DropVeil } from "./components/DropVeil";
 import { DoctorLayer } from "./components/DoctorLayer";
 import { PromptLayer } from "./components/PromptLayer";
+import { useInstallStore } from "./lib/useInstallStore";
+import { message } from "@tauri-apps/plugin-dialog";
 import { PenLine } from "lucide-react";
 import { InfoLayer } from "./components/InfoLayer";
 import { ContextMenuProvider } from "./components/ContextMenu";
@@ -76,6 +78,8 @@ export default function App() {
   const [dropOpen, setDropOpen] = useState(false);
   const [infoKind, setInfoKind] = useState<null | "shortcuts" | "about">(null);
   const [doctorOpen, setDoctorOpen] = useState(false);
+  /* 全局下载状态：后端任务与浮层生命周期解耦，关闭浮层下载不中断 */
+  const { install } = useInstallStore();
 
   /* 主题 / 字号 —— 写到 :root */
   useEffect(() => {
@@ -400,7 +404,15 @@ export default function App() {
         onConfirm={handlePromptConfirm}
       />
 
-      <DoctorLayer open={doctorOpen} onClose={() => setDoctorOpen(false)} />
+      <DoctorLayer
+        open={doctorOpen}
+        onClose={() => setDoctorOpen(false)}
+        install={install}
+        onInstallError={() => {}}
+      />
+
+      {/* 下载完成但浮层已关：系统级通知透出结果，避免静默失败 */}
+      <InstallDoneToast install={install} />
 
       <DropVeil open={dropOpen} />
 
@@ -443,4 +455,28 @@ export default function App() {
       </InfoLayer>
     </ContextMenuProvider>
   );
+}
+
+/* 下载完成通知：浮层关闭时经系统 message 透出（开着则由浮层内刷新呈现）。
+   独立组件：只在状态从 running 翻转到终态时触发一次。 */
+function InstallDoneToast({
+  install,
+}: {
+  install: import("./lib/tools").InstallState | null;
+}) {
+  const [notified, setNotified] = useState<string | null>(null);
+  useEffect(() => {
+    if (!install || install.status === "running") return;
+    // 只在浮层关闭时系统级通知（开着时浮层内已有反馈）
+    const tag = install.key + ":" + install.status + ":" + install.pct;
+    if (notified === tag) return;
+    setNotified(tag);
+    if (!install.error) return;
+    message(`${install.key} 下载失败：${install.error}`, {
+      title: "工具安装",
+      kind: "error",
+    }).catch(() => {});
+    // 成功不弹窗：重开诊断浮层即可见 ✓
+  }, [install, notified]);
+  return null;
 }
