@@ -20,11 +20,13 @@ interface MastheadProps {
   shelfCollapsed: boolean;
   tocCollapsed: boolean;
   editMode: boolean;
+  compileMode: boolean;
   onHome: () => void;
   onOpen: () => void;
   onToggleShelf: () => void;
   onToggleToc: () => void;
   onToggleEdit: () => void;
+  onToggleCompile: () => void;
   onPaste: () => void;
   onSizeUp: () => void;
   onSizeDown: () => void;
@@ -75,11 +77,13 @@ export function Masthead(props: MastheadProps) {
     shelfCollapsed,
     tocCollapsed,
     editMode,
+    compileMode,
     onHome,
     onOpen,
     onToggleShelf,
     onToggleToc,
     onToggleEdit,
+    onToggleCompile,
     onPaste,
     onSizeUp,
     onSizeDown,
@@ -195,6 +199,13 @@ export function Masthead(props: MastheadProps) {
                 kbd="E"
                 check={editMode}
                 onClick={onToggleEdit}
+                onClose={close}
+              />
+              <Entry
+                label="编译模式"
+                kbd="C"
+                check={compileMode}
+                onClick={onToggleCompile}
                 onClose={close}
               />
               <div className="menu-sep" />

@@ -1,14 +1,306 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+// NodePaper 桌面壳 —— 极薄 Tauri 壳。
+// compile_latex：把编辑区 Markdown 写成临时最小工程（nodepaper.yaml + paper.md +
+// references.bib），在宿主 shell 环境直接执行 pandoc 完成 md → LaTeX 转换。
+//
+// 参数集逐项对齐核心 scripts/build/Convert-CumcmProjectToLatex.ps1 的 citeproc
+// 主链（单文件情形）：同 --from 扩展、--top-level-division=section、同模板与
+// lua 过滤器、citeproc + 国标 CSL、--fail-if-warnings。核心自身经
+// powershell.exe 调用该脚本，仅 Windows 可达；macOS 与 pandoc 直连等价链路由
+// 本命令承担。pandoc-crossref 为可选外部过滤器，未安装时跳过（编译模式预览
+// 不做交叉引用编号）。
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompileOutcome {
+    /// 生成的 LaTeX 源码；失败时为空串
+    pub tex: String,
+    /// 工具链日志（pandoc 版本、命令、stdout/stderr）
+    pub log: String,
+    /// 实际使用的转换器描述
+    pub tool: String,
+}
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn compile_latex(md: String) -> Result<CompileOutcome, String> {
+    let profile_dir = find_profile_dir().ok_or_else(|| {
+        "未找到 profiles/cumcm（可用环境变量 NODEPAPER_PROFILE_DIR 指定）".to_string()
+    })?;
+    let pandoc = find_pandoc().ok_or_else(|| {
+        "未找到 pandoc，请安装 pandoc 3.x 或用 NODEPAPER_PANDOC 指定路径".to_string()
+    })?;
+    run_compile(&md, &profile_dir, &pandoc).map_err(|e| e)
+}
+
+/// 由内到外定位 profiles/cumcm：环境变量 → 可执行文件祖先 → 工作目录祖先。
+/// tauri dev 工作目录是 nodepaper/desktop，仓库根在其上两级。
+fn find_profile_dir() -> Option<PathBuf> {
+    let target = Path::new("profiles/cumcm/profile.json");
+    if let Ok(env_dir) = std::env::var("NODEPAPER_PROFILE_DIR") {
+        let p = PathBuf::from(env_dir);
+        if p.join("profile.json").exists() {
+            return Some(p);
+        }
+    }
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        let mut dir = exe.parent().map(|d| d.to_path_buf());
+        while let Some(d) = dir {
+            candidates.push(d.to_path_buf());
+            dir = d.parent().map(|p| p.to_path_buf());
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        let mut dir = Some(cwd);
+        while let Some(d) = dir {
+            candidates.push(d.to_path_buf());
+            dir = d.parent().map(|p| p.to_path_buf());
+        }
+    }
+    candidates
+        .into_iter()
+        .map(|base| base.join(target))
+        .find(|p| p.exists())
+        .map(|p| p.parent().unwrap().to_path_buf())
+}
+
+/// 定位 pandoc：环境变量 NODEPAPER_PANDOC → PATH。
+fn find_pandoc() -> Option<PathBuf> {
+    if let Ok(env_pandoc) = std::env::var("NODEPAPER_PANDOC") {
+        let p = PathBuf::from(env_pandoc);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    let name = if cfg!(windows) {
+        "pandoc.exe"
+    } else {
+        "pandoc"
+    };
+    // which 语义：PATH 逐段探测，避免依赖系统 which
+    let path_var = std::env::var_os("PATH")?;
+    std::env::split_paths(&path_var)
+        .map(|dir| dir.join(name))
+        .find(|p| p.is_file())
+}
+
+/// 转换链主体：写临时工程 → 组装对齐参数 → 执行 pandoc → 回读 .tex。
+fn run_compile(md: &str, profile: &Path, pandoc: &Path) -> Result<CompileOutcome, String> {
+    // 目录名含 pid + 原子序号，避免同毫秒并发（如并行测试）碰撞
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let uniq = format!(
+        "nodepaper-compile-{}-{}-{}",
+        stamp,
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    let project = std::env::temp_dir().join(uniq);
+    let out_dir = project.join("out");
+    fs::create_dir_all(&out_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+
+    // 最小工程镜像 nodepaper init 的形状：配置 + 正文 + 参考文献（编译模式正文
+    // 未必含引用，空 bib 供 citeproc 链保持与核心一致）
+    fs::write(
+        project.join("nodepaper.yaml"),
+        "version: 1\nprofile: cumcm\nsource: paper.md\noutput:\n  file: out/paper.tex\n",
+    )
+    .map_err(|e| format!("写入 nodepaper.yaml 失败: {}", e))?;
+    fs::write(project.join("paper.md"), md).map_err(|e| format!("写入 paper.md 失败: {}", e))?;
+    fs::write(project.join("references.bib"), "")
+        .map_err(|e| format!("写入 references.bib 失败: {}", e))?;
+
+    // profile.json 只在存在时读取版本钉版信息，用于日志提示（mac 不做硬校验，
+    // 与核心在 Windows 上的强校验不同——桌面编译模式面向预览）
+    let mut log = String::new();
+    let pandoc_version = run_capture(pandoc, &["--version"]);
+    log.push_str(&format!(
+        "Pandoc: {}\n",
+        pandoc_version.lines().next().unwrap_or("未知版本")
+    ));
+    let crossref = find_on_path(if cfg!(windows) {
+        "pandoc-crossref.exe"
+    } else {
+        "pandoc-crossref"
+    });
+    match &crossref {
+        Some(p) => {
+            let v = run_capture(p, &["--version"]);
+            log.push_str(&format!(
+                "pandoc-crossref: {}\n",
+                v.lines().next().unwrap_or("未知版本")
+            ));
+        }
+        None => log.push_str("pandoc-crossref: 未安装，跳过交叉引用编号（不影响正文转换）\n"),
+    }
+
+    // 资源搜索路径：临时工程 + profile（分隔符平台差异：Windows ; / unix :）
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let mut args: Vec<String> = vec![
+        "paper.md".into(),
+        "--from".into(),
+        "markdown+yaml_metadata_block+tex_math_dollars+raw_tex+link_attributes+implicit_figures+pipe_tables+fenced_divs".into(),
+        "--to".into(),
+        "latex".into(),
+        "--standalone".into(),
+        "--top-level-division=section".into(),
+        "--template".into(),
+        profile.join("template.tex").to_string_lossy().into(),
+        "--metadata-file".into(),
+        profile.join("crossref.yaml").to_string_lossy().into(),
+        "--lua-filter".into(),
+        profile.join("filters/extract-abstract.lua").to_string_lossy().into(),
+        "--lua-filter".into(),
+        profile.join("filters/layout.lua").to_string_lossy().into(),
+    ];
+    if let Some(cr) = &crossref {
+        args.push("--filter".into());
+        args.push(cr.to_string_lossy().into());
+    }
+    args.extend([
+        "--citeproc".to_string(),
+        "--bibliography".to_string(),
+        "references.bib".to_string(),
+        "--csl".to_string(),
+        profile
+            .join("csl/china-national-standard-gb-t-7714-2015-numeric.csl")
+            .to_string_lossy()
+            .into(),
+        "--syntax-highlighting=tango".to_string(),
+        "--metadata".to_string(),
+        "link-citations=true".to_string(),
+        "--fail-if-warnings".to_string(),
+        "--resource-path".to_string(),
+        format!(
+            "{}{}{}",
+            project.to_string_lossy(),
+            sep,
+            profile.to_string_lossy()
+        ),
+        "--output".to_string(),
+        "out/paper.tex".to_string(),
+    ]);
+
+    log.push_str(&format!(
+        "Pandoc command: {} {}\n",
+        pandoc.display(),
+        args.join(" ")
+    ));
+
+    let output = Command::new(pandoc)
+        .args(&args)
+        .current_dir(&project)
+        .output()
+        .map_err(|e| format!("执行 pandoc 失败: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    log.push_str(&stdout);
+    if !stderr.trim().is_empty() {
+        log.push_str(&stderr);
+    }
+
+    let tex_path = out_dir.join("paper.tex");
+    if !output.status.success() || !tex_path.exists() {
+        let _ = fs::remove_dir_all(&project);
+        return Err(format!(
+            "转换失败（exit {}）：\n{}",
+            output.status.code().unwrap_or(-1),
+            stderr.trim()
+        ));
+    }
+    let tex = fs::read_to_string(&tex_path).map_err(|e| format!("回读 paper.tex 失败: {}", e))?;
+    let _ = fs::remove_dir_all(&project);
+
+    Ok(CompileOutcome {
+        tex,
+        log,
+        tool: format!("pandoc（对齐核心 citeproc 主链，profile: cumcm）"),
+    })
+}
+
+fn find_on_path(name: &str) -> Option<PathBuf> {
+    let path_var = std::env::var_os("PATH")?;
+    std::env::split_paths(&path_var)
+        .map(|dir| dir.join(name))
+        .find(|p| p.is_file())
+}
+
+fn run_capture(bin: &Path, args: &[&str]) -> String {
+    Command::new(bin)
+        .args(args)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![compile_latex])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 真实链路测试：需要 pandoc。未安装时跳过（CI 无 pandoc 环境不红）。
+    /// NODEPAPER_PANDOC / NODEPAPER_PROFILE_DIR 可注入测试工具路径。
+    #[test]
+    fn compile_sample_md_to_latex() {
+        let profile = match find_profile_dir() {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 profiles/cumcm");
+                return;
+            }
+        };
+        let pandoc = match find_pandoc() {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 pandoc");
+                return;
+            }
+        };
+        let md = "# 摘要之前的标题\n\n::: abstract\n这是一段摘要，用于验证 extract-abstract 过滤器。\n:::\n\n## 第一节点\n\n正文一段，含 **加粗** 与 `code`。\n\n$$E = mc^2$$\n";
+        let out = run_compile(md, &profile, &pandoc).expect("转换应成功");
+        assert!(out.tex.contains("\\documentclass"), "应生成完整 LaTeX 文档");
+        assert!(out.tex.contains("第一节点"), "正文应进入 .tex");
+        assert!(out.log.contains("Pandoc"), "日志应含 pandoc 版本");
+    }
+
+    #[test]
+    fn fail_path_reports_stderr() {
+        let profile = match find_profile_dir() {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 profiles/cumcm");
+                return;
+            }
+        };
+        let pandoc = match find_pandoc() {
+            Some(p) => p,
+            None => {
+                eprintln!("skip: 未找到 pandoc");
+                return;
+            }
+        };
+        // citeproc 对未收录引用报 warning，--fail-if-warnings 将其升级为硬错误；
+        // 这是用户真实会碰到的失败（引了 bib 里没有的文献），核心链同样失败
+        let err = run_compile("# t\n\n引用不存在条目 [@missing-ref]\n", &profile, &pandoc)
+            .expect_err("未收录引用应失败");
+        assert!(err.contains("转换失败"), "错误信息应可读：{}", err);
+    }
 }

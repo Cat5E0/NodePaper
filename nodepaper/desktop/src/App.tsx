@@ -8,6 +8,8 @@ import { Brush } from "./components/Brush";
 import { Shelf } from "./components/Shelf";
 import { Stage } from "./components/Stage";
 import { EditStage } from "./components/EditStage";
+import { CompileStage } from "./components/CompileStage";
+import type { CompileState } from "./components/CompileStage";
 import type { ScrollState } from "./components/Stage";
 import { Toc } from "./components/Toc";
 import { PasteLayer } from "./components/PasteLayer";
@@ -16,6 +18,7 @@ import { InfoLayer } from "./components/InfoLayer";
 import { ContextMenuProvider } from "./components/ContextMenu";
 import type { CtxItem } from "./components/ContextMenu";
 import { renderMarkdown } from "./lib/markdown";
+import { invoke } from "@tauri-apps/api/core";
 import { SAMPLE } from "./lib/sample";
 import { buildShelfTree } from "./lib/shelf";
 import {
@@ -54,7 +57,9 @@ export default function App() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [shelfCollapsed, setShelfCollapsed] = useState(true);
   const [tocCollapsed, setTocCollapsed] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  /* 三态工作模式：阅读 / 编辑（双栏预览）/ 编译（md → LaTeX） */
+  const [mode, setMode] = useState<"read" | "edit" | "compile">("read");
+  const [compile, setCompile] = useState<CompileState | null>(null);
 
   const [scrollState, setScrollState] = useState<ScrollState>({
     scrolled: false,
@@ -133,6 +138,20 @@ export default function App() {
     []
   );
 
+  /* 编译：调用 Rust 侧 compile_latex（对齐核心 citeproc 主链的 pandoc 直连） */
+  const runCompile = useCallback(async (mdText: string) => {
+    setCompile({ status: "running" });
+    try {
+      const r = await invoke<{ tex: string; log: string; tool: string }>(
+        "compile_latex",
+        { md: mdText }
+      );
+      setCompile({ status: "ok", tex: r.tex, log: r.log, tool: r.tool });
+    } catch (e) {
+      setCompile({ status: "err", message: String(e) });
+    }
+  }, []);
+
   /* 阅读区右键菜单工厂：组装当前可用的菜单项 */
   const buildReaderItems = useCallback((): CtxItem[] => {
     const sel = window.getSelection?.()?.toString() ?? "";
@@ -153,9 +172,10 @@ export default function App() {
       { label: "放大字号", onClick: sizeUp },
       { label: "缩小字号", onClick: sizeDown },
       { label: "目录", check: !tocCollapsed, onClick: () => setTocCollapsed((v) => !v) },
-      { label: "编辑模式", check: editMode, onClick: () => setEditMode((v) => !v) },
+      { label: "编辑模式", check: mode === "edit", onClick: () => setMode((m) => (m === "edit" ? "read" : "edit")) },
+      { label: "编译模式", check: mode === "compile", onClick: () => setMode((m) => (m === "compile" ? "read" : "compile")) },
     ];
-  }, [handleOpen, sizeUp, sizeDown, tocCollapsed, editMode]);
+  }, [handleOpen, sizeUp, sizeDown, tocCollapsed, mode]);
 
   /* 拖放（Tauri webview 原生事件，浏览器 dragdrop 在此被禁用） */
   useEffect(() => {
@@ -202,7 +222,10 @@ export default function App() {
         setTocCollapsed((v) => !v);
       } else if (k === "e") {
         e.preventDefault();
-        setEditMode((v) => !v);
+        setMode((m) => (m === "edit" ? "read" : "edit"));
+      } else if (k === "c") {
+        e.preventDefault();
+        setMode((m) => (m === "compile" ? "read" : "compile"));
       }
     };
     document.addEventListener("keydown", onKey);
@@ -216,12 +239,14 @@ export default function App() {
         theme={theme}
         shelfCollapsed={shelfCollapsed}
         tocCollapsed={tocCollapsed}
-        editMode={editMode}
+        editMode={mode === "edit"}
+        compileMode={mode === "compile"}
         onHome={() => setMd(SAMPLE)}
         onOpen={handleOpen}
         onToggleShelf={() => setShelfCollapsed((v) => !v)}
         onToggleToc={() => setTocCollapsed((v) => !v)}
-        onToggleEdit={() => setEditMode((v) => !v)}
+        onToggleEdit={() => setMode((m) => (m === "edit" ? "read" : "edit"))}
+        onToggleCompile={() => setMode((m) => (m === "compile" ? "read" : "compile"))}
         onPaste={() => setPasteOpen(true)}
         onSizeUp={sizeUp}
         onSizeDown={sizeDown}
@@ -250,8 +275,8 @@ export default function App() {
         <Toc collapsed={tocCollapsed} items={toc} activeId={scrollState.activeId} />
 
         <div className="stage-wrap">
-          {!editMode && <Brush />}
-          {editMode ? (
+          {mode === "read" && <Brush />}
+          {mode === "edit" ? (
             <EditStage
               md={md}
               html={html}
@@ -260,6 +285,16 @@ export default function App() {
               onEditSizeUp={editSizeUp}
               onEditSizeDown={editSizeDown}
               onEdit={setMd}
+              onScrollState={setScrollState}
+              buildContextMenu={buildReaderItems}
+            />
+          ) : mode === "compile" ? (
+            <CompileStage
+              md={md}
+              html={html}
+              compileState={compile}
+              onEdit={setMd}
+              onCompile={() => runCompile(md)}
               onScrollState={setScrollState}
               buildContextMenu={buildReaderItems}
             />
@@ -295,6 +330,8 @@ export default function App() {
           <dd>显示 / 隐藏目录</dd>
           <dt>E</dt>
           <dd>进入 / 退出编辑模式</dd>
+          <dt>C</dt>
+          <dd>进入 / 退出编译模式</dd>
           <dt>Esc</dt>
           <dd>关闭浮层、菜单</dd>
           <dt>右键</dt>

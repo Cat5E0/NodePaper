@@ -274,6 +274,71 @@ body {
 }
 .edit-view .stage { flex: 1 1 auto; }
 
+/* ---------- 编译模式：右栏为渲染/LaTeX/日志三视图 ---------- */
+.compile-view {
+  flex: 1 1 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--np-font-ui);
+}
+.compile-view .edit-head { padding: 1rem 1.3rem .7rem; }
+.compile-out-head { border-bottom: 1px solid var(--np-line-soft); }
+.compile-btn { padding: .3rem .8rem; font-size: .8rem; }
+.compile-btn:disabled { opacity: .55; cursor: default; }
+.compile-tabs {
+  margin-left: auto;
+  display: inline-flex;
+  gap: .15rem;
+  border: 1px solid var(--np-line);
+  border-radius: var(--np-radius-sm);
+  padding: .15rem;
+}
+.compile-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: .25rem .7rem;
+  border-radius: var(--np-radius-xs);
+  color: var(--np-ink-mute);
+  font-family: var(--np-font-ui);
+  font-size: .78rem;
+  transition: color var(--np-dur-fast) ease, background var(--np-dur-fast) ease;
+}
+.compile-tab:hover { color: var(--np-ink-strong); }
+.compile-tab.active {
+  color: var(--np-accent);
+  background: var(--np-accent-chip);
+}
+.compile-render { flex: 1 1 auto; min-height: 0; display: flex; }
+.compile-render .stage { flex: 1 1 auto; }
+.compile-tex, .compile-log {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 1.1rem 1.3rem 3rem;
+  overflow: auto;
+  font-family: var(--np-font-mono);
+  font-size: .78rem;
+  line-height: 1.65;
+  color: var(--np-ink-body);
+  background: var(--np-surface-page);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.compile-log.is-err { color: var(--np-err); }
+.compile-empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--np-ink-mute);
+  font-style: italic;
+  font-family: var(--np-font-display);
+  font-size: .92rem;
+}
+
 /* ---------- 正文排版（书房：衬线体系） ---------- */
 .article {
   font-family: var(--np-font-serif-en), var(--np-font-serif-zh);
