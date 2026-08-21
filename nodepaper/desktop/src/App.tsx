@@ -28,6 +28,8 @@ import type { FileEntry } from "./lib/fileSystem";
 
 const THEME_KEY = "md-read-theme";
 const SIZES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.1875];
+// 编辑模式源码栏字号阶梯（rem），默认 0.84 档
+const EDIT_SIZES = [0.72, 0.78, 0.84, 0.9, 0.98, 1.06];
 
 interface ShelfData {
   title: string;
@@ -46,6 +48,7 @@ export default function App() {
     }
   });
   const [sizeIdx, setSizeIdx] = useState(3);
+  const [editSizeIdx, setEditSizeIdx] = useState(2);
 
   const [shelf, setShelf] = useState<ShelfData | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -74,6 +77,14 @@ export default function App() {
       SIZES[sizeIdx] + "rem"
     );
   }, [sizeIdx]);
+
+  /* 源码栏字号 —— 写到 :root */
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--np-edit-size",
+      EDIT_SIZES[editSizeIdx] + "rem"
+    );
+  }, [editSizeIdx]);
 
   /* 载入文件 */
   const loadEntry = useCallback(async (entry: FileEntry) => {
@@ -113,6 +124,14 @@ export default function App() {
     []
   );
   const sizeDown = useCallback(() => setSizeIdx((i) => Math.max(0, i - 1)), []);
+  const editSizeUp = useCallback(
+    () => setEditSizeIdx((i) => Math.min(EDIT_SIZES.length - 1, i + 1)),
+    []
+  );
+  const editSizeDown = useCallback(
+    () => setEditSizeIdx((i) => Math.max(0, i - 1)),
+    []
+  );
 
   /* 阅读区右键菜单工厂：组装当前可用的菜单项 */
   const buildReaderItems = useCallback((): CtxItem[] => {
@@ -236,6 +255,10 @@ export default function App() {
             <EditStage
               md={md}
               html={html}
+              editSizeIdx={editSizeIdx}
+              editSizeCount={EDIT_SIZES.length}
+              onEditSizeUp={editSizeUp}
+              onEditSizeDown={editSizeDown}
               onEdit={setMd}
               onScrollState={setScrollState}
               buildContextMenu={buildReaderItems}

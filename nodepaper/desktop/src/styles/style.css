@@ -251,6 +251,7 @@ body {
   color: var(--np-ink-mute);
   letter-spacing: .04em;
 }
+.edit-head .size-ctrl { margin-left: auto; }
 .edit-area {
   flex: 1 1 auto;
   width: 100%;
@@ -260,9 +261,10 @@ body {
   background: transparent;
   padding: 1.1rem 1.3rem 3rem;
   font-family: var(--np-font-mono);
-  font-size: .84rem;
+  font-size: var(--np-edit-size, 0.84rem);
   line-height: 1.7;
   color: var(--np-ink-body);
+  transition: font-size .15s ease;
 }
 .edit-area::placeholder { color: var(--np-ink-mute); }
 .edit-view {
