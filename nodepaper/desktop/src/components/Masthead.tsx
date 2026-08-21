@@ -6,7 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, Copy, X } from "lucide-react";
 
 export const THEMES = [
-  { key: "sujian", name: "素笺", desc: "雅致纸墨" },
+  { key: "sujian", name: "纸墨", desc: "暖纸与墨线" },
   { key: "apple", name: "Apple", desc: "清亮极简" },
   { key: "ink-night", name: "墨夜", desc: "夜读如墨" },
   { key: "graphite", name: "石墨", desc: "冷灰极简" },
@@ -141,9 +141,9 @@ export function Masthead(props: MastheadProps) {
           onHome();
         }}
       >
-        <span className="seal">素笺</span>
+        <span className="seal">NodePaper</span>
         <span className="divider">/</span>
-        <span className="en">Plain&nbsp;Page</span>
+        <span className="en">Paper&nbsp;&amp;&nbsp;Ink</span>
       </a>
 
       <nav className="menubar" aria-label="主菜单">
@@ -254,7 +254,7 @@ export function Masthead(props: MastheadProps) {
           {openMenu === "help" && (
             <div className="menu-dropdown" role="menu">
               <Entry label="快捷键…" onClick={onShowShortcuts} onClose={close} />
-              <Entry label="关于素笺" onClick={onShowAbout} onClose={close} />
+              <Entry label="关于 NodePaper" onClick={onShowAbout} onClose={close} />
             </div>
           )}
         </div>

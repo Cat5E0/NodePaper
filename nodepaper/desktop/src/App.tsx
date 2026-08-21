@@ -1,4 +1,4 @@
-// 素笺 · Plain Page —— 应用根组件，持有全部状态与交互。
+// NodePaper 桌面端 —— 应用根组件，持有全部状态与交互。
 // 布局：菜单栏顶栏 + 工作区（书架列 | 目录列 | 阅读区），书架/目录列各自可折叠。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -69,7 +69,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.style.setProperty(
-      "--reader-size",
+      "--np-reader-size",
       SIZES[sizeIdx] + "rem"
     );
   }, [sizeIdx]);
@@ -275,17 +275,17 @@ export default function App() {
 
       <InfoLayer
         open={infoKind === "about"}
-        title="关于素笺"
+        title="关于 NodePaper"
         onClose={() => setInfoKind(null)}
       >
         <div className="about-body">
           <p className="about-line">
-            <span className="seal">素笺</span>
-            <span className="muted">Plain Page · 0.1.0</span>
+            <span className="seal">NodePaper</span>
+            <span className="muted">Paper &amp; Ink · 0.1.0</span>
           </p>
-          <p className="muted">一个诗意优雅的 Markdown 阅读器。</p>
+          <p className="muted">把 Markdown 论文工程构建为 PDF 的工具，这里是它的桌面书房。</p>
           <p className="muted">
-            打开文件夹浏览书架，粘贴文本即时阅读，拖入 .md 文件直接展开。
+            打开文件夹浏览书架，粘贴文本即时预览，拖入 .md 文件直接展开。
           </p>
         </div>
       </InfoLayer>

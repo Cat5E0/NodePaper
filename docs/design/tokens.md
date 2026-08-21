@@ -2,7 +2,7 @@
 
 面向 NodePaper 桌面端（`nodepaper/desktop/`）的设计 token 权威源。读者为实现桌面端界面的前端开发者；落地方式为 CSS 自定义属性，可直接拷贝本文的落地代码块到 `src/styles/`。
 
-当前状态：规范已定稿，尚未替换前端代码中素笺遗留的扁平 token（见第 9 节迁移说明）。
+当前状态：已落地为 `src/styles/tokens.css`（primitive + semantic + component），组件样式 `src/styles/style.css` 全量消费 `--np-` token；主题机制已迁至 semantic 重指。
 
 ## 1. 设计立场
 
@@ -182,7 +182,8 @@ Component（组件映射） --np-btn-bg、--np-menu-radius
 | `--np-accent` | `var(--np-blue-500)` | 主强调（链接、选中、焦点） |
 | `--np-accent-hover` | `var(--np-blue-600)` | 强调 hover |
 | `--np-accent-soft` | `var(--np-blue-200)` | 强调边框级 |
-| `--np-accent-wash` | `var(--np-blue-50)` | 强调淡染底 |
+| `--np-accent-wash` | `var(--np-blue-50)` | 强调淡染底（大面积） |
+| `--np-accent-chip` | `var(--np-blue-100)` | 选中 chip 底（按钮激活、文件选中） |
 | `--np-on-accent` | `var(--np-gray-0)` | 强调底上的文字 |
 | `--np-selection` | `rgba(46,92,136,.18)` | 文本选区 |
 | `--np-state-hover` | `rgba(0,0,0,.04)` | 中性 hover 叠加 |
@@ -281,7 +282,7 @@ Component（组件映射） --np-btn-bg、--np-menu-radius
 - 组件样式禁止裸写 hex 与 rgba；颜色一律走 token。
 - 例外一：纸纹 SVG data-URI 与背景渐变中的锚定色，允许保留字面值。
 - 例外二：`hljs` 语法高亮色板为外部配色方案（GitHub Light/Dark），作为整体模块保留，不逐色 token 化。
-- 例外三：第 7、8 节声明的主题锚定 hex 与组件微调值。
+- 例外三：第 7、8 节声明的主题锚定 hex 与组件微调值；以及 semantic 层各主题特设的强调色锚定值（如 apple `#0071E3`、graphite `#3A3A3C`、parchment `#A8542B`、sakura `#C25D7A` 及其 rgba 变体），这些值定义于 semantic 主题块，仅主题重指时使用。
 
 ### 9.2 无障碍约束
 
@@ -289,9 +290,9 @@ Component（组件映射） --np-btn-bg、--np-menu-radius
 - `--np-ink-mute`（3.10）不得用于承载必要信息的文本；仅限装饰、占位与禁用态。
 - 焦点可见性：交互控件 focus 一律 `outline: 2px solid var(--np-focus-ring)`，颜色不是唯一区分方式。
 
-### 9.3 迁移策略
+### 9.3 迁移状态
 
-素笺遗留变量与 `--np-` 体系并存，按组件渐进替换：改到哪个组件，该组件的 `--paper`、`--ink` 等引用即切换为对应 `--np-` 语义 token；全部替换完成后删除遗留变量。主题机制从"每主题重写整套变量"迁至"semantic 重指"，`apple`、`graphite`、`parchment`、`sakura` 四个亮色主题按第 6 节结构重述，暗色 `ink-night` 并入 `dark` 锚点。
+素笺遗留变量已全部移除：`src/styles/tokens.css` 承载三层 token 与六主题（纸墨默认 / apple / 墨夜 dark 锚点 / graphite / parchment / sakura）semantic 重指，`style.css` 不再含裸色值（9.1 例外除外）。主题 key 沿用 `data-theme` 属性与既有取值（默认主题 key 仍为 `sujian`，显示名"纸墨"），localStorage 存量无需迁移。
 
 ## 附录 A · 对比度实测
 

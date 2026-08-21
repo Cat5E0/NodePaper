@@ -1,4 +1,4 @@
-// 信息浮层：用于「快捷键」「关于素笺」。复用粘贴浮层的遮罩 + 卡片样式。
+// 信息浮层：用于「快捷键」「关于」。复用粘贴浮层的遮罩 + 卡片样式。
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
