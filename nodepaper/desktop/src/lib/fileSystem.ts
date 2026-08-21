@@ -28,6 +28,11 @@ export async function readMarkdown(path: string): Promise<string> {
   return invoke<string>("read_markdown", { path });
 }
 
+/** 保存 Markdown（自动保存；temp+rename 原子替换） */
+export async function writeMarkdown(path: string, content: string): Promise<void> {
+  return invoke<void>("write_markdown", { path, content });
+}
+
 /** 在目录下新建空白笔记；name 为空回退 未命名.md，重名报错。返回新文件条目 */
 export async function createMarkdown(dir: string, name: string): Promise<FileEntry> {
   return invoke<FileEntry>("create_markdown", { dir, name });

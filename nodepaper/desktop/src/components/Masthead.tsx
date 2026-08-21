@@ -16,6 +16,8 @@ export const THEMES = [
 
 interface MastheadProps {
   scrolled: boolean;
+  /** 自动保存失败提示（保存正常时不渲染） */
+  saveError: string | null;
   theme: string;
   shelfCollapsed: boolean;
   tocCollapsed: boolean;
@@ -71,6 +73,7 @@ function Entry({
 export function Masthead(props: MastheadProps) {
   const {
     scrolled,
+    saveError,
     theme,
     shelfCollapsed,
     tocCollapsed,
@@ -147,6 +150,11 @@ export function Masthead(props: MastheadProps) {
       </a>
 
       <nav className="menubar" aria-label="主菜单">
+        {saveError && (
+          <span className="save-warn" title={saveError}>
+            ⚠ 未保存
+          </span>
+        )}
         {/* 文件 */}
         <div className="menu" onMouseEnter={() => hoverTo("file")}>
           <button

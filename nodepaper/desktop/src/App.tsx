@@ -1,6 +1,6 @@
 // NodePaper 桌面端 —— 应用根组件，持有全部状态与交互。
 // 布局：菜单栏顶栏 + 工作区（书架列 | 目录列 | 阅读区），书架/目录列各自可折叠。
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Masthead } from "./components/Masthead";
@@ -29,6 +29,7 @@ import {
   pickDirectory,
   listMarkdown,
   readMarkdown,
+  writeMarkdown,
   createMarkdown,
   renameMarkdown,
   deleteMarkdown,
@@ -37,6 +38,8 @@ import {
 import type { FileEntry } from "./lib/fileSystem";
 
 const THEME_KEY = "md-read-theme";
+/* 未命名草稿兑底（无 activePath 时）：刷新/重启后不丢 */
+const DRAFT_KEY = "np-draft";
 const SIZES = [0.875, 0.9375, 1, 1.0625, 1.125, 1.1875];
 // 编辑模式源码栏字号阶梯（rem），默认 0.84 档
 const EDIT_SIZES = [0.72, 0.78, 0.84, 0.9, 0.98, 1.06];
@@ -49,7 +52,11 @@ interface ShelfData {
 }
 
 export default function App() {
-  const [md, setMd] = useState<string>(SAMPLE);
+  /* 启动时恢复未命名草稿（上次会话无 activePath 时编辑过的内容） */
+  const [md, setMd] = useState<string>(() => {
+    const draft = localStorage.getItem(DRAFT_KEY);
+    return draft !== null && draft.trim() ? draft : SAMPLE;
+  });
   const { html, toc } = useMemo(() => renderMarkdown(md), [md]);
 
   const [theme, setTheme] = useState<string>(() => {
@@ -107,9 +114,54 @@ export default function App() {
       const text = await readMarkdown(entry.path);
       setActivePath(entry.path);
       setMd(text);
+      localStorage.removeItem(DRAFT_KEY);
     } catch (e) {
       console.error("读取文件失败", e);
     }
+  }, []);
+
+  /* 自动保存：编辑停顿 800ms 后落盘。有 activePath 走原子写文件；
+     无（草稿/示例态）写 localStorage 兑底。saveError 供 UI 透出。 */
+  const [saveError, setSaveError] = useState<string | null>(null);
+  useEffect(() => {
+    if (md === SAMPLE) return; // 示例卷首不落盘
+    const t = setTimeout(() => {
+      if (activePath) {
+        writeMarkdown(activePath, md)
+          .then(() => setSaveError(null))
+          .catch((e) => setSaveError(String(e)));
+      } else {
+        try {
+          localStorage.setItem(DRAFT_KEY, md);
+          setSaveError(null);
+        } catch {
+          setSaveError("草稿保存失败（localStorage 不可用）");
+        }
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [md, activePath]);
+
+  /* 卸载冲刷：窗口关闭/刷新前把未到期的改动立即落盘。
+     React 状态无法在卸载回调里同步读到，用 ref 镜像。 */
+  const mdRef = useRef(md);
+  const pathRef = useRef(activePath);
+  mdRef.current = md;
+  pathRef.current = activePath;
+  useEffect(() => {
+    const flush = () => {
+      const m = mdRef.current;
+      if (m === SAMPLE) return;
+      if (pathRef.current) {
+        writeMarkdown(pathRef.current, m).catch(() => {});
+      } else {
+        try {
+          localStorage.setItem(DRAFT_KEY, m);
+        } catch {}
+      }
+    };
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
   }, []);
 
   /* 打开文件夹 → 书架（并展开书架列）；dir 存入 state 供新建/删除后刷新 */
@@ -305,6 +357,7 @@ export default function App() {
     <ContextMenuProvider>
       <Masthead
         scrolled={scrollState.scrolled}
+        saveError={saveError}
         theme={theme}
         shelfCollapsed={shelfCollapsed}
         tocCollapsed={tocCollapsed}

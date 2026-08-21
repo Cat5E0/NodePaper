@@ -31,6 +31,9 @@ fn is_markdown_name(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown")
 }
 
+/// md 读/写共用的体积上限（防巨型文件卡死渲染/写入）
+const MAX_BYTES: u64 = 10 * 1024 * 1024;
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileOutcome {
@@ -140,7 +143,6 @@ fn read_markdown(path: String) -> Result<String, String> {
     if !meta.is_file() {
         return Err(format!("不是普通文件：{}", path));
     }
-    const MAX_BYTES: u64 = 10 * 1024 * 1024;
     if meta.len() > MAX_BYTES {
         return Err(format!(
             "文件超过 10MB 上限（{} MB）：{}",
@@ -149,6 +151,44 @@ fn read_markdown(path: String) -> Result<String, String> {
         ));
     }
     fs::read_to_string(p).map_err(|e| format!("读取失败 {}：{}", path, e))
+}
+
+/// 保存 Markdown（自动保存专用）：同目录 temp 文件 + rename 原子替换，
+/// 避免写半过程被看到/被并发读到。校验规则与 read_markdown 一致（仅 md、
+/// 普通文件、10MB 上限），防止把内存态写到任意路径。
+#[tauri::command]
+fn write_markdown(path: String, content: String) -> Result<(), String> {
+    let p = Path::new(&path);
+    let name = p
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    if !is_markdown_name(&name) {
+        return Err(format!("仅支持保存 .md / .markdown 文件：{}", path));
+    }
+    let meta = fs::symlink_metadata(p).map_err(|e| format!("查看文件失败 {}：{}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("不是普通文件：{}", path));
+    }
+    if content.len() as u64 > MAX_BYTES {
+        return Err("内容超过 10MB 上限，未保存".to_string());
+    }
+    let dir = p.parent().ok_or("无法定位父目录")?;
+    // 同目录临时名：pid+时间戳避免碰撞；rename 同分区原子
+    let tmp = dir.join(format!(
+        ".{}-{}.tmp",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    ));
+    fs::write(&tmp, content).map_err(|e| format!("写入临时文件失败：{}", e))?;
+    if let Err(e) = fs::rename(&tmp, p) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("替换文件失败：{}", e));
+    }
+    Ok(())
 }
 
 /// 文件名清洗：去空白、拦截 Windows 保留字符与控制符、限长。
@@ -521,6 +561,7 @@ pub fn run() {
             create_markdown,
             rename_markdown,
             delete_markdown,
+            write_markdown,
             tools::diagnose_tools,
             tools::install_tool
         ])
@@ -610,6 +651,23 @@ mod tests {
 
         let text = read_markdown(items[1].path.clone()).expect("读回应成功");
         assert_eq!(text, "# 根文档\n");
+
+        // 自动保存：写入 → 读回一致；非 md 拒绝；失败路径不残留临时文件
+        write_markdown(items[1].path.clone(), "# 改动\n".into()).expect("保存应成功");
+        let after = read_markdown(items[1].path.clone()).expect("保存后可读");
+        assert_eq!(after, "# 改动\n");
+        let err = write_markdown(
+            tmp.join("cover.txt").to_string_lossy().to_string(),
+            "x".into(),
+        )
+        .expect_err("非 md 保存应拒绝");
+        assert!(err.contains("仅支持保存"), "{}", err);
+        let tmps: Vec<_> = fs::read_dir(&tmp)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert_eq!(tmps.len(), 0, "不应残留临时文件");
 
         let err = read_markdown(tmp.join("cover.txt").to_string_lossy().to_string())
             .expect_err("非 md 应拒绝");
