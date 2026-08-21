@@ -42,6 +42,8 @@ AGENTS.md
 /tools/
 # 桌面端内嵌的 nodepaper core 二进制（desktop-build/desktop CI 构建时生成）
 /nodepaper/desktop/binaries/
+# playwright-cli 会话残留
+.playwright-cli/
 
 # Python
 __pycache__/
