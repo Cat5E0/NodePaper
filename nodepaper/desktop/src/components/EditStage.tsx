@@ -1,4 +1,5 @@
 // 编辑模式分栏舞台：左栏 Markdown 源码，右栏实时渲染预览（复用 Stage 的 preview 模式）。
+// 两栏按滚动百分比双向同步；rAF 锁防止同步引发的 scroll 事件回弹死循环。
 import { useEffect, useRef } from "react";
 import { Stage } from "./Stage";
 import type { ScrollState } from "./Stage";
@@ -14,10 +15,40 @@ interface EditStageProps {
 
 export function EditStage({ md, html, onEdit, onScrollState, buildContextMenu }: EditStageProps) {
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const previewScrollRef = useRef<HTMLElement | null>(null);
+  const syncing = useRef(false);
 
   // 进入编辑模式即聚焦源码栏
   useEffect(() => {
     areaRef.current?.focus();
+  }, []);
+
+  // 双向同步滚动：按各自可滚动高度的百分比映射
+  useEffect(() => {
+    const area = areaRef.current;
+    const view = previewScrollRef.current;
+    if (!area || !view) return;
+    let raf = 0;
+    const sync = (src: HTMLElement, dst: HTMLElement) => {
+      if (syncing.current) return;
+      syncing.current = true;
+      const sMax = src.scrollHeight - src.clientHeight;
+      const dMax = dst.scrollHeight - dst.clientHeight;
+      if (sMax > 0 && dMax >= 0) dst.scrollTop = (src.scrollTop / sMax) * dMax;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        syncing.current = false;
+      });
+    };
+    const onAreaScroll = () => sync(area, view);
+    const onViewScroll = () => sync(view, area);
+    area.addEventListener("scroll", onAreaScroll, { passive: true });
+    view.addEventListener("scroll", onViewScroll, { passive: true });
+    return () => {
+      area.removeEventListener("scroll", onAreaScroll);
+      view.removeEventListener("scroll", onViewScroll);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
@@ -41,6 +72,7 @@ export function EditStage({ md, html, onEdit, onScrollState, buildContextMenu }:
         <Stage
           html={html}
           mode="preview"
+          scrollRef={previewScrollRef}
           onScrollState={onScrollState}
           buildContextMenu={buildContextMenu}
         />

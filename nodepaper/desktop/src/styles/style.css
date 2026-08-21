@@ -774,10 +774,6 @@ html[data-theme="apple"] h4 { font-weight: 600; }
   font-size: .9rem;
 }
 
-/* ---------- 专注模式 ---------- */
-body.focus .masthead { transform: translateY(-100%); }
-body.focus .masthead.is-scrolled { transform: none; border-color: var(--np-line); }
-
 /* ---------- 响应式 ---------- */
 @media (max-width: 860px) {
   :root { --np-gutter: 1.25rem; }

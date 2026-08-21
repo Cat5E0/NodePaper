@@ -51,7 +51,6 @@ export default function App() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [shelfCollapsed, setShelfCollapsed] = useState(true);
   const [tocCollapsed, setTocCollapsed] = useState(false);
-  const [focus, setFocus] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
   const [scrollState, setScrollState] = useState<ScrollState>({
@@ -75,11 +74,6 @@ export default function App() {
       SIZES[sizeIdx] + "rem"
     );
   }, [sizeIdx]);
-
-  /* 专注模式 —— 提升为 state 以便菜单显示勾选 */
-  useEffect(() => {
-    document.body.classList.toggle("focus", focus);
-  }, [focus]);
 
   /* 载入文件 */
   const loadEntry = useCallback(async (entry: FileEntry) => {
@@ -141,9 +135,8 @@ export default function App() {
       { label: "缩小字号", onClick: sizeDown },
       { label: "目录", check: !tocCollapsed, onClick: () => setTocCollapsed((v) => !v) },
       { label: "编辑模式", check: editMode, onClick: () => setEditMode((v) => !v) },
-      { label: "专注模式", check: focus, onClick: () => setFocus((v) => !v) },
     ];
-  }, [handleOpen, sizeUp, sizeDown, tocCollapsed, editMode, focus]);
+  }, [handleOpen, sizeUp, sizeDown, tocCollapsed, editMode]);
 
   /* 拖放（Tauri webview 原生事件，浏览器 dragdrop 在此被禁用） */
   useEffect(() => {
@@ -188,9 +181,6 @@ export default function App() {
       } else if (k === "t") {
         e.preventDefault();
         setTocCollapsed((v) => !v);
-      } else if (k === "f") {
-        e.preventDefault();
-        setFocus((v) => !v);
       } else if (k === "e") {
         e.preventDefault();
         setEditMode((v) => !v);
@@ -207,13 +197,11 @@ export default function App() {
         theme={theme}
         shelfCollapsed={shelfCollapsed}
         tocCollapsed={tocCollapsed}
-        focus={focus}
         editMode={editMode}
         onHome={() => setMd(SAMPLE)}
         onOpen={handleOpen}
         onToggleShelf={() => setShelfCollapsed((v) => !v)}
         onToggleToc={() => setTocCollapsed((v) => !v)}
-        onToggleFocus={() => setFocus((v) => !v)}
         onToggleEdit={() => setEditMode((v) => !v)}
         onPaste={() => setPasteOpen(true)}
         onSizeUp={sizeUp}
@@ -284,8 +272,6 @@ export default function App() {
           <dd>显示 / 隐藏目录</dd>
           <dt>E</dt>
           <dd>进入 / 退出编辑模式</dd>
-          <dt>F</dt>
-          <dd>进入 / 退出专注模式</dd>
           <dt>Esc</dt>
           <dd>关闭浮层、菜单</dd>
           <dt>右键</dt>

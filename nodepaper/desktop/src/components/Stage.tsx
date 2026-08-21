@@ -1,6 +1,7 @@
 // 阅读舞台：自身为滚动容器。渲染 Markdown HTML、按 h2 切 section、逐节浮起、滚动墨笔/目录高亮。
 // mode="preview" 供编辑模式右侧预览：保留滚动位置、跳过逐节动画，避免每次键入闪烁归顶。
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import { inView, animate } from "motion";
 import { groupIntoSections } from "../lib/markdown";
 import { useContextMenu } from "./ContextMenu";
@@ -16,12 +17,19 @@ interface StageProps {
   onScrollState: (s: ScrollState) => void;
   buildContextMenu?: () => CtxItem[];
   mode?: "read" | "preview";
+  /** 外部可注入的滚动容器 ref（编辑模式同步滚动用），与内部 ref 同步赋值 */
+  scrollRef?: RefObject<HTMLElement | null>;
 }
 
-export function Stage({ html, onScrollState, buildContextMenu, mode = "read" }: StageProps) {
+export function Stage({ html, onScrollState, buildContextMenu, mode = "read", scrollRef }: StageProps) {
   const { open } = useContextMenu();
   const stageRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLDivElement>(null);
+  // 合并内部与外部 ref：挂载时同时写入
+  const setStageRef = (el: HTMLElement | null) => {
+    stageRef.current = el;
+    if (scrollRef) scrollRef.current = el;
+  };
   // 持有最新回调，避免 html 不变时 effect 因回调引用变化而重建
   const cbRef = useRef(onScrollState);
   cbRef.current = onScrollState;
@@ -102,7 +110,7 @@ export function Stage({ html, onScrollState, buildContextMenu, mode = "read" }: 
   return (
     <main
       className="stage"
-      ref={stageRef}
+      ref={setStageRef}
       onContextMenu={(e) => {
         if (!buildContextMenu) return;
         e.preventDefault();

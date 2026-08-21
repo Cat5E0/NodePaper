@@ -19,13 +19,11 @@ interface MastheadProps {
   theme: string;
   shelfCollapsed: boolean;
   tocCollapsed: boolean;
-  focus: boolean;
   editMode: boolean;
   onHome: () => void;
   onOpen: () => void;
   onToggleShelf: () => void;
   onToggleToc: () => void;
-  onToggleFocus: () => void;
   onToggleEdit: () => void;
   onPaste: () => void;
   onSizeUp: () => void;
@@ -76,13 +74,11 @@ export function Masthead(props: MastheadProps) {
     theme,
     shelfCollapsed,
     tocCollapsed,
-    focus,
     editMode,
     onHome,
     onOpen,
     onToggleShelf,
     onToggleToc,
-    onToggleFocus,
     onToggleEdit,
     onPaste,
     onSizeUp,
@@ -199,13 +195,6 @@ export function Masthead(props: MastheadProps) {
                 kbd="E"
                 check={editMode}
                 onClick={onToggleEdit}
-                onClose={close}
-              />
-              <Entry
-                label="专注模式"
-                kbd="F"
-                check={focus}
-                onClick={onToggleFocus}
                 onClose={close}
               />
               <div className="menu-sep" />
