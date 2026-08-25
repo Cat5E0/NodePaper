@@ -44,13 +44,29 @@ type Issue struct {
 	Message string
 }
 
+// commandPatterns are the content rules every declared fragment must satisfy.
+//
+// The nested-dependency row covers external *file reads*, not just \input:
+// \pgfimage, \pgfdeclareimage and \pgfplotstableread are what matplotlib's
+// PGF backend and pgfplots reach for when a figure carries a rasterised layer
+// or an external data table. Without them a fragment referencing figure-img0.png
+// passed validate and then died in xelatex, because assemble() stages only the
+// images referenced from Markdown (see internal/export/export.go) and never
+// scans fragments - the PNG was never copied into the delivered project. Failing
+// here turns an unreadable TeX log into one NP2507 naming the file.
+//
+// \addplot table {data.dat} is deliberately NOT matched: it is
+// indistinguishable by regexp from the legitimate inline form
+// \addplot table[...] {<rows written out here>}, so blocking it would reject
+// correct fragments. That one stays a compile-time failure, documented in
+// docs/guides/tikz-pgf.md.
 var commandPatterns = []struct {
 	code    string
 	message string
 	re      *regexp.Regexp
 }{
 	{CodeDocumentCommand, "document or package command is not allowed", regexp.MustCompile(`(?i)\\(?:documentclass|usepackage|requirepackage|begin\s*\{\s*document\s*\}|end\s*\{\s*document\s*\})`)},
-	{CodeNestedDependency, "nested fragment dependency or file read is not allowed", regexp.MustCompile(`(?i)\\(?:input|include|includeonly|inputiffileexists|subfile|import|subimport|includegraphics|verbatiminput|lstinputlisting|bibliography|addbibresource)\b`)},
+	{CodeNestedDependency, "nested fragment dependency or file read is not allowed", regexp.MustCompile(`(?i)\\(?:input|include|includeonly|inputiffileexists|subfile|import|subimport|includegraphics|pgfdeclareimage|pgfimage|pgfplotstableread|verbatiminput|lstinputlisting|bibliography|addbibresource)\b`)},
 	{CodeCommandExecution, "TeX I/O, command execution, or command obfuscation is not allowed", regexp.MustCompile(`(?i)\\(?:write18|shellescape|pdfshellescape|immediate|openin|openout|read|write|catcode|csname|scantokens|special|directlua|endlinechar|escapechar)\b`)},
 }
 
@@ -183,6 +199,19 @@ func inspectCommands(path, content string) *Issue {
 		}
 	}
 	return nil
+}
+
+// StripComments removes TeX line comments from content, keeping the line
+// structure. It exists because a plain substring search over a .tex file also
+// reads its comments, and the Profile preamble comments discuss the very
+// commands a caller may be looking for - internal/export learned this the hard
+// way when the pgfplots comment made every document look like it drew an axis.
+func StripComments(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		lines[i] = stripTeXComment(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func stripTeXComment(line string) string {

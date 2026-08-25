@@ -1,0 +1,7 @@
+% 负向 Fixture：matplotlib PGF backend 对栅格图层发出 \pgfimage，引用一个同目录的
+% PNG。这类 Fragment 过去能通过 validate，然后在编译期挂在那张 PNG 上——export 的
+% staging 只扫 Markdown 里的图片引用，从不扫 Fragment，PNG 永远不会进交付目录。
+% 现在 \pgfimage 与 \includegraphics 同列，validate 阶段即报 NP2507。
+\begin{pgfpicture}
+\pgftext{\pgfimage[width=3in]{rasterised-img0.png}}
+\end{pgfpicture}

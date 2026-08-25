@@ -215,6 +215,14 @@
       "purpose": "minimal declared low-level PGF Fragment validate and E2E contract"
     },
     {
+      "path": "pgfplots-basic",
+      "command": "validate",
+      "expectedSuccess": true,
+      "expectedExitCode": 0,
+      "expectedDiagnosticCodes": [],
+      "purpose": "minimal declared pgfplots Fragment validate and E2E contract"
+    },
+    {
       "path": "highlight-showcase",
       "command": "validate",
       "expectedSuccess": true,
@@ -254,6 +262,16 @@
     },
     {
       "path": "fragment-nested",
+      "command": "validate",
+      "expectedSuccess": false,
+      "expectedExitCode": 1,
+      "expectedDiagnosticCodes": [
+        "NP2507"
+      ],
+      "phase": "fragment-security"
+    },
+    {
+      "path": "fragment-external-image",
       "command": "validate",
       "expectedSuccess": false,
       "expectedExitCode": 1,

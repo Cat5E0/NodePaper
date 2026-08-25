@@ -101,6 +101,40 @@ func TestCheckXeLaTeXPresentButUnusableStillFails(t *testing.T) {
 	}
 }
 
+func TestDrawingPackagesResultAlwaysPasses(t *testing.T) {
+	// Absent pgfplots is the normal state for almost every user: nothing is
+	// broken and a paper without an axis builds identically without it. A Warning
+	// here would show up on nearly every machine, which is how a diagnostic stops
+	// being read.
+	for _, present := range []bool{true, false} {
+		check := drawingPackagesResult(present)
+		if check.Status != StatusPass {
+			t.Fatalf("pgfplots present=%v: Status = %v, want StatusPass", present, check.Status)
+		}
+		if check.Name != drawingPackagesCheckName {
+			t.Fatalf("Name = %q, want %q", check.Name, drawingPackagesCheckName)
+		}
+		if !strings.Contains(check.Message, "pgfplots") {
+			t.Fatalf("Message does not name pgfplots: %q", check.Message)
+		}
+	}
+
+	if suggestion := drawingPackagesResult(true).Suggestion; suggestion != "" {
+		t.Errorf("Suggestion should be empty when pgfplots is present, got %q", suggestion)
+	}
+
+	absent := drawingPackagesResult(false)
+	if !strings.Contains(absent.Suggestion, "tlmgr install pgfplots") ||
+		!strings.Contains(absent.Suggestion, "miktex packages install pgfplots") {
+		t.Errorf("Suggestion should name both install commands, got %q", absent.Suggestion)
+	}
+	// The message has to explain the failure the user would otherwise meet only
+	// as a bare TeX error.
+	if !strings.Contains(absent.Message, "Environment axis undefined") {
+		t.Errorf("Message should name the error pgfplots's absence produces, got %q", absent.Message)
+	}
+}
+
 func TestLatexExportPackagesResultAlwaysPasses(t *testing.T) {
 	cases := []struct {
 		name                       string

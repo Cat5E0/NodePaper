@@ -141,6 +141,55 @@ func texHasBibliography(texPath string) bool {
 	return strings.Contains(text, "\\bibliography{") || strings.Contains(text, "\\printbibliography")
 }
 
+// usesPgfplots reports whether the exported project actually draws a pgfplots
+// axis. It reads the emitted files for the same reason texHasBibliography does:
+// the fact is a property of what was written, not something the export mode or
+// the config can be asked about.
+//
+// Both paper.tex and the declared fragments are scanned, because that is where
+// the axis really lives: a figure reaches the document as
+// \input{figures/axis.tex}, so paper.tex carries the \input and nothing else.
+// Scanning only paper.tex reported no project as drawing, ever.
+//
+// Only the install hint in README.txt depends on this. Naming pgfplots
+// unconditionally would put a package on every recipient's install line that
+// almost no paper needs, and packageList is deliberately kept to what a minimal
+// installation is actually missing.
+func usesPgfplots(texPath string, fragments []fragment.File) bool {
+	paths := make([]string, 0, len(fragments)+1)
+	paths = append(paths, texPath)
+	for _, file := range fragments {
+		paths = append(paths, file.Path)
+	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			// Unreadable here means the caller is about to fail on it anyway.
+			// Skip it rather than let a broken read pad the install line.
+			continue
+		}
+		// Comments have to go first. The Profile preamble explains, in a
+		// comment, why pgfplots is loaded conditionally - and names
+		// \begin{axis} and \addplot while doing it. Searching the raw file
+		// reported every document as drawing an axis, including ones with no
+		// figure at all.
+		text := fragment.StripComments(string(data))
+		for _, marker := range []string{
+			"\\begin{axis}",
+			"\\begin{semilogxaxis}",
+			"\\begin{semilogyaxis}",
+			"\\begin{loglogaxis}",
+			"\\begin{polaraxis}",
+			"\\addplot",
+		} {
+			if strings.Contains(text, marker) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // needsBibFile reports whether the exported project has to ship references.bib.
 func (m BibMode) needsBibFile() bool { return m != BibInline }
 
@@ -782,7 +831,7 @@ func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibl
 	}
 
 	readmePath := filepath.Join(target, "README.txt")
-	if err := os.WriteFile(readmePath, []byte(readme(mode, hasBibliography)), 0o644); err != nil {
+	if err := os.WriteFile(readmePath, []byte(readme(mode, hasBibliography, usesPgfplots(texPath, fragments))), 0o644); err != nil {
 		diags = append(diags, errorDiag(CodeCopyFailed,
 			fmt.Sprintf("cannot write README.txt: %v", err),
 			"Check the available disk space and permissions."))

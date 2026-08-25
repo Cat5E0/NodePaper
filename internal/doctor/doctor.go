@@ -109,6 +109,7 @@ func Run(ctx context.Context, projectRoot string, resourceRoot string) Result {
 		checkXeLaTeXDriver(ctx, tc),
 		checkXeLaTeX(ctx, tc.XeLaTeX),
 		checkChineseProbe(ctx, tc),
+		checkDrawingPackages(ctx),
 	)...)
 	checks = append(checks, grouped(GroupLaTeXExport, checkLaTeXExportPackages(ctx))...)
 	checks = append(checks, grouped(GroupInstallation, checkInstallation()...)...)
@@ -428,6 +429,61 @@ func latexExportPackagesResult(gbt7714, biblatexGB, biber bool) Check {
 		"  tlmgr install gbt7714 biblatex-gb7714-2015 biber\n" +
 		"  miktex packages install gbt7714 biblatex-gb7714-2015 biber"
 	return check
+}
+
+// drawingPackagesCheckName is the fixed Name for the check below, suffixed
+// "(optional)" for the same reason latexExportPackagesCheckName is: the label
+// itself has to say this is not part of the core build path.
+const drawingPackagesCheckName = "TikZ drawing packages (optional)"
+
+// checkDrawingPackages probes for pgfplots, which the Profile preamble loads
+// conditionally (\IfFileExists{pgfplots.sty}). tikz itself is not probed: it
+// comes with pgf, which every TeX distribution installs, and a paper that does
+// not draw never notices either way.
+//
+// Like checkLaTeXExportPackages this always reports StatusPass. Absent pgfplots
+// is the normal state for the large majority of users - nothing is broken, and a
+// paper without an axis builds byte-identically without it. Reported as a
+// Warning it would appear in the Warning count on almost every machine, which is
+// how a diagnostic stops being read. See checkToDiag: only Warning and Fail
+// become diagnostics.
+func checkDrawingPackages(ctx context.Context) Check {
+	kpsewhichPath, err := exec.LookPath("kpsewhich")
+	if err != nil {
+		return Check{
+			Name:   drawingPackagesCheckName,
+			Status: StatusPass,
+			Message: "kpsewhich is unavailable, so pgfplots was not probed; it is needed only by " +
+				"papers that draw an axis with pgfplots",
+		}
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return drawingPackagesResult(kpsewhichHasFile(probeCtx, kpsewhichPath, "pgfplots.sty"))
+}
+
+// drawingPackagesResult renders the probe outcome into a Check, kept separate
+// from checkDrawingPackages so both outcomes can be exercised without shelling
+// out - the same split latexExportPackagesResult uses.
+func drawingPackagesResult(pgfplots bool) Check {
+	if pgfplots {
+		return Check{
+			Name:    drawingPackagesCheckName,
+			Status:  StatusPass,
+			Message: "pgfplots available (used by LaTeX Fragments that draw an axis / addplot)",
+		}
+	}
+	return Check{
+		Name:   drawingPackagesCheckName,
+		Status: StatusPass,
+		Message: "pgfplots not detected; TikZ Fragments still work, but one that draws an axis " +
+			"will fail with \"Environment axis undefined\"",
+		Suggestion: "If a Fragment of yours uses pgfplots (axis / addplot), install it:\n" +
+			"  tlmgr install pgfplots\n" +
+			"  miktex packages install pgfplots",
+	}
 }
 
 // kpsewhichHasFile reports whether kpsewhich resolves filename to a path. A

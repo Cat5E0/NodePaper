@@ -3,7 +3,13 @@
 %   ① 声明为 .pgf 的 Fragment 必须被接受（matplotlib 的 savefig('f.pgf') 直接产出
 %      这个扩展名，不应强迫用户先改名）；
 %   ② 低层 pgfpicture 命令由 Profile 加载的 tikz 提供（tikz 带 pgf），不需要
-%      pgfplots——后者不能加进模板，实测会让所有构建报 NP6105。
+%      pgfplots。本 Fragment 刻意停在这一层，好让「不依赖 pgfplots 的 .pgf 产物
+%      能编译」单独有护栏。
+% 原注记「pgfplots 不能加进模板，实测会让所有构建报 NP6105」已在 2026-08 定位到
+% 成因并解决：缺的是 \pgfplotsset{compat=...}，不设时 pgfplots 每份文档都发
+% 「running in backwards compatibility mode」警告，被归为 unknown-warning。模板
+% 现在按 \IfFileExists 条件加载 pgfplots 并钉 compat=1.18，零警告；axis/addplot
+% 的正向覆盖见 tests/fixtures/pgfplots-basic。
 % 图内故意含中文标签，让既有的「零 Missing character:」护栏一并覆盖 pgf 文本。
 \begingroup%
 \makeatletter%

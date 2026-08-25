@@ -1,0 +1,25 @@
+% pgfplots 回归 Fragment。Fragment 禁止 \usepackage（NP2506），因此 pgfplots 由
+% Profile 模板按 \IfFileExists 条件加载并钉 \pgfplotsset{compat=1.18}；此处验证：
+%   ① axis 环境与 \addplot 在编译期可用（缺 pgfplots 时报 Environment axis
+%      undefined，这正是本 Fixture 要挡住的回归）；
+%   ② 设了 compat 之后零警告——不设时 pgfplots 每份文档都发「running in backwards
+%      compatibility mode」，会被归为 unknown-warning 并让构建报 NP6105；
+%   ③ 轴标题用中文，让既有的「零 Missing character:」护栏一并覆盖 pgfplots 文本。
+% 数据一律内联：外部数据文件不会被 export 的 staging 复制，\pgfplotstableread 也
+% 已被 NP2507 拒绝。
+% 引用约定同其他 Fragment：内部 \label 只能用原生 \ref{...}，不能用 @fig: 语法。
+\begin{figure}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    xlabel={时间},
+    ylabel={产量},
+    width=9cm,
+    height=6cm,
+    grid=major,
+]
+  \addplot coordinates {(0,0) (1,1) (2,0.6) (3,1.4)};
+\end{axis}
+\end{tikzpicture}
+\caption{NP-PGFPLOTS-BASIC-01 最小 pgfplots Fragment}\label{fig:pgfplots-basic}
+\end{figure}

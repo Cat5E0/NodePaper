@@ -16,6 +16,7 @@ import (
 
 	"nodepaper/internal/buildlock"
 	"nodepaper/internal/diagnostic"
+	"nodepaper/internal/fragment"
 	"nodepaper/internal/process"
 )
 
@@ -706,7 +707,7 @@ func TestVerifyRunsTheChainTheReadmeDocuments(t *testing.T) {
 			if strings.Join(got, ",") != strings.Join(want, ",") {
 				t.Fatalf("chain = %v, want %v", got, want)
 			}
-			readmeText := readme(mode, true)
+			readmeText := readme(mode, true, false)
 			for _, tool := range want {
 				if !strings.Contains(readmeText, tool) {
 					t.Errorf("README.txt does not mention %q", tool)
@@ -780,9 +781,108 @@ func stubTools(t *testing.T, names ...string) {
 
 // ---------- README --------------------------------------------------------
 
+func TestReadmeAlwaysNamesPgfAndOnlyNamesPgfplotsWhenDrawn(t *testing.T) {
+	// The Profile preamble always loads tikz, so pgf is needed by every export
+	// whether or not the paper draws. It was missing from the install line, and a
+	// recipient handed a project with a TikZ figure was told to install
+	// everything except the package it could not compile without.
+	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
+		plain := readme(mode, true, false)
+		if !containsPackage(plain, "pgf") {
+			t.Errorf("%s README.txt install line omits pgf", mode)
+		}
+		if containsPackage(plain, "pgfplots") {
+			t.Errorf("%s README.txt names pgfplots for a paper that draws no axis", mode)
+		}
+
+		drawing := readme(mode, true, true)
+		if !containsPackage(drawing, "pgfplots") {
+			t.Errorf("%s README.txt omits pgfplots for a paper that draws an axis", mode)
+		}
+	}
+}
+
+// containsPackage reports whether name appears as a whole package name on one of
+// the two install lines, so "pgf" is not satisfied by "pgfplots".
+func containsPackage(readmeText, name string) bool {
+	for _, line := range strings.Split(readmeText, "\n") {
+		if !strings.Contains(line, "tlmgr install") && !strings.Contains(line, "miktex packages install") {
+			continue
+		}
+		for _, field := range strings.Fields(line) {
+			if field == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestUsesPgfplotsReadsTheDeliveredFiles(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"plain tikz", "\\begin{tikzpicture}\\draw (0,0) -- (1,1);\\end{tikzpicture}", false},
+		{"axis", "\\begin{axis}\\addplot coordinates {(0,0)};\\end{axis}", true},
+		{"semilog axis", "\\begin{semilogyaxis}\\end{semilogyaxis}", true},
+		{"loglog axis", "\\begin{loglogaxis}\\end{loglogaxis}", true},
+		{"polar axis", "\\begin{polaraxis}\\end{polaraxis}", true},
+		{"addplot alone", "\\addplot table {a b};", true},
+		{"no drawing at all", "plain text", false},
+		// The Profile preamble explains in a comment why pgfplots is loaded
+		// conditionally, and names \begin{axis} and \addplot while doing so.
+		// Every emitted paper.tex carries that comment, so a raw substring
+		// search reported every document as drawing an axis - including ones
+		// with no figure at all, which put pgfplots on every recipient's
+		// install line.
+		{"commented mention only", "% see \\begin{axis} and \\addplot\nplain text", false},
+		{"comment plus real axis", "% \\addplot\n\\begin{axis}\\end{axis}", true},
+		{"escaped percent is not a comment", "100\\% \\addplot coordinates {(0,0)};", true},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := write(fmt.Sprintf("paper%d.tex", i), tc.body)
+			if got := usesPgfplots(path, nil); got != tc.want {
+				t.Fatalf("usesPgfplots(%q) = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+
+	// The axis normally lives in a Fragment, not in paper.tex: the document only
+	// carries \input{figures/axis.tex}. Scanning paper.tex alone found no
+	// project that draws, ever.
+	t.Run("axis only in a fragment", func(t *testing.T) {
+		tex := write("with-input.tex", "\\input{figures/axis.tex}\n")
+		axis := write("axis.tex", "\\begin{axis}\\addplot coordinates {(0,0)};\\end{axis}\n")
+		if usesPgfplots(tex, nil) {
+			t.Fatal("paper.tex carrying only an \\input must not look like it draws")
+		}
+		if !usesPgfplots(tex, []fragment.File{{Path: axis, Relative: "figures/axis.tex"}}) {
+			t.Fatal("an axis inside a declared Fragment was not detected")
+		}
+	})
+
+	// An unreadable file must not pad the install line with a package the
+	// document may not use.
+	if usesPgfplots(filepath.Join(dir, "absent.tex"), nil) {
+		t.Error("usesPgfplots reported true for an unreadable file")
+	}
+}
+
 func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode, true)
+		text := readme(mode, true, false)
 		for _, needle := range []string{
 			"one-way",
 			"never read back",
@@ -807,7 +907,7 @@ func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 // states the free-plan cap before the upload steps rather than after them.
 func TestReadmeExplainsOverleaf(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode, true)
+		text := readme(mode, true, false)
 		for _, needle := range []string{
 			"Compiling on Overleaf",
 			"after 10",
@@ -827,13 +927,13 @@ func TestReadmeExplainsOverleaf(t *testing.T) {
 	}
 	// The zip layout is the other thing people get wrong; Overleaf cannot find
 	// paper.tex when the archive wraps it in a folder.
-	if !strings.Contains(readme(BibInline, true), "not the enclosing folder") {
+	if !strings.Contains(readme(BibInline, true, false), "not the enclosing folder") {
 		t.Error("README.txt does not say to zip the contents rather than the folder")
 	}
 	// Order matters more than presence: a cap disclosed after the upload steps
 	// is read only by someone who already spent the time it was meant to save.
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode, true)
+		text := readme(mode, true, false)
 		if strings.Index(text, "after 10") > strings.Index(text, "Upload Project") {
 			t.Errorf("%s README.txt states the Overleaf time limit after the upload steps", mode)
 		}
@@ -858,7 +958,7 @@ func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
 			}
 		}
 
-		text := readme(mode, false)
+		text := readme(mode, false, false)
 		for _, forbidden := range []string{"bibtex paper", "biber paper"} {
 			if strings.Contains(text, forbidden) {
 				t.Errorf("%s README.txt still tells the recipient to run %q with no bibliography", mode, forbidden)
@@ -892,12 +992,12 @@ func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
 }
 
 func TestReadmeExplainsTheGbt7714TitleCaseWorkaroundInBibtexModeOnly(t *testing.T) {
-	bibtex := readme(BibBibTeX, true)
+	bibtex := readme(BibBibTeX, true, false)
 	if !strings.Contains(bibtex, "title = {{") || !strings.Contains(bibtex, "sentence case") {
 		t.Errorf("bibtex README.txt does not explain the double-brace workaround:\n%s", bibtex)
 	}
 	for _, mode := range []BibMode{BibBibLaTeX, BibInline} {
-		if strings.Contains(readme(mode, true), "title = {{") {
+		if strings.Contains(readme(mode, true, false), "title = {{") {
 			t.Errorf("%s README.txt carries the gbt7714-only workaround", mode)
 		}
 	}

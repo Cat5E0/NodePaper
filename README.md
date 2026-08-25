@@ -443,7 +443,7 @@ latexFragments:
 
 ## TikZ / PGF 绘图
 
-NodePaper v0.1 支持两类绘图 Fragment：手写或工具生成的 TikZ（`\begin{tikzpicture}`），以及绘图工具导出的纯 PGF 命令文件（`\begin{pgfpicture}`，如 Matplotlib 的 PGF backend 生成的 `.pgf`）。PGF 是 TikZ 底层的绘图语言；`pgfplots`（`\begin{axis}`、`\addplot` 那类坐标轴图表宏包）是更上层的独立宏包，v0.1 尚未支持。最快用法是把导出的 `figures/model.tex` 或 `figures/model.pgf` 加入白名单：
+NodePaper v0.1 支持三类绘图 Fragment：手写或工具生成的 TikZ（`\begin{tikzpicture}`）、绘图工具导出的纯 PGF 命令文件（`\begin{pgfpicture}`，如 Matplotlib 的 PGF backend 生成的 `.pgf`），以及 `pgfplots` 的坐标轴图表（`\begin{axis}`、`\addplot`，如 `tikzplotlib` 的输出）。最快用法是把导出的 `figures/model.tex` 或 `figures/model.pgf` 加入白名单：
 
 ```yaml
 latexFragments:
@@ -456,7 +456,7 @@ latexFragments:
 \input{figures/model.pgf}
 ```
 
-绘图脚本在 NodePaper 外部运行；NodePaper 只验证并编译声明过的 Fragment。`pgfplots` 尚不属于 v0.1 完整支持面。Matplotlib 导出、字体与路径约束、支持矩阵和排错见 [TikZ / PGF Fragment 指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/tikz-pgf.md)。
+绘图脚本在 NodePaper 外部运行；NodePaper 只验证并编译声明过的 Fragment。`pgfplots` 由 Profile **条件加载**：装了就能用 `axis` / `addplot`，没装则只有用到它的图会失败，其余构建完全不受影响（`nodepaper doctor` 会报告是否可用）。图表数据必须内联进 Fragment——引用外部 `.dat` 的写法不受支持，那个文件不会随 `nodepaper export` 一起交付。Matplotlib 导出、字体与路径约束、支持矩阵和排错见 [TikZ / PGF Fragment 指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/tikz-pgf.md)。
 
 ## 主要能力
 

@@ -28,6 +28,9 @@ func TestInspectRejectsUnsafeDeclarationsAndCommands(t *testing.T) {
 	writeFragment(t, root, "bad/execute.tex", "\\immediate\\write18{calc}\n")
 	writeFragment(t, root, "bad/obfuscated.tex", "\\in% hidden\nput{other.tex}\n")
 	writeFragment(t, root, "bad/external-read.tex", "\\includegraphics{../outside.png}\n")
+	writeFragment(t, root, "bad/pgfimage.pgf", "\\pgftext{\\pgfimage{figure-img0.png}}\n")
+	writeFragment(t, root, "bad/pgfdeclareimage.pgf", "\\pgfdeclareimage[width=3in]{img}{figure-img0.png}\n")
+	writeFragment(t, root, "bad/pgfplotstable.tex", "\\pgfplotstableread{data.dat}\\table\n")
 	writeFragment(t, root, "bad/commented.tex", "% \\input{ignored.tex}\nSafe \\% text\n")
 
 	tests := []struct {
@@ -44,6 +47,12 @@ func TestInspectRejectsUnsafeDeclarationsAndCommands(t *testing.T) {
 		{"nested dependency", []string{"bad/nested.tex"}, CodeNestedDependency},
 		{"obfuscated dependency", []string{"bad/obfuscated.tex"}, CodeNestedDependency},
 		{"external file read", []string{"bad/external-read.tex"}, CodeNestedDependency},
+		// matplotlib's PGF backend emits \pgfimage for a rasterised layer and
+		// pgfplots reads external tables. Both used to pass here and then die in
+		// xelatex, because the referenced file is never staged into an export.
+		{"pgf raster image", []string{"bad/pgfimage.pgf"}, CodeNestedDependency},
+		{"pgf declared image", []string{"bad/pgfdeclareimage.pgf"}, CodeNestedDependency},
+		{"pgfplots external table", []string{"bad/pgfplotstable.tex"}, CodeNestedDependency},
 		{"execution", []string{"bad/execute.tex"}, CodeCommandExecution},
 	}
 	for _, test := range tests {
@@ -65,6 +74,20 @@ func TestInspectRejectsUnsafeDeclarationsAndCommands(t *testing.T) {
 	writeFragment(t, root, "bad/plot-doc.pgf", "\\usepackage{pgfplots}\n")
 	if _, issues := Inspect(root, []string{"bad/plot-doc.pgf"}); !hasIssue(issues, CodeDocumentCommand) {
 		t.Fatalf(".pgf fragment escaped the package-command rule: %#v", issues)
+	}
+
+	// The point of blocking \\pgfplotstableread is the external file, not
+	// pgfplots. A fragment that draws an axis from inline coordinates is exactly
+	// what the Profile now loads pgfplots for, and \\addplot table with the rows
+	// written out in place is deliberately still allowed - it reads nothing.
+	writeFragment(t, root, "good/axis.tex",
+		"\\begin{tikzpicture}\n\\begin{axis}[xlabel={t}]\n"+
+			"\\addplot coordinates {(0,0) (1,1)};\n"+
+			"\\addplot table[x=a,y=b] {\na b\n0 1\n};\n"+
+			"\\end{axis}\n\\end{tikzpicture}\n")
+	axisFiles, axisIssues := Inspect(root, []string{"good/axis.tex"})
+	if len(axisIssues) != 0 || len(axisFiles) != 1 {
+		t.Fatalf("inline pgfplots fragment was rejected: files=%#v issues=%#v", axisFiles, axisIssues)
 	}
 
 	files, issues := Inspect(root, []string{"bad/commented.tex"})

@@ -240,7 +240,7 @@ Fragment 被刻意限制在文档正文片段的范围内：不要在其中放 `
 
 `width=80%` 控制图片占正文宽度的比例，`#fig:result` 供交叉引用使用。构建前应确认该文件与 Markdown 一起存在于项目中；不要把图片仅放在 `.nodepaper/`、`dist/` 或项目外的临时目录。TikZ 或纯 PGF 命令文件则必须按与表格 Fragment 相同的“文件在项目内 → `latexFragments` 显式声明 → Markdown `\input` 插入”流程处理。
 
-外部工具如何导出、Matplotlib PGF 的字体一致性、可用 TikZ 库和诊断码，见 [TikZ / PGF Fragment 指南](tikz-pgf.md)。当前已验证的是基本 TikZ 与纯 PGF 命令文件（`pgfpicture`）；`pgfplots` 不在当前支持承诺内，不能把能否偶然编译当作兼容性保证。
+外部工具如何导出、Matplotlib PGF 的字体一致性、可用 TikZ 库和诊断码，见 [TikZ / PGF Fragment 指南](tikz-pgf.md)。当前已验证的是基本 TikZ、纯 PGF 命令文件（`pgfpicture`）和 `pgfplots` 坐标轴图表（`axis` / `addplot`，2026-08-25 起）。`pgfplots` 由 Profile **条件加载**：装了才有，没装时只有用到它的图会失败（`nodepaper doctor` 会报告是否可用）。图表数据必须内联进 Fragment，引用外部数据文件的写法不受支持。
 
 ## 7. 哪些文件提交，哪些文件只留在本机
 
@@ -344,6 +344,6 @@ nodepaper export . --to ..\paper-latex.zip --verify
 
 ## 当前边界与尚未提供的设置
 
-以下不是遗漏的配置键，而是当前 v0.1 没有提供的能力：Markdown 表题与表注字体的独立 YAML 设置，以及对 `pgfplots` 的兼容性保证。（摘要区的两处间距原先也在此列，已于 2026-08-21 实现为 `titleAbstractSkip` 与 `abstractKeywordsSkip`，见上表。论文标题到摘要标题之间的间距仍是模板固定值，没有配置入口。）不要自行添加看似合理的字段；配置解析会拒绝未知字段。
+以下不是遗漏的配置键，而是当前 v0.1 没有提供的能力：Markdown 表题与表注字体的独立 YAML 设置。（摘要区的两处间距原先也在此列，已于 2026-08-21 实现为 `titleAbstractSkip` 与 `abstractKeywordsSkip`，见上表；`pgfplots` 兼容性原先也在此列，已于 2026-08-25 由 Profile 条件加载实现并纳入 E2E 回归——但它仍不是配置键，宏包由 Profile 管理，不能在 `nodepaper.yaml` 里增删。论文标题到摘要标题之间的间距仍是模板固定值，没有配置入口。）不要自行添加看似合理的字段；配置解析会拒绝未知字段。
 
 这些能力如进入后续版本，会在发布说明和本指南中明确标为可用。在此之前，应通过现有 Markdown 表格属性、受控 Fragment 或最小复现问题来处理，而不是依赖未承诺的行为。

@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $inspectDir = ""
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
-    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "tikz-basic", "pgf-basic", "layout-stress")) {
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "tikz-basic", "pgf-basic", "pgfplots-basic", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
     # One extra pass over the smallest fixture, under a path containing "~".
@@ -317,6 +317,24 @@ try {
             }
         }
     }
+    if ($Fixture -eq "pgfplots-basic") {
+        # The Fragment cannot load pgfplots itself (NP2506), so the Profile has
+        # to. It is loaded conditionally, because pgfplots is absent from a
+        # minimal MiKTeX and an unconditional \usepackage would break every
+        # build on such a machine - including one that draws nothing.
+        foreach ($required in @("\input{figures/axis.tex}", "\IfFileExists{pgfplots.sty}", "\usepackage{pgfplots}")) {
+            if (-not $texText.Contains($required)) {
+                throw "pgfplots-basic LaTeX contract is missing: $required"
+            }
+        }
+        # compat is not cosmetic: without it pgfplots emits "running in backwards
+        # compatibility mode" on every document, latexlog classifies that as an
+        # unknown warning, and the build fails with NP6105. This is the actual
+        # cause of the historical "pgfplots cannot go in the template" finding.
+        if (-not $texText.Contains("\pgfplotsset{compat=1.18}")) {
+            throw "pgfplots-basic needs a pinned compat; without it every build fails with NP6105"
+        }
+    }
 
     $logs = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Filter "build-*.log" -File)
     if ($logs.Count -lt 1 -or $logs[0].Length -eq 0) {
@@ -597,6 +615,20 @@ try {
     }
     if ($Fixture -eq "pgf-basic" -and -not $pdfText.Contains("NP-PGF-BASIC-01")) {
         throw "pgf-basic PDF is missing its compiled Fragment marker"
+    }
+    if ($Fixture -eq "pgfplots-basic") {
+        if (-not $pdfText.Contains("NP-PGFPLOTS-BASIC-01")) {
+            throw "pgfplots-basic PDF is missing its compiled Fragment marker"
+        }
+        # The caption alone would also appear if the axis had silently collapsed,
+        # so assert the axis really drew: pgfplots generates these tick labels
+        # from the inline coordinates, and nothing else in the document contains
+        # them.
+        foreach ($tick in @("0.5", "1.5", "2.5")) {
+            if (-not $pdfText.Contains($tick)) {
+                throw "pgfplots-basic PDF has the caption but no axis tick label: $tick"
+            }
+        }
     }
 
     if ($Fixture -eq "layout-stress") {

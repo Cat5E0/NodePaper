@@ -440,7 +440,7 @@ latexFragments:
 
 ## TikZ / PGF figures
 
-NodePaper v0.1 supports two kinds of figure Fragments: TikZ code (`\begin{tikzpicture}`, hand-written or tool-generated) and plain PGF command files (`\begin{pgfpicture}`, e.g. the `.pgf` output of Matplotlib's PGF backend). PGF is the low-level drawing language TikZ itself is built on; `pgfplots` (the separate axis/chart package using `\begin{axis}` and `\addplot`) sits on top of it and is not yet supported in v0.1. The shortest route is to allowlist the exported `figures/model.tex` or `figures/model.pgf`:
+NodePaper v0.1 supports three kinds of figure Fragments: TikZ code (`\begin{tikzpicture}`, hand-written or tool-generated), plain PGF command files (`\begin{pgfpicture}`, e.g. the `.pgf` output of Matplotlib's PGF backend), and `pgfplots` charts (`\begin{axis}`, `\addplot`, e.g. what `tikzplotlib` emits). The shortest route is to allowlist the exported `figures/model.tex` or `figures/model.pgf`:
 
 ```yaml
 latexFragments:
@@ -453,7 +453,7 @@ Then insert it at the intended location in Markdown:
 \input{figures/model.pgf}
 ```
 
-Run the plotting script outside NodePaper; NodePaper only validates and compiles declared Fragments. Full `pgfplots` support is not part of the v0.1 contract. See the [TikZ / PGF Fragment guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/tikz-pgf.md) for Matplotlib export, font and path constraints, the support matrix, and troubleshooting.
+Run the plotting script outside NodePaper; NodePaper only validates and compiles declared Fragments. `pgfplots` is loaded **conditionally** by the Profile: where it is installed, `axis` / `addplot` just work; where it is not, only a Fragment that uses it fails and every other build is unaffected (`nodepaper doctor` reports which). Chart data has to be inline in the Fragment — referencing an external `.dat` is unsupported, because that file does not travel with `nodepaper export`. See the [TikZ / PGF Fragment guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/tikz-pgf.md) for Matplotlib export, font and path constraints, the support matrix, and troubleshooting.
 
 ## Main capabilities
 

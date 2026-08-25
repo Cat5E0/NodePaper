@@ -9,7 +9,7 @@ import (
 // English to match the rest of the command-line output, and it is the only
 // place the recipient can learn how to compile the project, so it states the
 // command chain, the packages, and the fact that this copy is a dead end.
-func readme(mode BibMode, hasBibliography bool) string {
+func readme(mode BibMode, hasBibliography, usesPgfplots bool) string {
 	var b strings.Builder
 
 	b.WriteString("NodePaper LaTeX export\n")
@@ -71,8 +71,8 @@ func readme(mode BibMode, hasBibliography bool) string {
 		b.WriteString("             installations often do not have it until it is installed)\n")
 	}
 	b.WriteString("\nInstall commands:\n\n")
-	b.WriteString(fmt.Sprintf("  TeX Live   tlmgr install %s\n", strings.Join(packageList(mode), " ")))
-	b.WriteString(fmt.Sprintf("  MiKTeX     miktex packages install %s\n", strings.Join(packageList(mode), " ")))
+	b.WriteString(fmt.Sprintf("  TeX Live   tlmgr install %s\n", strings.Join(packageList(mode, usesPgfplots), " ")))
+	b.WriteString(fmt.Sprintf("  MiKTeX     miktex packages install %s\n", strings.Join(packageList(mode, usesPgfplots), " ")))
 	b.WriteString("\n")
 	b.WriteString("Chinese fonts\n")
 	b.WriteString("-------------\n")
@@ -184,8 +184,22 @@ func bibModeDescription(mode BibMode) string {
 // packageList is the set a minimal installation is most likely to be missing.
 // It is kept short on purpose: a command that tries to install forty packages
 // fails on the first name a distribution spells differently.
-func packageList(mode BibMode) []string {
-	packages := []string{"ctex", "fvextra", "mdframed", "xurl", "cleveref", "newtx"}
+//
+// pgf is unconditional because the Profile preamble always loads tikz, so every
+// exported document needs it whether or not the paper draws anything - it was
+// missing here, and a recipient handed a project with a TikZ figure got an
+// install line without the one package the document could not compile without.
+//
+// pgfplots is added only when the exported project actually draws an axis (see
+// usesPgfplots, which scans paper.tex and the declared fragments). It is a large
+// package that the preamble loads conditionally and that most papers never
+// touch, so naming it always would lengthen every recipient's install line for
+// nothing.
+func packageList(mode BibMode, usesPgfplots bool) []string {
+	packages := []string{"ctex", "fvextra", "mdframed", "xurl", "cleveref", "newtx", "pgf"}
+	if usesPgfplots {
+		packages = append(packages, "pgfplots")
+	}
 	switch mode {
 	case BibBibTeX:
 		packages = append(packages, "gbt7714", "natbib")
