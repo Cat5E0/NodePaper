@@ -211,6 +211,18 @@ nodepaper export . --to ..\paper-latex
 
 > **关于 Overleaf**：导出的工程可以上传 Overleaf（编译器选 XeLaTeX），但一份完整的 CUMCM 论文几十页、要跑多遍 XeLaTeX，在 Overleaf **免费版 10 秒编译限时**（[官方 Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)）内跑不完。想在 Overleaf 编译完整论文，要么用付费会员（240 秒），要么用会员的 7 天免费试用；否则更顺的路线是装本地 TeX，用下面一条 `nodepaper build` 直接出 PDF。
 
+### 6. 用过 AI 工具？还要交一份「AI工具使用详情」
+
+竞赛规定：使用了 AI 工具的参赛队，须在正文标注生成内容、在参考文献中列出所用工具，并在支撑材料中提交一份文件名为「AI工具使用详情」的 PDF；未使用的参赛队则要在参考文献之后声明「本参赛队未使用任何AI工具」。
+
+发布包的 `examples\cumcm-single-file\ai-usage\` 是这份材料的填空模板——它就放在示例论文工程里，本身是一个独立的 NodePaper Project。复制到自己的论文工程下改内容，然后：
+
+```powershell
+nodepaper build ai-usage
+```
+
+产物是 `ai-usage\dist\AI工具使用详情.pdf`，文件名已经符合要求。申报要求、论文侧的两种声明写法和填写要点，见 [AI 工具使用声明指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md)。
+
 ## 在本机直接出 PDF：安装 TeX
 
 安装 TeX 是整个流程中耗时最长的一步，只有 `nodepaper build` 需要它。

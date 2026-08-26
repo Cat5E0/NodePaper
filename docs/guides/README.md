@@ -6,11 +6,13 @@
 
 - [项目编写、排版与导出](project-authoring.md)：单/多文件组织、`nodepaper.yaml`、摘要首页、Markdown 表格、受控 LaTeX Fragment、构建产物边界、LaTeX 工程导出（含 Overleaf 的免费版限时）、排错。
 - [TikZ / PGF Fragment](tikz-pgf.md)：外部导出、声明、插入、字体/路径限制和排错。
+- [AI 工具使用声明与「AI工具使用详情」](ai-usage-statement.md)：竞赛对 AI 工具使用的申报要求、论文侧声明写法，以及随发布包提供的「AI工具使用详情」模板工程。
 
 ## 阅读路径
 
 1. 从根目录 README 完成安装、初始化和第一次构建。
 2. 需要拆分论文、调摘要或排普通表格时，阅读[项目编写、排版与导出](project-authoring.md)。
 3. 需要 TikZ、纯 PGF 命令文件或外部工具导出的图时，阅读 [TikZ / PGF Fragment](tikz-pgf.md)。
+4. 竞赛期间使用过 AI 工具，或需要确认要不要申报时，阅读 [AI 工具使用声明与「AI工具使用详情」](ai-usage-statement.md)。
 
 所有指南均以当前实现为界。诸如 Markdown 表题/表注字体的独立配置目前不是已提供的功能；如未来实现，会另行在发布说明和对应指南中标明。（摘要独立段距已于 2026-08-21 实现为 `titleAbstractSkip` / `abstractKeywordsSkip`；`pgfplots` 已于 2026-08-25 由 Profile 条件加载并纳入回归，见 TikZ / PGF 指南。）

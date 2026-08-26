@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $inspectDir = ""
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
-    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "tikz-basic", "pgf-basic", "pgfplots-basic", "layout-stress")) {
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "ai-usage-statement", "tikz-basic", "pgf-basic", "pgfplots-basic", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
     # One extra pass over the smallest fixture, under a path containing "~".
@@ -111,6 +111,17 @@ try {
             $configText = $configText.TrimEnd() + "`r`n" + "highlight:`r`n  style: $HighlightStyle`r`n"
         }
         Set-Content -LiteralPath $configPath -Value $configText -Encoding UTF8
+    }
+    # Most fixtures build to the default dist\paper.pdf. ai-usage-statement
+    # deliberately does not: the CUMCM AI statement is delivered under a fixed
+    # Chinese file name, so the fixture declares output.file and every PDF
+    # assertion below has to follow the configuration instead of assuming the
+    # default. This also keeps a non-default, non-ASCII output path under
+    # continuous coverage.
+    $builtPdfRelative = "dist\paper.pdf"
+    $outputConfigText = Get-Content -LiteralPath (Join-Path $projectDir "nodepaper.yaml") -Raw -Encoding UTF8
+    if ($outputConfigText -match '(?ms)^output:\s*\r?\n\s+file:\s*(\S.*?)\s*$') {
+        $builtPdfRelative = ($Matches[1].Trim('"').Trim("'")) -replace '/', '\'
     }
     $before = Get-FixtureSnapshot $fixtureRoot
     $profileDir = if ([string]::IsNullOrWhiteSpace($ProfileOverride)) { Join-Path $root "profiles\cumcm" } else { $ProfileOverride }
@@ -218,6 +229,18 @@ try {
         }
         if ($texText.Contains("ref-unused2020entry")) {
             throw "nocite-only generated LaTeX pulled in an entry that is neither cited nor nocited"
+        }
+    }
+    # The AI statement template is a supporting document, not a paper: it cites
+    # nothing and ships an empty references.bib. A project with no citation at
+    # all must reach neither the linked citation form nor any reference list --
+    # that is the 99869d7 contract, asserted here on the build route rather than
+    # exempting the fixture from the citation contract.
+    elseif ($Fixture -eq "ai-usage-statement") {
+        foreach ($forbidden in @("\citeproc{ref-", "\bibitem", "\bibliography{references}", "\printbibliography")) {
+            if ($texText.Contains($forbidden)) {
+                throw "ai-usage-statement generated LaTeX contains bibliography machinery: $forbidden"
+            }
         }
     }
     elseif (-not $texText.Contains("\citeproc{ref-")) {
@@ -479,7 +502,7 @@ try {
         }
     }
 
-    $pdf = Join-Path $projectDir "dist\paper.pdf"
+    $pdf = Join-Path $projectDir $builtPdfRelative
     if (-not (Test-Path -LiteralPath $pdf -PathType Leaf)) {
         throw "PDF not found: $pdf"
     }
@@ -510,7 +533,7 @@ try {
     $inspectDir = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-pdf-inspect-" + [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $inspectDir | Out-Null
     $pdf = Join-Path $inspectDir "paper.pdf"
-    Copy-Item -LiteralPath (Join-Path $projectDir "dist\paper.pdf") -Destination $pdf -Force
+    Copy-Item -LiteralPath (Join-Path $projectDir $builtPdfRelative) -Destination $pdf -Force
     $infoOutput = & $pdfInfo.Source -box $pdf 2>&1
     if ($LASTEXITCODE -ne 0 -or -not ($infoOutput -match '^Pages:\s+[1-9][0-9]*')) {
         throw "PDF parser did not report a positive page count:`n$($infoOutput -join [Environment]::NewLine)"
@@ -573,7 +596,13 @@ try {
         "citation-shapes" { "2021: 61-68" }
         default           { "Demand Forecasting for Shared Mobility Systems" }
     }
-    if (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains($bibliographyProbe)) {
+    # ai-usage-statement cites nothing and therefore has no reference list at
+    # all; that absence is pinned on the generated LaTeX above, where
+    # bibliography machinery is unambiguous. The heading string is unusable as a
+    # probe here either way: the template names the references section in prose
+    # when it explains where the paper-side declaration goes.
+    if ($Fixture -ne "ai-usage-statement" -and
+        (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains($bibliographyProbe))) {
         throw "PDF is missing the Citeproc-generated bibliography (probe: $bibliographyProbe)"
     }
     $linkBase = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-links-" + [Guid]::NewGuid().ToString("N"))
@@ -589,14 +618,15 @@ try {
     $linkedCitationPattern = '(?:<a href="[^"]+#[0-9]+">\[1\]</a>|\[<a href="[^"]+#[0-9]+">1</a>\]|<a href="[^"]+#[0-9]+">\[1</a>\])'
     # A nocite-only project has no inline citation, so there is no [1] in the
     # body that could carry a link; the reference list is still present and still
-    # numbered. Assert the inverse of the normal contract instead of skipping:
-    # no linked inline citation at all, and the entry that is neither cited nor
-    # nocited stays out of the list.
-    if ($Fixture -eq "nocite-only") {
+    # numbered. ai-usage-statement has neither citation nor list. Assert the
+    # inverse of the normal contract instead of skipping: no linked inline
+    # citation at all, and the entry that is neither cited nor nocited stays out
+    # of the list.
+    if ($Fixture -in @("nocite-only", "ai-usage-statement")) {
         if ($linkXmlText -match $linkedCitationPattern) {
-            throw "nocite-only PDF contains a linked inline citation"
+            throw "$Fixture PDF contains a linked inline citation"
         }
-        if ($pdfText.Contains("An Uncited Bibliography Entry")) {
+        if ($Fixture -eq "nocite-only" -and $pdfText.Contains("An Uncited Bibliography Entry")) {
             throw "nocite-only PDF lists an entry that is neither cited nor nocited"
         }
     }

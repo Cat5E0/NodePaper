@@ -211,6 +211,18 @@ Export is for **people who already work in LaTeX and want to take over the sourc
 
 > **About Overleaf**: the exported project can be uploaded to Overleaf (set the compiler to XeLaTeX), but a full CUMCM paper is dozens of pages and needs several XeLaTeX passes, which **will not finish inside Overleaf's free-plan 10-second compile cap** ([official Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)). To compile a full paper on Overleaf you need a paid plan (240 s) or its 7-day free trial; otherwise the smoother path is to install a local TeX and use `nodepaper build` below.
 
+### 6. Used an AI tool? You also owe an "AI工具使用详情" document
+
+CUMCM rules: a team that used AI tools must mark the generated content in the paper body, list the tools in the references, and submit a PDF named 「AI工具使用详情」 with the supporting materials; a team that used none must state 「本参赛队未使用任何AI工具」 after the references.
+
+`examples\cumcm-single-file\ai-usage\` in the release package is the fill-in-the-blanks template for that document. It sits inside the example paper project and is a standalone NodePaper Project of its own. Copy it into your own paper project, fill it in, then:
+
+```powershell
+nodepaper build ai-usage
+```
+
+The result is `ai-usage\dist\AI工具使用详情.pdf`, already carrying the required file name. The rules, both forms of the paper-side declaration and what to write are covered in the [AI usage statement guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md) (written in Chinese, as the rules are).
+
 ## Producing a PDF locally: installing TeX
 
 Installing TeX is the longest step of the whole process, and only `nodepaper build` needs it.

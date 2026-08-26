@@ -288,7 +288,8 @@ try {
         "licenses/PANDOC-COPYRIGHT.txt",
         "licenses/YAML-V3-LICENSE.txt",
         "tools/versions.json",
-        "examples/cumcm-single-file/nodepaper.yaml"
+        "examples/cumcm-single-file/nodepaper.yaml",
+        "examples/cumcm-single-file/ai-usage/nodepaper.yaml"
     )
     if (-not $SkipTools) {
         $requiredFiles += @(
