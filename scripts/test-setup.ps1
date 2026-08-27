@@ -51,6 +51,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "version-lifecycle.ps1")
+
 $script:WorkRoot = ""
 $script:Passed = $false
 $script:InstallRoot = ""
@@ -152,13 +154,29 @@ $setupName = [System.IO.Path]::GetFileName($setupPath)
 if ($setupName -notmatch '^NodePaper-Setup-(.+)-windows-x64\.exe$') {
     throw "Setup file name does not match NodePaper-Setup-<version>-windows-x64.exe: $setupName"
 }
-$version = $Matches[1]
+$assetVersion = $Matches[1]
 $zipPath = (Resolve-Path -LiteralPath $ReleaseZip).Path
-if ([System.IO.Path]::GetFileName($zipPath) -ne "nodepaper-$version-windows-x64.zip") {
-    throw "ZIP file name does not match the Setup version: $([System.IO.Path]::GetFileName($zipPath))"
+if ([System.IO.Path]::GetFileName($zipPath) -ne "nodepaper-$assetVersion-windows-x64.zip") {
+    throw "ZIP file name does not match the Setup asset version: $([System.IO.Path]::GetFileName($zipPath))"
 }
 $manifestFullPath = (Resolve-Path -LiteralPath $ManifestPath).Path
 $manifest = Get-Content -LiteralPath $manifestFullPath -Raw -Encoding UTF8 | ConvertFrom-Json
+# Asset file names carry the shortened asset version (dev185), while the exe,
+# the uninstall entry and the manifest all carry the full build version
+# (0.1.0-dev.185+g6d91bdc). Those two coincide only on the release tracks, so
+# taking the version from the file name silently worked for every rc/beta this
+# suite had been run on and failed the very first identity assertion on a dev
+# build. Take the version from the manifest and check the file names against the
+# same Version -> asset-name mapping build-setup.ps1 used to produce them.
+$version = [string]$manifest.version
+$expectedSetupName = (Get-NodePaperAssetBaseName -Version $version -Prefix "NodePaper-Setup") + ".exe"
+if ($setupName -ne $expectedSetupName) {
+    throw "Setup file name does not match the manifest version ${version}: expected $expectedSetupName, got $setupName"
+}
+$expectedZipName = (Get-NodePaperAssetBaseName -Version $version) + ".zip"
+if ([System.IO.Path]::GetFileName($zipPath) -ne $expectedZipName) {
+    throw "ZIP file name does not match the manifest version ${version}: expected $expectedZipName, got $([System.IO.Path]::GetFileName($zipPath))"
+}
 if ([string]::IsNullOrWhiteSpace($ResultsPath)) {
     $ResultsPath = Join-Path (Split-Path -Parent $setupPath) "setup-test-results.json"
 }
