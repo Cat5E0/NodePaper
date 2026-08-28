@@ -9,7 +9,7 @@ import (
 // English to match the rest of the command-line output, and it is the only
 // place the recipient can learn how to compile the project, so it states the
 // command chain, the packages, and the fact that this copy is a dead end.
-func readme(mode BibMode, hasBibliography, usesPgfplots bool) string {
+func readme(mode BibMode, hasBibliography, usesPgfplots, hasAIStatement bool) string {
 	var b strings.Builder
 
 	b.WriteString("NodePaper LaTeX export\n")
@@ -24,6 +24,9 @@ func readme(mode BibMode, hasBibliography, usesPgfplots bool) string {
 	b.WriteString("  paper.tex       the document\n")
 	if mode.needsBibFile() {
 		b.WriteString("  references.bib  the bibliography database\n")
+	}
+	if hasAIStatement {
+		b.WriteString("  ai-statement.tex the CUMCM AI tool usage statement, a separate document\n")
 	}
 	b.WriteString("  images/         only the images the document actually references\n")
 	b.WriteString("  *.tex elsewhere any LaTeX fragments the document \\input{}s\n")

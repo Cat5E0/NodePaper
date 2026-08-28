@@ -55,12 +55,12 @@
       "purpose": "inline citation shapes no other fixture covers: a marker glued to a CJK character mid-sentence, one key cited three times, inline citations coexisting with nocite, and two vs three consecutive citation numbers; also the reproduction case for the open questions on marker spacing next to CJK and on the range-collapse threshold"
     },
     {
-      "path": "ai-usage-statement",
+      "path": "ai-statement",
       "command": "validate",
       "expectedSuccess": true,
       "expectedExitCode": 0,
       "expectedDiagnosticCodes": [],
-      "purpose": "the CUMCM AI tool usage statement template shipped to users; also the only fixture with a non-default, CJK-named output.file"
+      "purpose": "a paper that also declares aiStatement: one Project, two built documents, the second under the file name the CUMCM rules prescribe"
     },
     {
       "path": "invalid-yaml",

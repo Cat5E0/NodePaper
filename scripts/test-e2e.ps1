@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $inspectDir = ""
 if ([string]::IsNullOrWhiteSpace($Fixture)) {
-    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "ai-usage-statement", "tikz-basic", "pgf-basic", "pgfplots-basic", "layout-stress")) {
+    foreach ($case in @("minimal-valid", "complete-single-file", "complete-multi-file", "nocite-only", "citation-shapes", "ai-statement", "tikz-basic", "pgf-basic", "pgfplots-basic", "layout-stress")) {
         & $PSCommandPath -Fixture $case -HighlightStyle $HighlightStyle -ReviewOutput $ReviewOutput -ProfileOverride $ProfileOverride -KeepWorkDirectory:$KeepWorkDirectory
     }
     # One extra pass over the smallest fixture, under a path containing "~".
@@ -112,17 +112,12 @@ try {
         }
         Set-Content -LiteralPath $configPath -Value $configText -Encoding UTF8
     }
-    # Most fixtures build to the default dist\paper.pdf. ai-usage-statement
-    # deliberately does not: the CUMCM AI statement is delivered under a fixed
-    # Chinese file name, so the fixture declares output.file and every PDF
-    # assertion below has to follow the configuration instead of assuming the
-    # default. This also keeps a non-default, non-ASCII output path under
-    # continuous coverage.
-    $builtPdfRelative = "dist\paper.pdf"
-    $outputConfigText = Get-Content -LiteralPath (Join-Path $projectDir "nodepaper.yaml") -Raw -Encoding UTF8
-    if ($outputConfigText -match '(?ms)^output:\s*\r?\n\s+file:\s*(\S.*?)\s*$') {
-        $builtPdfRelative = ($Matches[1].Trim('"').Trim("'")) -replace '/', '\'
-    }
+    # A Project that declares aiStatement builds a second document beside the
+    # paper, under the file name the CUMCM rules prescribe. That name is not
+    # configurable, and it is the only non-ASCII artifact path NodePaper
+    # produces, so the assertions below check it verbatim.
+    $aiStatementConfigured = (Get-Content -LiteralPath (Join-Path $projectDir "nodepaper.yaml") -Raw -Encoding UTF8) -match '(?m)^\s*aiStatement:\s*\S'
+    $aiStatementPdfRelative = "dist\" + ([string][char]0x41) + ([char]0x49) + ([char]0x5DE5) + ([char]0x5177) + ([char]0x4F7F) + ([char]0x7528) + ([char]0x8BE6) + ([char]0x60C5) + ".pdf"
     $before = Get-FixtureSnapshot $fixtureRoot
     $profileDir = if ([string]::IsNullOrWhiteSpace($ProfileOverride)) { Join-Path $root "profiles\cumcm" } else { $ProfileOverride }
     $profileMetadata = Get-Content -LiteralPath (Join-Path $profileDir "profile.json") -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -229,18 +224,6 @@ try {
         }
         if ($texText.Contains("ref-unused2020entry")) {
             throw "nocite-only generated LaTeX pulled in an entry that is neither cited nor nocited"
-        }
-    }
-    # The AI statement template is a supporting document, not a paper: it cites
-    # nothing and ships an empty references.bib. A project with no citation at
-    # all must reach neither the linked citation form nor any reference list --
-    # that is the 99869d7 contract, asserted here on the build route rather than
-    # exempting the fixture from the citation contract.
-    elseif ($Fixture -eq "ai-usage-statement") {
-        foreach ($forbidden in @("\citeproc{ref-", "\bibitem", "\bibliography{references}", "\printbibliography")) {
-            if ($texText.Contains($forbidden)) {
-                throw "ai-usage-statement generated LaTeX contains bibliography machinery: $forbidden"
-            }
         }
     }
     elseif (-not $texText.Contains("\citeproc{ref-")) {
@@ -502,7 +485,7 @@ try {
         }
     }
 
-    $pdf = Join-Path $projectDir $builtPdfRelative
+    $pdf = Join-Path $projectDir "dist\paper.pdf"
     if (-not (Test-Path -LiteralPath $pdf -PathType Leaf)) {
         throw "PDF not found: $pdf"
     }
@@ -533,7 +516,7 @@ try {
     $inspectDir = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-pdf-inspect-" + [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $inspectDir | Out-Null
     $pdf = Join-Path $inspectDir "paper.pdf"
-    Copy-Item -LiteralPath (Join-Path $projectDir $builtPdfRelative) -Destination $pdf -Force
+    Copy-Item -LiteralPath (Join-Path $projectDir "dist\paper.pdf") -Destination $pdf -Force
     $infoOutput = & $pdfInfo.Source -box $pdf 2>&1
     if ($LASTEXITCODE -ne 0 -or -not ($infoOutput -match '^Pages:\s+[1-9][0-9]*')) {
         throw "PDF parser did not report a positive page count:`n$($infoOutput -join [Environment]::NewLine)"
@@ -596,13 +579,7 @@ try {
         "citation-shapes" { "2021: 61-68" }
         default           { "Demand Forecasting for Shared Mobility Systems" }
     }
-    # ai-usage-statement cites nothing and therefore has no reference list at
-    # all; that absence is pinned on the generated LaTeX above, where
-    # bibliography machinery is unambiguous. The heading string is unusable as a
-    # probe here either way: the template names the references section in prose
-    # when it explains where the paper-side declaration goes.
-    if ($Fixture -ne "ai-usage-statement" -and
-        (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains($bibliographyProbe))) {
+    if (-not $pdfText.Contains($referencesHeading) -or -not $pdfText.Contains($bibliographyProbe)) {
         throw "PDF is missing the Citeproc-generated bibliography (probe: $bibliographyProbe)"
     }
     $linkBase = Join-Path ([System.IO.Path]::GetTempPath()) ("nodepaper-links-" + [Guid]::NewGuid().ToString("N"))
@@ -618,15 +595,14 @@ try {
     $linkedCitationPattern = '(?:<a href="[^"]+#[0-9]+">\[1\]</a>|\[<a href="[^"]+#[0-9]+">1</a>\]|<a href="[^"]+#[0-9]+">\[1</a>\])'
     # A nocite-only project has no inline citation, so there is no [1] in the
     # body that could carry a link; the reference list is still present and still
-    # numbered. ai-usage-statement has neither citation nor list. Assert the
-    # inverse of the normal contract instead of skipping: no linked inline
-    # citation at all, and the entry that is neither cited nor nocited stays out
-    # of the list.
-    if ($Fixture -in @("nocite-only", "ai-usage-statement")) {
+    # numbered. Assert the inverse of the normal contract instead of skipping:
+    # no linked inline citation at all, and the entry that is neither cited nor
+    # nocited stays out of the list.
+    if ($Fixture -eq "nocite-only") {
         if ($linkXmlText -match $linkedCitationPattern) {
-            throw "$Fixture PDF contains a linked inline citation"
+            throw "nocite-only PDF contains a linked inline citation"
         }
-        if ($Fixture -eq "nocite-only" -and $pdfText.Contains("An Uncited Bibliography Entry")) {
+        if ($pdfText.Contains("An Uncited Bibliography Entry")) {
             throw "nocite-only PDF lists an entry that is neither cited nor nocited"
         }
     }
@@ -635,6 +611,64 @@ try {
     }
     if ($pdfText -match '@(fig|tbl|eq|sec):' -or $pdfText -match '@[A-Za-z][A-Za-z0-9_.:+/-]*') {
         throw "PDF contains an unresolved citation or cross-reference"
+    }
+
+    # ---------- the AI tool usage statement, when the Project declares one ----
+    #
+    # One Project, two published documents. The paper above must be unaffected,
+    # and the second document must land under the exact file name the rules
+    # prescribe - it is not configurable, and getting it wrong is what costs a
+    # team its award.
+    if ($aiStatementConfigured) {
+        $statementPdf = Join-Path $projectDir $aiStatementPdfRelative
+        if (-not (Test-Path -LiteralPath $statementPdf -PathType Leaf)) {
+            throw "AI statement PDF not found: $statementPdf"
+        }
+        $statementBytes = [System.IO.File]::ReadAllBytes($statementPdf)
+        if ($statementBytes.Length -lt 5 -or [System.Text.Encoding]::ASCII.GetString($statementBytes, 0, 5) -ne "%PDF-") {
+            throw "AI statement artifact is not a valid PDF: $statementPdf"
+        }
+        # Poppler cannot open the Chinese name from a non-Chinese console code
+        # page, the same limitation the paper copy above works around.
+        $statementCopy = Join-Path $inspectDir "ai-statement.pdf"
+        Copy-Item -LiteralPath $statementPdf -Destination $statementCopy -Force
+        $statementTextPath = Join-Path $inspectDir "ai-statement.txt"
+        & $pdfToText.Source -enc UTF-8 $statementCopy $statementTextPath
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $statementTextPath -PathType Leaf)) {
+            throw "pdftotext failed on the AI statement"
+        }
+        $statementText = Get-Content -LiteralPath $statementTextPath -Raw -Encoding UTF8
+        # The rendered title reads "AI 工具使用详情": xeCJK sets a space between
+        # the Latin and CJK runs, so the probe covers the CJK part only.
+        $statementTitle = ([string][char]0x5DE5) + ([char]0x5177) + ([char]0x4F7F) + ([char]0x7528) + ([char]0x8BE6) + ([char]0x60C5)
+        $toolListHeading = ([string][char]0x5DE5) + ([char]0x5177) + ([char]0x6E05) + ([char]0x5355)
+        foreach ($required in @($statementTitle, $toolListHeading)) {
+            if (-not $statementText.Contains($required)) {
+                throw "AI statement PDF is missing expected content: $required"
+            }
+        }
+        # The two documents must not bleed into each other: the statement is not
+        # a Source of the paper, and the paper is not a Source of the statement.
+        if ($pdfText.Contains($toolListHeading)) {
+            throw "the paper PDF absorbed the AI statement content"
+        }
+        # Probe with an actual bibliography entry, not the section heading: the
+        # statement legitimately says the word 参考文献 in prose when it tells
+        # the author that the tool list must match the paper's references.
+        if ($statementText.Contains($bibliographyProbe)) {
+            throw "the AI statement PDF carries the paper reference list"
+        }
+        # Each document gets its own LaTeX log and its own transition log
+        # directory, so a failure names the document it came from.
+        foreach ($required in @("ai-statement.tex", "ai-statement.pdf", "ai-statement.log")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $projectDir ".nodepaper\build\$required") -PathType Leaf)) {
+                throw "AI statement intermediate is missing: $required"
+            }
+        }
+        $statementTransition = @(Get-ChildItem -LiteralPath (Join-Path $projectDir ".nodepaper\logs") -Directory -Filter "*-ai-statement-powershell")
+        if ($statementTransition.Count -lt 1) {
+            throw "the AI statement build reused the paper's transition log directory"
+        }
     }
 
     if ($Fixture -eq "citation-shapes" -and $pdfText.Contains("Neither Cited")) {

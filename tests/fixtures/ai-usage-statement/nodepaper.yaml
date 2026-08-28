@@ -1,8 +1,0 @@
-version: 1
-profile: cumcm
-source: ai-usage.md
-
-# 竞赛规定这份支撑材料的文件名必须是“AI工具使用详情”，这里直接把构建产物
-# 命名成它，用户不必再手工改名。
-output:
-  file: dist/AI工具使用详情.pdf

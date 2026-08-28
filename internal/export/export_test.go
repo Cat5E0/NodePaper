@@ -707,7 +707,7 @@ func TestVerifyRunsTheChainTheReadmeDocuments(t *testing.T) {
 			if strings.Join(got, ",") != strings.Join(want, ",") {
 				t.Fatalf("chain = %v, want %v", got, want)
 			}
-			readmeText := readme(mode, true, false)
+			readmeText := readme(mode, true, false, false)
 			for _, tool := range want {
 				if !strings.Contains(readmeText, tool) {
 					t.Errorf("README.txt does not mention %q", tool)
@@ -787,7 +787,7 @@ func TestReadmeAlwaysNamesPgfAndOnlyNamesPgfplotsWhenDrawn(t *testing.T) {
 	// recipient handed a project with a TikZ figure was told to install
 	// everything except the package it could not compile without.
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		plain := readme(mode, true, false)
+		plain := readme(mode, true, false, false)
 		if !containsPackage(plain, "pgf") {
 			t.Errorf("%s README.txt install line omits pgf", mode)
 		}
@@ -795,7 +795,7 @@ func TestReadmeAlwaysNamesPgfAndOnlyNamesPgfplotsWhenDrawn(t *testing.T) {
 			t.Errorf("%s README.txt names pgfplots for a paper that draws no axis", mode)
 		}
 
-		drawing := readme(mode, true, true)
+		drawing := readme(mode, true, true, false)
 		if !containsPackage(drawing, "pgfplots") {
 			t.Errorf("%s README.txt omits pgfplots for a paper that draws an axis", mode)
 		}
@@ -882,7 +882,7 @@ func TestUsesPgfplotsReadsTheDeliveredFiles(t *testing.T) {
 
 func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode, true, false)
+		text := readme(mode, true, false, false)
 		for _, needle := range []string{
 			"one-way",
 			"never read back",
@@ -907,7 +907,7 @@ func TestReadmeStatesTheOneWayBoundaryAndIgnoreAdvice(t *testing.T) {
 // states the free-plan cap before the upload steps rather than after them.
 func TestReadmeExplainsOverleaf(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode, true, false)
+		text := readme(mode, true, false, false)
 		for _, needle := range []string{
 			"Compiling on Overleaf",
 			"after 10",
@@ -927,13 +927,13 @@ func TestReadmeExplainsOverleaf(t *testing.T) {
 	}
 	// The zip layout is the other thing people get wrong; Overleaf cannot find
 	// paper.tex when the archive wraps it in a folder.
-	if !strings.Contains(readme(BibInline, true, false), "not the enclosing folder") {
+	if !strings.Contains(readme(BibInline, true, false, false), "not the enclosing folder") {
 		t.Error("README.txt does not say to zip the contents rather than the folder")
 	}
 	// Order matters more than presence: a cap disclosed after the upload steps
 	// is read only by someone who already spent the time it was meant to save.
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX, BibInline} {
-		text := readme(mode, true, false)
+		text := readme(mode, true, false, false)
 		if strings.Index(text, "after 10") > strings.Index(text, "Upload Project") {
 			t.Errorf("%s README.txt states the Overleaf time limit after the upload steps", mode)
 		}
@@ -958,7 +958,7 @@ func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
 			}
 		}
 
-		text := readme(mode, false, false)
+		text := readme(mode, false, false, false)
 		for _, forbidden := range []string{"bibtex paper", "biber paper"} {
 			if strings.Contains(text, forbidden) {
 				t.Errorf("%s README.txt still tells the recipient to run %q with no bibliography", mode, forbidden)
@@ -992,12 +992,12 @@ func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
 }
 
 func TestReadmeExplainsTheGbt7714TitleCaseWorkaroundInBibtexModeOnly(t *testing.T) {
-	bibtex := readme(BibBibTeX, true, false)
+	bibtex := readme(BibBibTeX, true, false, false)
 	if !strings.Contains(bibtex, "title = {{") || !strings.Contains(bibtex, "sentence case") {
 		t.Errorf("bibtex README.txt does not explain the double-brace workaround:\n%s", bibtex)
 	}
 	for _, mode := range []BibMode{BibBibLaTeX, BibInline} {
-		if strings.Contains(readme(mode, true, false), "title = {{") {
+		if strings.Contains(readme(mode, true, false, false), "title = {{") {
 			t.Errorf("%s README.txt carries the gbt7714-only workaround", mode)
 		}
 	}

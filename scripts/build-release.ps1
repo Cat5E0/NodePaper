@@ -347,16 +347,6 @@ try {
     }
     Copy-Item -LiteralPath $exampleSource -Destination (Join-Path $packageDir "examples\cumcm-single-file") -Recurse -Force
 
-    # The AI statement template ships inside the example paper, because that is
-    # where it belongs in a real project: the CUMCM "AI工具使用详情" is a second
-    # NodePaper Project living in the paper's own directory. Its output.file
-    # already carries the file name the rules demand.
-    $aiUsageSource = Join-Path $worktree "tests\fixtures\ai-usage-statement"
-    if (-not (Test-Path -LiteralPath $aiUsageSource -PathType Container)) {
-        throw "AI usage statement Fixture missing: $aiUsageSource"
-    }
-    Copy-Item -LiteralPath $aiUsageSource -Destination (Join-Path $packageDir "examples\cumcm-single-file\ai-usage") -Recurse -Force
-
     # ---------- package scans --------------------------------------------------
 
     foreach ($forbiddenDir in @(".nodepaper", "dist", "build", "logs", "_downloads")) {

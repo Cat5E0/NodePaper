@@ -17,7 +17,7 @@ tests/
 │   ├── complete-multi-file/
 │   ├── nocite-only/
 │   ├── citation-shapes/
-│   ├── ai-usage-statement/
+│   ├── ai-statement/
 │   ├── invalid-yaml/
 │   ├── missing-frontmatter/
 │   ├── missing-abstract/
@@ -87,9 +87,13 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 
 本 Fixture 同时是两个**尚未定性**的排版问题的复现用例：① citeproc 路由在上标引用标记后留有空隙（`问题[1] 。`），而导出的 gbt7714 路由紧贴（`问题[1]。`）；② 连续序号的合并阈值不同——citeproc 三个连续才压成 `[5–7]`（en dash）、两个留 `[3,4]`，gbt7714 两个即压成 `[3-4]`（hyphen）。**E2E 刻意不断言标记的渲染形态**，只断言结构（同键同目标、nocite 键入表、未引用条目不入表），以免把未拍板的取舍固化成 Golden。
 
-### `ai-usage-statement`
+### `ai-statement`
 
-随发布包提供给用户的「AI工具使用详情」模板工程，同时是仓库里唯一一个 **`output.file` 非默认且带中文文件名** 的 Fixture（`dist/AI工具使用详情.pdf`），因此 `scripts/test-e2e.ps1` 的 PDF 断言从 `nodepaper.yaml` 读取输出路径而不是假定 `dist\paper.pdf`。它也是唯一一个**既不引用也不 nocite 任何文献**的构建型 Fixture：`references.bib` 为空，E2E 因此反向断言生成的 LaTeX 里没有任何文献机制（`\citeproc{ref-`、`\bibitem`、`\bibliography{references}`、`\printbibliography`），固定提交 `99869d7` 的契约。模板正文是占位文字，不含任何真实工具名或杜撰的交互记录。
+唯一一个**一个工程构建两份文档**的 Fixture：论文照常出 `dist/paper.pdf`，配置里的 `aiStatement: ai-usage.md` 再出一份 `dist/AI工具使用详情.pdf`——文件名由竞赛规定固定，不可配置，也是 NodePaper 唯一会产出的非 ASCII 产物路径。
+
+E2E 在这个 Fixture 上额外断言：两份 PDF 都存在且 Header 合法；声明那份的正文含标题与「工具清单」；**两份互不串味**（论文 PDF 不含声明内容，声明 PDF 不含论文文献表条目）；每份文档有各自的 `ai-statement.tex/.pdf/.log` 与独立的 `*-ai-statement-powershell` 过渡日志目录，失败时能指认是哪一份。
+
+`ai-usage.md` 与 `nodepaper init` 生成的模板同源（复制自 init 产物），刻意不含真实工具名或杜撰的交互记录。注意声明文档**没有** `problem`、`keywords` 和 `# 摘要` 契约——那是论文的规则，支撑材料不适用。
 
 ## 图片
 
@@ -138,7 +142,7 @@ M2 专用的 PowerShell 过渡构建链基线。它同时包含 Validate 所需�
 - `[@key]` 与 `[@key1; @key2]` 文献引用；
 - 跨 Source 的 `@sec:`、`@fig:`、`@tbl:` 和 `@eq:` 引用。
 
-不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file`、`nocite-only`、`citation-shapes`、`ai-usage-statement`、`tikz-basic`、`pgf-basic`、`pgfplots-basic` 和 `layout-stress`，随后用 `-TildeWorkRoot` 再跑一遍 `minimal-valid`，共 11 个场景。其中 `nocite-only` 与 `citation-shapes` 额外触发导出路由的文献回归块（`--bib bibtex|biblatex|inline` 三种模式）。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
+不传 `-Fixture` 时，`scripts/test-e2e.ps1` 串联 `minimal-valid`、`complete-single-file`、`complete-multi-file`、`nocite-only`、`citation-shapes`、`ai-statement`、`tikz-basic`、`pgf-basic`、`pgfplots-basic` 和 `layout-stress`，随后用 `-TildeWorkRoot` 再跑一遍 `minimal-valid`，共 11 个场景。其中 `nocite-only` 与 `citation-shapes` 额外触发导出路由的文献回归块（`--bib bibtex|biblatex|inline` 三种模式）。`powershell-baseline-valid` 继续保留为不含 Citeproc 的 M2 旧链基线，不代表候选 CUMCM Profile。
 
 `layout-stress` 覆盖受控 LaTeX Fragment、跨页长表格、多页代码、Pandoc 内置高亮、长 URL/路径、公式、图片、脚注和附录。`highlight-showcase` 只用于 Tango、Pygments、Kate 的聚焦视觉比较，不承担完整排版压力验收。E2E 检查生成 LaTeX 契约、A4、PDF 文字顺序与边界、字体嵌入、稳定标记、零关键 Warning，并支持：
 

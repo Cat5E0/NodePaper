@@ -298,39 +298,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	for _, file := range fragmentFiles {
 		absoluteFragments = append(absoluteFragments, file.Path)
 	}
-	manifestData, err := json.MarshalIndent(struct {
-		Sources              []string `json:"sources"`
-		LatexFragments       []string `json:"latexFragments"`
-		AppendixNumbering    string   `json:"appendixNumbering"`
-		HighlightStyle       string   `json:"highlightStyle"`
-		LineSpread           float64  `json:"linespread"`
-		AbstractLineSpread   float64  `json:"abstractLinespread"`
-		TitleAbstractSkip    float64  `json:"titleAbstractSkip"`
-		AbstractKeywordsSkip float64  `json:"abstractKeywordsSkip"`
-		MathFont             string   `json:"mathFont"`
-		AppendixNewPage      bool     `json:"appendixNewPage"`
-	}{
-		Sources:              absoluteSources,
-		LatexFragments:       absoluteFragments,
-		AppendixNumbering:    cfg.Appendix.Numbering,
-		HighlightStyle:       cfg.Highlight.Style,
-		LineSpread:           cfg.LineSpread,
-		AbstractLineSpread:   cfg.AbstractLineSpread,
-		TitleAbstractSkip:    cfg.TitleAbstractSkipEm(),
-		AbstractKeywordsSkip: cfg.AbstractKeywordsSkipEm(),
-		MathFont:             cfg.MathFont,
-		AppendixNewPage:      cfg.Appendix.NewPageEnabled(),
-	}, "", "  ")
-	if err != nil {
-		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
-			Severity: diagnostic.SeverityError,
-			Code:     "NP1306",
-			Message:  fmt.Sprintf("cannot encode source manifest: %v", err),
-			Source:   "build",
-		})
-		return result
-	}
-	if err := os.WriteFile(sourceManifestPath, append(manifestData, '\n'), 0o644); err != nil {
+	if err := writeSourceManifest(sourceManifestPath, absoluteSources, absoluteFragments, cfg); err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityError,
 			Code:     "NP1306",
@@ -343,7 +311,7 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	// 9. Delegate ordered Markdown conversion, Citeproc/CSL processing and
 	// LaTeX compilation to the PowerShell transition layer. Go retains
 	// orchestration, locking, validation and publication.
-	processDiags := runPowerShellBuild(ctx, executor, logger, bctx, scriptPath, loadedProfile.Dir, sourceManifestPath, texPath)
+	processDiags := runPowerShellBuild(ctx, executor, logger, bctx, scriptPath, loadedProfile.Dir, sourceManifestPath, texPath, "")
 	if len(processDiags) > 0 {
 		result.Diagnostics = append(result.Diagnostics, processDiags...)
 		// The transition script may return non-zero after producing a useful
@@ -436,12 +404,157 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		return result
 	}
 
-	result.Success = true
-	result.Artifacts = []Artifact{
-		{Kind: "pdf", Path: finalPDF},
-		{Kind: "log", Path: bctx.LogPath},
+	artifacts := []Artifact{{Kind: "pdf", Path: finalPDF}}
+
+	// 13. The optional CUMCM "AI工具使用详情" supporting document. It is a second
+	// document from the same Project, built through the same Profile and the
+	// same transition script, and published beside the paper. It runs only after
+	// the paper is on disk: a failure here must not cost the author the PDF that
+	// was already produced, and the diagnostics say which document failed.
+	if cfg.AIStatement != "" {
+		statementPDF, statementDiags := buildAIStatement(ctx, executor, logger, bctx, p, cfg, loadedProfile.Dir, scriptPath, allowlist, outputFile)
+		result.Diagnostics = append(result.Diagnostics, statementDiags...)
+		if hasError(statementDiags) {
+			return result
+		}
+		artifacts = append(artifacts, Artifact{Kind: "ai-statement", Path: statementPDF})
 	}
+
+	result.Success = true
+	result.Artifacts = append(artifacts, Artifact{Kind: "log", Path: bctx.LogPath})
 	return result
+}
+
+// buildAIStatement converts and compiles cfg.AIStatement into the supporting
+// document the competition asks for, under the file name it prescribes. The
+// paper's Fragments are deliberately not passed: they are declared for the
+// paper, and a supporting document that needs \input{} is outside what this
+// contract offers.
+func buildAIStatement(ctx context.Context, executor commandExecutor, logger *buildLogger, bctx *buildctx.Context, p project.Project, cfg config.ProjectConfig, profileDir, scriptPath string, allowlist latexlog.Allowlist, paperOutputFile string) (string, []diagnostic.Diagnostic) {
+	logger.Printf("AI Statement Source: %s", cfg.AIStatement)
+	texPath := bctx.ResolveInWork("ai-statement.tex")
+	tmpPDF := bctx.ResolveInWork("ai-statement.pdf")
+	latexLogPath := bctx.ResolveInWork("ai-statement.log")
+	manifestPath := bctx.ResolveInWork("ai-statement-sources.json")
+
+	statementPath, err := p.Resolve(cfg.AIStatement)
+	if err != nil {
+		return "", []diagnostic.Diagnostic{{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP2601",
+			Message:  fmt.Sprintf("aiStatement path outside project: %s", cfg.AIStatement),
+			File:     cfg.AIStatement,
+			Source:   "build",
+		}}
+	}
+	if err := writeSourceManifest(manifestPath, []string{statementPath}, nil, cfg); err != nil {
+		return "", []diagnostic.Diagnostic{{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1306",
+			Message:  fmt.Sprintf("cannot write AI statement source manifest: %v", err),
+			Source:   "build",
+		}}
+	}
+
+	diags := runPowerShellBuild(ctx, executor, logger, bctx, scriptPath, profileDir, manifestPath, texPath, "-ai-statement")
+	if _, statErr := os.Stat(latexLogPath); statErr == nil {
+		diags = append(diags, inspectLatexLog(logger, latexLogPath, allowlist)...)
+	}
+	if hasError(diags) {
+		return "", diags
+	}
+	if _, err := os.Stat(tmpPDF); err != nil {
+		return "", append(diags, missingPDFDiagnostic(xelatexAvailable(scriptPath)))
+	}
+	if err := validateGeneratedPDF(tmpPDF); err != nil {
+		return "", append(diags, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP7001",
+			Message:    fmt.Sprintf("generated AI statement PDF is invalid: %v", err),
+			Suggestion: "Inspect the LaTeX log and rebuild after fixing the error.",
+			Source:     "build",
+		})
+	}
+
+	// The file name is prescribed by the competition and is not configurable.
+	// The directory follows the paper's own output path, so a Project that
+	// publishes elsewhere keeps both documents together.
+	statementRel := filepath.Join(filepath.Dir(paperOutputFile), aiStatementFileName)
+	finalPDF, err := p.Resolve(statementRel)
+	if err != nil {
+		return "", append(diags, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1503",
+			Message:  fmt.Sprintf("AI statement output path outside project: %s", statementRel),
+			Source:   "build",
+		})
+	}
+	if err := os.MkdirAll(filepath.Dir(finalPDF), 0o755); err != nil {
+		return "", append(diags, diagnostic.Diagnostic{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP1302",
+			Message:  fmt.Sprintf("cannot create output directory: %v", err),
+			Source:   "build",
+		})
+	}
+	if err := atomicPublish(tmpPDF, finalPDF); err != nil {
+		return "", append(diags, diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP1303",
+			Message:    fmt.Sprintf("cannot publish AI statement PDF: %v", err),
+			Suggestion: "Check disk space and permissions.",
+			Source:     "build",
+		})
+	}
+	return finalPDF, diags
+}
+
+// AIStatementFileName is the file name the competition prescribes for the AI
+// tool usage supporting document. It is not configurable: the rules name the
+// file, and a Project that renames it is not compliant.
+const AIStatementFileName = "AI工具使用详情.pdf"
+
+const aiStatementFileName = AIStatementFileName
+
+// writeSourceManifest records the ordered Sources and declared Fragments the
+// transition layer consumes, as UTF-8 JSON. It is project-local and written
+// only while the build lock is held. The Sources are passed explicitly rather
+// than read from cfg: the AI statement pass builds one document that is not a
+// paper Source at all.
+func writeSourceManifest(path string, sources, fragments []string, cfg config.ProjectConfig) error {
+	if sources == nil {
+		sources = []string{}
+	}
+	if fragments == nil {
+		fragments = []string{}
+	}
+	data, err := json.MarshalIndent(struct {
+		Sources              []string `json:"sources"`
+		LatexFragments       []string `json:"latexFragments"`
+		AppendixNumbering    string   `json:"appendixNumbering"`
+		HighlightStyle       string   `json:"highlightStyle"`
+		LineSpread           float64  `json:"linespread"`
+		AbstractLineSpread   float64  `json:"abstractLinespread"`
+		TitleAbstractSkip    float64  `json:"titleAbstractSkip"`
+		AbstractKeywordsSkip float64  `json:"abstractKeywordsSkip"`
+		MathFont             string   `json:"mathFont"`
+		AppendixNewPage      bool     `json:"appendixNewPage"`
+	}{
+		Sources:              sources,
+		LatexFragments:       fragments,
+		AppendixNumbering:    cfg.Appendix.Numbering,
+		HighlightStyle:       cfg.Highlight.Style,
+		LineSpread:           cfg.LineSpread,
+		AbstractLineSpread:   cfg.AbstractLineSpread,
+		TitleAbstractSkip:    cfg.TitleAbstractSkipEm(),
+		AbstractKeywordsSkip: cfg.AbstractKeywordsSkipEm(),
+		MathFont:             cfg.MathFont,
+		AppendixNewPage:      cfg.Appendix.NewPageEnabled(),
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
 // ---------- PowerShell transition build ---------------------------------
@@ -538,8 +651,8 @@ func xelatexAvailable(scriptPath string) bool {
 	return false
 }
 
-func runPowerShellBuild(ctx context.Context, executor commandExecutor, logger *buildLogger, bctx *buildctx.Context, scriptPath, profileDir, sourceManifestPath, texPath string) []diagnostic.Diagnostic {
-	powerShellLogDir := filepath.Join(filepath.Dir(bctx.LogPath), bctx.BuildID+"-powershell")
+func runPowerShellBuild(ctx context.Context, executor commandExecutor, logger *buildLogger, bctx *buildctx.Context, scriptPath, profileDir, sourceManifestPath, texPath, logSuffix string) []diagnostic.Diagnostic {
+	powerShellLogDir := filepath.Join(filepath.Dir(bctx.LogPath), bctx.BuildID+logSuffix+"-powershell")
 	args := []string{
 		"-NoProfile",
 		"-ExecutionPolicy", "Bypass",

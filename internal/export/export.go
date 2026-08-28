@@ -421,13 +421,53 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 		})
 	}
 
+	// 7b. The optional AI tool usage statement is a second document of the same
+	// Project. Exporting without it would leave a machine that has no TeX -
+	// the very reason export exists - unable to produce a material the rules
+	// require, so it is converted here and delivered beside the paper.
+	aiStatementTex := ""
+	if cfg.AIStatement != "" {
+		statementPath, resolveErr := p.Resolve(cfg.AIStatement)
+		if resolveErr != nil {
+			result.Diagnostics = append(result.Diagnostics, errorDiag("NP2601",
+				fmt.Sprintf("aiStatement path outside project: %s", cfg.AIStatement),
+				"Move the file inside the project directory."))
+			return result
+		}
+		statementManifest := filepath.Join(workDir, "ai-statement-sources.json")
+		if err := writeSourceManifestForSources(statementManifest, []string{statementPath}, cfg, nil); err != nil {
+			result.Diagnostics = append(result.Diagnostics, errorDiag("NP1306", fmt.Sprintf("cannot write AI statement source manifest: %v", err), ""))
+			return result
+		}
+		aiStatementTex = filepath.Join(workDir, "ai-statement.tex")
+		if diags := runConversion(ctx, executor, logger, conversionRequest{
+			scriptPath:   scriptPath,
+			profileDir:   loadedProfile.Dir,
+			projectRoot:  p.Root,
+			manifestPath: statementManifest,
+			texPath:      aiStatementTex,
+			workDir:      workDir,
+			logDir:       filepath.Join(bctx.LogDir, bctx.BuildID+"-ai-statement-export-powershell"),
+			citeMethod:   mode.citeMethod(),
+		}); len(diags) > 0 {
+			result.Diagnostics = append(result.Diagnostics, diags...)
+			return result
+		}
+		if info, err := os.Stat(aiStatementTex); err != nil || !info.Mode().IsRegular() {
+			result.Diagnostics = append(result.Diagnostics, errorDiag(CodeTexMissing,
+				"the conversion reported success but produced no ai-statement.tex",
+				"Inspect the NodePaper export log and the PowerShell transition log."))
+			return result
+		}
+	}
+
 	// 8. Assemble the deliverable. ZIP exports are assembled in the private
 	// work directory first, so --verify sees the exact tree that is archived.
 	deliverableDir := target
 	if zipTarget {
 		deliverableDir = filepath.Join(workDir, "deliverable")
 	}
-	artifacts, copyDiags := assemble(p, cfg, mode, hasBibliography, texPath, deliverableDir, fragmentFiles)
+	artifacts, copyDiags := assemble(p, cfg, mode, hasBibliography, texPath, aiStatementTex, deliverableDir, fragmentFiles)
 	result.Artifacts = artifacts
 	result.Diagnostics = append(result.Diagnostics, copyDiags...)
 	if hasError(result.Diagnostics) {
@@ -737,6 +777,16 @@ func writeSourceManifest(path, projectRoot string, cfg config.ProjectConfig, fra
 	for _, relative := range cfg.SourceFiles() {
 		absoluteSources = append(absoluteSources, filepath.Join(projectRoot, relative))
 	}
+	return writeSourceManifestForSources(path, absoluteSources, cfg, fragments)
+}
+
+// writeSourceManifestForSources writes the manifest for an explicit Source
+// list. The AI tool usage statement is one document of the Project that is not
+// a paper Source, so it cannot be derived from cfg the way the paper is.
+func writeSourceManifestForSources(path string, absoluteSources []string, cfg config.ProjectConfig, fragments []fragment.File) error {
+	if absoluteSources == nil {
+		absoluteSources = []string{}
+	}
 	absoluteFragments := make([]string, 0, len(fragments))
 	for _, file := range fragments {
 		absoluteFragments = append(absoluteFragments, file.Path)
@@ -774,7 +824,7 @@ func writeSourceManifest(path, projectRoot string, cfg config.ProjectConfig, fra
 
 // assemble writes paper.tex, the bibliography, every referenced image, the
 // declared LaTeX Fragments and README.txt into the target directory.
-func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibliography bool, texPath, target string, fragments []fragment.File) ([]Artifact, []diagnostic.Diagnostic) {
+func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibliography bool, texPath, aiStatementTex, target string, fragments []fragment.File) ([]Artifact, []diagnostic.Diagnostic) {
 	var artifacts []Artifact
 	var diags []diagnostic.Diagnostic
 
@@ -802,6 +852,9 @@ func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibl
 	}
 
 	place("tex", texPath, "paper.tex")
+	if aiStatementTex != "" {
+		place("ai-statement-tex", aiStatementTex, "ai-statement.tex")
+	}
 
 	if mode.needsBibFile() {
 		if bibPath, err := p.Resolve("references.bib"); err == nil {
@@ -831,7 +884,7 @@ func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibl
 	}
 
 	readmePath := filepath.Join(target, "README.txt")
-	if err := os.WriteFile(readmePath, []byte(readme(mode, hasBibliography, usesPgfplots(texPath, fragments))), 0o644); err != nil {
+	if err := os.WriteFile(readmePath, []byte(readme(mode, hasBibliography, usesPgfplots(texPath, fragments), aiStatementTex != "")), 0o644); err != nil {
 		diags = append(diags, errorDiag(CodeCopyFailed,
 			fmt.Sprintf("cannot write README.txt: %v", err),
 			"Check the available disk space and permissions."))

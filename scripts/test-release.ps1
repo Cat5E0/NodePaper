@@ -289,7 +289,7 @@ try {
         "licenses/YAML-V3-LICENSE.txt",
         "tools/versions.json",
         "examples/cumcm-single-file/nodepaper.yaml",
-        "examples/cumcm-single-file/ai-usage/nodepaper.yaml"
+        "examples/cumcm-single-file/ai-usage.md"
     )
     if (-not $SkipTools) {
         $requiredFiles += @(

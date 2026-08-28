@@ -175,6 +175,7 @@ A basic Project looks like this:
 cumcm-a/
 ├── nodepaper.yaml
 ├── paper.md
+├── ai-usage.md
 ├── references.bib
 ├── images/
 ├── dist/
@@ -186,7 +187,8 @@ The main files are:
 - `paper.md`: paper source;
 - `references.bib`: bibliography;
 - `images/`: image resources;
-- `nodepaper.yaml`: Project configuration.
+- `nodepaper.yaml`: Project configuration;
+- `ai-usage.md`: the AI tool usage statement (optional, built only when enabled — see step 6).
 
 Content Markdown cannot express — complex tables, TikZ figures, and the like — lives as LaTeX Fragments in directories you create inside the Project (e.g. `tables/`, `figures/`). Declare them in `nodepaper.yaml` and insert them with `\input{...}`; see the Markdown examples below.
 
@@ -211,17 +213,26 @@ Export is for **people who already work in LaTeX and want to take over the sourc
 
 > **About Overleaf**: the exported project can be uploaded to Overleaf (set the compiler to XeLaTeX), but a full CUMCM paper is dozens of pages and needs several XeLaTeX passes, which **will not finish inside Overleaf's free-plan 10-second compile cap** ([official Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)). To compile a full paper on Overleaf you need a paid plan (240 s) or its 7-day free trial; otherwise the smoother path is to install a local TeX and use `nodepaper build` below.
 
-### 6. Used an AI tool? You also owe an "AI工具使用详情" document
+### 6. Used an AI tool? Uncomment one line
 
 CUMCM rules: a team that used AI tools must mark the generated content in the paper body, list the tools in the references, and submit a PDF named 「AI工具使用详情」 with the supporting materials; a team that used none must state 「本参赛队未使用任何AI工具」 after the references.
 
-`examples\cumcm-single-file\ai-usage\` in the release package is the fill-in-the-blanks template for that document. It sits inside the example paper project and is a standalone NodePaper Project of its own. Copy it into your own paper project, fill it in, then:
+`nodepaper init` already puts the fill-in-the-blanks template `ai-usage.md` in the Project, and **builds nothing by default**. If your team used an AI tool, uncomment the line in `nodepaper.yaml`:
 
-```powershell
-nodepaper build ai-usage
+```yaml
+aiStatement: ai-usage.md
 ```
 
-The result is `ai-usage\dist\AI工具使用详情.pdf`, already carrying the required file name. The rules, both forms of the paper-side declaration and what to write are covered in the [AI usage statement guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md) (written in Chinese, as the rules are).
+Fill in `ai-usage.md`, then run `nodepaper build` as usual - one command, two PDFs:
+
+```text
+dist/paper.pdf              the paper
+dist/AI工具使用详情.pdf      the supporting material, already under the prescribed file name
+```
+
+That document needs no `problem` and no `keywords`, and its `# 摘要` section is optional - a `title` in the front matter is enough. Without a local TeX, `nodepaper export` carries both documents out (`paper.tex` and `ai-statement.tex`).
+
+The rules, both forms of the paper-side declaration and what to write are covered in the [AI usage statement guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md) (written in Chinese, as the rules are).
 
 ## Producing a PDF locally: installing TeX
 
@@ -364,6 +375,14 @@ output:
 ```
 
 Sources are processed in the declared order. Directories are not scanned automatically.
+
+If your team used AI tools, add one more line. `nodepaper build` then also produces `dist/AI工具使用详情.pdf`:
+
+```yaml
+aiStatement: ai-usage.md
+```
+
+It is a second document of the same Project, not a paper Source: it never reaches the paper PDF, and the paper's `problem` / `keywords` / `# 摘要` requirements do not apply to it. The output file name is fixed by the competition rules and is not configurable.
 
 Common optional settings:
 

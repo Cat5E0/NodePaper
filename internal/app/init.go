@@ -170,8 +170,9 @@ func (a *appImpl) Init(ctx context.Context, req InitRequest) (InitResult, error)
 
 func defaultInitEntries() []initEntry {
 	return []initEntry{
-		{relPath: "nodepaper.yaml", content: "version: 1\nprofile: cumcm\nsource: paper.md\noutput:\n  file: dist/paper.pdf\n", kind: "config"},
+		{relPath: "nodepaper.yaml", content: configYAML(), kind: "config"},
 		{relPath: "paper.md", content: paperMarkdown(), kind: "markdown"},
+		{relPath: "ai-usage.md", content: aiStatementMarkdown(), kind: "ai-statement"},
 		{relPath: "references.bib", content: "% NodePaper references\n% Add your BibTeX entries below.\n", kind: "bibliography"},
 		{relPath: ".gitignore", content: "dist/\n.nodepaper/\n", kind: "gitignore"},
 	}
@@ -279,6 +280,103 @@ func initDiag(code, message, file, suggestion string) diagnostic.Diagnostic {
 		Suggestion: suggestion,
 		Source:     "init",
 	}
+}
+
+func configYAML() string {
+	// aiStatement ships commented out on purpose. Every Project gets the
+	// Markdown, because a team that ends up using an AI tool should not have to
+	// go looking for a template mid-competition; but a team that used none must
+	// not hand in a supporting document it never needed, so nothing is built
+	// until the author uncomments the line.
+	return `version: 1
+profile: cumcm
+source: paper.md
+output:
+  file: dist/paper.pdf
+
+# 使用了 AI 工具的参赛队，取消下面这行注释：nodepaper build 会连同论文一起
+# 生成 dist/AI工具使用详情.pdf，文件名就是竞赛规定要求的名字。
+# 未使用 AI 工具的参赛队保持注释，只需在论文参考文献之后声明未使用。
+# aiStatement: ai-usage.md
+`
+}
+
+// aiStatementMarkdown is the fill-in-the-blanks supporting document. Two things
+// about its wording are deliberate. The paragraph that explains the switch is
+// not wrapped in full-width parentheses: with inline code in the same
+// paragraph, the closing ） lands at the start of the next line, which is the
+// line-start punctuation defect M4-11 recorded and has not been fixed at the
+// engine level. And nothing here names a real tool or invents an interaction -
+// every value is a placeholder the team replaces with what it actually did.
+func aiStatementMarkdown() string {
+	return `---
+title: AI工具使用详情
+---
+
+# 摘要
+
+本参赛队在竞赛期间使用了下表所列的 AI 工具，用于（此处填写实际环节，例如资料检索、
+代码调试、文字润色）。竞赛作品的核心建模、求解与分析均由本参赛队独立完成，AI 工具
+的全部输出均经本队核对与修改后采用。本参赛队对所提交作品的原创性、真实性和准确性
+负全部责任。
+
+以上为填写示例，请按本队真实情况改写。本文件只有在 ` + "`nodepaper.yaml`" + ` 中取消
+` + "`aiStatement`" + ` 那行注释后才会被构建；未使用任何 AI 工具的参赛队不需要提交它。
+
+# 工具清单
+
+按“工具名称，版本/型号，开发机构/公司，使用日期”逐项列出竞赛期间使用过的全部 AI
+工具。同一工具在不同日期多次使用的，可以合并为一行并写明日期区间。
+
+| 工具名称 | 版本/型号 | 开发机构/公司 | 使用日期 |
+|---|---|---|---|
+| （工具名称） | （版本/型号） | （开发机构/公司） | （使用日期） |
+| （工具名称） | （版本/型号） | （开发机构/公司） | （使用日期） |
+
+: 竞赛期间使用的 AI 工具 {#tbl:ai-tools}
+
+表 @tbl:ai-tools 中的每一项都应与论文参考文献中列出的 AI 工具条目一一对应。
+
+# 使用目的与范围
+
+分工具说明用它做什么、不做什么。写清楚哪些环节由本队独立完成，例如：
+
+- 模型假设、建模思路、求解方案与结果分析由本队独立完成；
+- AI 工具仅用于（此处填写，例如查找文献线索、解释报错信息、检查语句通顺）；
+- 未使用 AI 工具直接生成论文正文，未改写他人作品或往届获奖成果。
+
+# 关键交互记录
+
+按时间顺序记录关键的提问与输出。每条记录建议包含：使用的工具、时间、提问内容、
+输出要点。较长的提问、回答或代码放进代码块，保持原样，不做美化。
+
+**记录 1**（工具：填写；时间：填写）
+
+提问：
+
+` + "```" + `text
+（此处粘贴提问原文）
+` + "```" + `
+
+输出要点：
+
+` + "```" + `text
+（此处粘贴关键输出，或概括其要点）
+` + "```" + `
+
+# 采纳与修改情况
+
+逐条说明上述输出最终是否被采用、在何处采用、做了哪些修改与核对。例如：
+
+- 记录 1 的输出未直接采用，本队据此自行推导后写入论文第 3 节，公式与结论均已重新验证；
+- 论文中由 AI 工具协助生成的内容，已在正文相应位置标注。
+
+# 原创性与责任声明
+
+本参赛队声明：竞赛作品的核心建模与分析由本队独立完成；AI 工具的使用情况已如实记录
+于本文件；本队对所提交作品的原创性、真实性和准确性负全部责任，并接受竞赛组委会的
+核查。
+`
 }
 
 func paperMarkdown() string {

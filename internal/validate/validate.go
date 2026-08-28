@@ -62,6 +62,7 @@ func Run(ctx context.Context, projectDir string) Result {
 
 	result.Diagnostics = append(result.Diagnostics, validateConfigPaths(p, cfg)...)
 	result.Diagnostics = append(result.Diagnostics, validateSources(p, cfg)...)
+	result.Diagnostics = append(result.Diagnostics, validateAIStatement(p, cfg)...)
 	validFragments, fragmentDiags := validateFragments(p, cfg)
 	result.Diagnostics = append(result.Diagnostics, fragmentDiags...)
 
@@ -245,6 +246,74 @@ func validateSources(p project.Project, cfg config.ProjectConfig) []diagnostic.D
 	return diags
 }
 
+// validateAIStatement checks the optional CUMCM "AI工具使用详情" source. The
+// paper's own metadata contract deliberately does not apply here: this document
+// is a supporting material, not an entry, so it needs no problem number, no
+// keywords and no 摘要 section. Only the things that would make the second build
+// fail or escape the Project are errors.
+func validateAIStatement(p project.Project, cfg config.ProjectConfig) []diagnostic.Diagnostic {
+	rel := cfg.AIStatement
+	if rel == "" {
+		return nil
+	}
+	absPath, err := p.Resolve(rel)
+	if err != nil {
+		return []diagnostic.Diagnostic{{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP2601",
+			Message:    fmt.Sprintf("aiStatement path outside project: %s", rel),
+			File:       rel,
+			Suggestion: "Move the file inside the project directory.",
+			Source:     "validate",
+		}}
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return []diagnostic.Diagnostic{{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP2602",
+			Message:    fmt.Sprintf("aiStatement not found: %s", rel),
+			File:       rel,
+			Suggestion: "Create the file, or remove aiStatement from nodepaper.yaml if this team used no AI tool.",
+			Source:     "validate",
+		}}
+	}
+	if !info.Mode().IsRegular() {
+		return []diagnostic.Diagnostic{{
+			Severity: diagnostic.SeverityError,
+			Code:     "NP2602",
+			Message:  fmt.Sprintf("aiStatement is not a regular file: %s", rel),
+			File:     rel,
+			Source:   "validate",
+		}}
+	}
+	// A title is not required to build, but without one the document opens on a
+	// page carrying nothing: the Profile template starts the body on a fresh
+	// page regardless. Warn rather than fail - the author may have meant it.
+	data, readErr := os.ReadFile(absPath)
+	if readErr != nil {
+		return []diagnostic.Diagnostic{{
+			Severity:   diagnostic.SeverityError,
+			Code:       "NP2602",
+			Message:    fmt.Sprintf("cannot read aiStatement: %s", rel),
+			File:       rel,
+			Suggestion: "Check the file permissions.",
+			Source:     "validate",
+		}}
+	}
+	if !hasFrontMatterTitle(data) {
+		return []diagnostic.Diagnostic{{
+			Severity:   diagnostic.SeverityWarning,
+			Code:       "NP2603",
+			Message:    fmt.Sprintf("aiStatement has no title in front matter: %s", rel),
+			File:       rel,
+			Suggestion: "Add front matter with title: AI工具使用详情, or the document opens on a page with nothing on it.",
+			Source:     "validate",
+		}}
+	}
+	return nil
+}
+
 type sourceFile struct {
 	rel  string
 	abs  string
@@ -344,6 +413,23 @@ func validateFrontMatter(path, rel string) []diagnostic.Diagnostic {
 		}
 	}
 	return diags
+}
+
+// hasFrontMatterTitle reports whether the document opens with closed YAML front
+// matter carrying a non-empty title. Shared shape with validateFrontMatter, but
+// deliberately not the same check: this one answers a single question and every
+// other answer is "no title", never an error about the paper's metadata.
+func hasFrontMatterTitle(data []byte) bool {
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+	match := frontMatterRE.FindSubmatch(data)
+	if match == nil {
+		return false
+	}
+	var fm frontMatter
+	if err := yaml.Unmarshal(match[1], &fm); err != nil {
+		return false
+	}
+	return strings.TrimSpace(fm.Title) != ""
 }
 
 func metadataDiag(code, message, file, suggestion string) diagnostic.Diagnostic {

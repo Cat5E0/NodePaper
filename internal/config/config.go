@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +37,13 @@ type ProjectConfig struct {
 	AbstractKeywordsSkip *float64     `yaml:"abstractKeywordsSkip,omitempty"`
 	MathFont             string       `yaml:"mathFont,omitempty"`
 	Output               OutputConfig `yaml:"output,omitempty"`
+	// AIStatement is the Markdown source of the CUMCM "AI工具使用详情"
+	// supporting document. It is a second document built from the same Project
+	// and the same Profile, not a paper Source: it never reaches the paper PDF,
+	// and the paper's own metadata rules (problem, keywords, a single 摘要) do
+	// not apply to it. Empty means the Project does not declare one, which is
+	// what a team that used no AI tool wants.
+	AIStatement string `yaml:"aiStatement,omitempty"`
 }
 
 // AppendixConfig controls numbering after the retained level-one appendix
@@ -166,6 +175,19 @@ func validate(cfg ProjectConfig) error {
 	for i, fragment := range cfg.LatexFragments {
 		if fragment == "" {
 			return fmt.Errorf("latexFragments[%d] is empty", i)
+		}
+	}
+	if cfg.AIStatement != "" {
+		if !strings.EqualFold(filepath.Ext(cfg.AIStatement), ".md") {
+			return fmt.Errorf("aiStatement must be a .md file")
+		}
+		if cfg.AIStatement == cfg.Source {
+			return fmt.Errorf("aiStatement must not also be the paper source")
+		}
+		for _, s := range cfg.Sources {
+			if cfg.AIStatement == s {
+				return fmt.Errorf("aiStatement must not also be a paper source")
+			}
 		}
 	}
 	switch cfg.Appendix.Numbering {

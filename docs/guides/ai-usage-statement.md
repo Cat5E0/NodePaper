@@ -1,6 +1,6 @@
 # AI 工具使用声明与「AI工具使用详情」
 
-CUMCM 的[参赛规则（2026 年修订稿）](https://www.cmathc.org.cn/mcm/tz/408.html)要求参赛队遵守[《全国大学生数学建模竞赛人工智能工具使用规定（2025 年试行）》](https://www.cmathc.org.cn/mcm/news/285.html)。本页说明**用 NodePaper 写论文时，这份规定落到文件上是什么样子**，并给出可以直接构建的模板。
+CUMCM 的[参赛规则（2026 年修订稿）](https://www.cmathc.org.cn/mcm/tz/408.html)要求参赛队遵守[《全国大学生数学建模竞赛人工智能工具使用规定（2025 年试行）》](https://www.cmathc.org.cn/mcm/news/285.html)。本页说明**用 NodePaper 写论文时，这份规定落到文件上是什么样子**。
 
 规定与其解释权属于竞赛组委会。本页只负责把要求映射到 NodePaper 的文件与命令上，**不是官方解释，也不替代原文**；提交前请以官方最新原文为准。
 
@@ -14,9 +14,11 @@ CUMCM 的[参赛规则（2026 年修订稿）](https://www.cmathc.org.cn/mcm/tz/
   3. 在**支撑材料**中提交一份 PDF，文件名为**「AI工具使用详情」**，内容包括工具名称与版本、使用目的、关键交互记录、采纳和修改情况。
 - 不符合上述要求的参赛作品视为违反竞赛规则，**取消评奖资格**。
 
-## 2. 没用 AI 工具：只要一句声明
+## 2. 没用 AI 工具：什么都不用做，除了一句声明
 
-在论文的参考文献之后写明即可，不需要额外文件。NodePaper 的 `cumcm` Profile 用 `::: {#refs}` 定位文献表，写在这个块之后的内容就排在文献表下方：
+`nodepaper init` 生成的 `ai-usage.md` 默认**不会被构建**——`nodepaper.yaml` 里那行 `aiStatement` 是注释掉的。没用 AI 工具就不用管它（想删掉也行）。
+
+只需在论文的参考文献之后写明。`cumcm` Profile 用 `::: {#refs}` 定位文献表，写在这个块之后的内容就排在文献表下方：
 
 ```markdown
 # 参考文献 {-}
@@ -27,105 +29,27 @@ CUMCM 的[参赛规则（2026 年修订稿）](https://www.cmathc.org.cn/mcm/tz/
 本参赛队未使用任何AI工具。
 ```
 
-## 3. 用了 AI 工具
+## 3. 用了 AI 工具：改一行配置，填一个 Markdown
 
-### 3.1 正文标注
+### 3.1 打开开关
 
-在生成内容所在的位置直接写明，例如：「本段综述由 AI 工具协助整理，已经本队核对与改写。」标注是正文的一部分，不需要任何特殊语法。
-
-### 3.2 在参考文献中列出工具
-
-**推荐：手写在文献表之后。** 规定的字段顺序是「工具名称，版本/型号，开发机构/公司，使用日期」，手写最贴近这个写法，编号接着文献表最后一条往下写：
-
-```markdown
-# 参考文献 {-}
-
-::: {#refs}
-:::
-
-[6] 某AI工具，v1.2，某公司，2026-09-05.
-```
-
-手写条目的缩进与上方由 CSL 生成的条目略有差别（没有悬挂缩进），这是排版差异，不影响内容。
-
-**另一种写法：写进 `references.bib`，用 `nocite` 挂进文献表。** 这样条目由 GB/T 7714 样式统一排版，但**字段顺序不受你控制**。实测把
-
-```bibtex
-@misc{ai-tool-demo,
-  author = {某公司},
-  title  = {某AI工具，v1.2},
-  year   = {2026},
-  note   = {使用日期：2026-09-05}
-}
-```
-
-配合 Front Matter 的 `nocite: '@ai-tool-demo'` 构建，输出是：
-
-```text
-某公司. 某AI工具，v1.2[Z]. 2026.
-```
-
-即开发机构排到最前、补上文献类型标识 `[Z]`、且**使用日期不会出现**。要严格符合规定写法就用手写条目；要统一排版就接受这个形态，并在「AI工具使用详情」里把版本与使用日期写全。
-
-### 3.3 提交「AI工具使用详情」
-
-这是一份**独立的 PDF**，和论文一起放进支撑材料。下面的模板工程直接产出这个文件名。
-
-## 4. 模板工程：放在论文工程里
-
-一个 NodePaper Project 由目录里的 `nodepaper.yaml` 标识，构建一次产出一份 PDF。所以这份材料是论文之外的**第二个 Project**——把它作为子目录放在论文工程里即可，两者互不影响：
-
-```text
-cumcm-a/                      # 论文工程
-├─ nodepaper.yaml
-├─ paper.md
-├─ references.bib
-├─ images/
-├─ dist/
-└─ ai-usage/                  # AI 工具使用详情（独立 Project）
-   ├─ nodepaper.yaml
-   ├─ ai-usage.md
-   ├─ references.bib          # 通常为空文件，NodePaper 要求它存在
-   └─ dist/
-```
-
-论文的 `nodepaper build` / `nodepaper export` 只处理 `nodepaper.yaml` 里显式声明的文件，不扫描目录，因此 `ai-usage/` 不会被卷进论文的构建产物或导出工程。
-
-发布包的 `examples/cumcm-single-file/ai-usage/` 就是这份模板，复制到自己的论文工程下改内容即可。
-
-`ai-usage/nodepaper.yaml`：
+`nodepaper init` 已经在项目里放好了 `ai-usage.md`，并在 `nodepaper.yaml` 里留了一行注释。把它取消注释：
 
 ```yaml
 version: 1
 profile: cumcm
-source: ai-usage.md
-
+source: paper.md
 output:
-  file: dist/AI工具使用详情.pdf
+  file: dist/paper.pdf
+
+aiStatement: ai-usage.md
 ```
 
-`output.file` 决定产物文件名，所以构建出来就是规定要求的**「AI工具使用详情.pdf」**，不用再手工改名。
+老项目里没有这两样东西，自己补上即可：新建一个 `ai-usage.md`，再加这一行。
 
-构建（在论文工程根目录执行，也可以 `cd ai-usage` 后不带参数执行）：
+### 3.2 填 `ai-usage.md`
 
-```powershell
-nodepaper validate ai-usage
-nodepaper build ai-usage
-```
-
-产物在 `ai-usage/dist/AI工具使用详情.pdf`。
-
-本机没装 TeX 时，用导出拿到可独立编译的 LaTeX 工程，交给有 TeX 的环境（含 Overleaf）编译：
-
-```powershell
-nodepaper export ai-usage --to D:\out\ai-usage.zip
-```
-
-导出工程编译出的 PDF 名为 `paper.pdf`，**提交前请自行改名为「AI工具使用详情.pdf」**。这份材料通常不引用文献，导出工程里 `xelatex paper.tex` 跑两遍就够，`README.txt` 提到的 `bibtex` 一步可以跳过。
-
-## 5. 模板长什么样
-
-模板是填空式的，首页是标题、摘要与关键词（这是 `cumcm` Profile 的固定版式），正文按规定的四项要求分节：
+模板已经按规定的四项要求分好节，照着填即可：
 
 | 模板小节 | 对应规定要求 |
 |---|---|
@@ -136,12 +60,80 @@ nodepaper export ai-usage --to D:\out\ai-usage.zip
 | 采纳与修改情况 | 采纳和修改情况 |
 | 原创性与责任声明 | 原创性、真实性、准确性由参赛队负责 |
 
-填写时注意：
+这份文档**不受论文的元数据规则约束**：不需要 `problem`、不需要 `keywords`、`# 摘要` 也是可选的。Front Matter 只留一个 `title` 就够：
 
-- 工具清单里的每一项，都应与论文参考文献中列出的 AI 工具一一对应；
-- 交互记录照抄原文，不要事后美化；提问和输出较长时放进代码块（```` ``` ````），NodePaper 会按代码块排版；
-- 摘要必须非空，这是 Profile 的硬性要求（缺少会报 `NP2201`/`NP2203`）；`problem` 填本队的题号。
+```markdown
+---
+title: AI工具使用详情
+---
+```
 
-## 6. NodePaper 的边界
+两点提醒：
+
+- **别删掉 `title`**。Profile 模板的正文固定从新一页开始，没有标题的话第一页就只剩一片空白（`nodepaper validate` 会为此报一条 `NP2603` Warning）。
+- 交互记录照抄原文，不要事后美化；提问和输出较长时放进代码块（```` ``` ````）。
+
+### 3.3 构建
+
+跟平时一样，一条命令出两份 PDF：
+
+```powershell
+nodepaper build
+```
+
+```text
+dist/paper.pdf              论文
+dist/AI工具使用详情.pdf      支撑材料，文件名已经是规定要求的名字
+```
+
+声明文档跟着论文的输出目录走：论文改了 `output.file`，声明也会落在同一个目录里。文件名本身**不可配置**——规定指定了它。
+
+论文和声明是两份独立的文档：声明不会进论文 PDF，论文的图、Fragment 和文献表也不会进声明。构建日志里各有各的 `ai-statement.tex/.log`，哪一份出错一眼可辨。
+
+本机没装 TeX 时照常用导出，两份文档一起出：
+
+```powershell
+nodepaper export . --to D:\out\paper.zip
+```
+
+导出的工程里，`paper.tex` 是论文，`ai-statement.tex` 是声明，各自 `xelatex` 编译（声明通常不引用文献，`bibtex` 那步可以跳过）。编出来的 PDF 叫 `ai-statement.pdf`，**提交前自己改名为「AI工具使用详情.pdf」**。
+
+### 3.4 论文侧还有两件事
+
+**正文标注**：在生成内容所在的位置直接写明，例如「本段综述由 AI 工具协助整理，已经本队核对与改写。」这是正文的一部分，不需要任何特殊语法。
+
+**参考文献里列出工具**——推荐**手写在文献表之后**，字段顺序才能完全符合规定：
+
+```markdown
+# 参考文献 {-}
+
+::: {#refs}
+:::
+
+[6] 某AI工具，v1.2，某公司，2026-09-05.
+```
+
+编号接着文献表最后一条往下写。手写条目没有悬挂缩进，与上方 CSL 生成的条目略有排版差异，不影响内容。
+
+另一种写法是写进 `references.bib` 用 `nocite` 挂进文献表，由 GB/T 7714 统一排版，但**字段顺序不受你控制**。实测
+
+```bibtex
+@misc{ai-tool-demo,
+  author = {某公司},
+  title  = {某AI工具，v1.2},
+  year   = {2026},
+  note   = {使用日期：2026-09-05}
+}
+```
+
+配合 Front Matter 的 `nocite: '@ai-tool-demo'`，输出是：
+
+```text
+某公司. 某AI工具，v1.2[Z]. 2026.
+```
+
+即开发机构排到最前、补上文献类型标识 `[Z]`、且**使用日期不会出现**。要严格符合规定写法就手写；要统一排版就接受这个形态，并在「AI工具使用详情」里把版本与使用日期写全。
+
+## 4. NodePaper 的边界
 
 NodePaper 只把你写好的 Markdown 排成 PDF：它**不调用任何 AI 服务，不联网，也不代写正文**。`nodepaper init --ai-guide` 生成的项目级 `AGENTS.md` 是给 AI 写作工具看的**约束**（不许编造文献、不许改生成物等），它本身不产生任何需要申报的内容；你实际使用了哪些 AI 工具、怎么使用，只有你自己知道，也只能由你如实填写。

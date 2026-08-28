@@ -4,3 +4,8 @@ source: paper.md
 
 output:
   file: dist/paper.pdf
+
+# 使用了 AI 工具的参赛队，取消下面这行注释：nodepaper build 会连同论文一起
+# 生成 dist/AI工具使用详情.pdf，文件名就是竞赛规定要求的名字。
+# 未使用 AI 工具的参赛队保持注释，只需在论文参考文献之后声明未使用。
+# aiStatement: ai-usage.md

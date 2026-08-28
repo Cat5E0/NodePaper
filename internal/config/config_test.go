@@ -184,6 +184,28 @@ sources:
 	}
 }
 
+func TestParseAcceptsAIStatement(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\naiStatement: ai-usage.md\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.AIStatement != "ai-usage.md" {
+		t.Fatalf("AIStatement = %q, want ai-usage.md", cfg.AIStatement)
+	}
+}
+
+func TestParseDefaultsAIStatementToEmpty(t *testing.T) {
+	// A Project that declares nothing builds one document. That is the shape a
+	// team which used no AI tool must be able to keep.
+	cfg, err := Parse([]byte("version: 1\nprofile: cumcm\nsource: paper.md\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.AIStatement != "" {
+		t.Fatalf("AIStatement = %q, want empty", cfg.AIStatement)
+	}
+}
+
 func TestParseRejects(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -199,6 +221,9 @@ func TestParseRejects(t *testing.T) {
 		{"empty source string", "version: 1\nprofile: cumcm\nsource:", "source or sources is required"},
 		{"empty sources item", "version: 1\nprofile: cumcm\nsources:\n  - a.md\n  - \"\"", "empty"},
 		{"empty fragment", "version: 1\nprofile: cumcm\nsource: a.md\nlatexFragments:\n  - \"\"", "latexFragments[0] is empty"},
+		{"aiStatement is not markdown", "version: 1\nprofile: cumcm\nsource: a.md\naiStatement: ai-usage.tex", "aiStatement must be a .md file"},
+		{"aiStatement duplicates the source", "version: 1\nprofile: cumcm\nsource: paper.md\naiStatement: paper.md", "must not also be the paper source"},
+		{"aiStatement duplicates one of sources", "version: 1\nprofile: cumcm\nsources:\n  - a.md\n  - b.md\naiStatement: b.md", "must not also be a paper source"},
 		{"invalid appendix numbering", "version: 1\nprofile: cumcm\nsource: a.md\nappendix:\n  numbering: roman", "appendix.numbering must be"},
 		{"invalid highlight style", "version: 1\nprofile: cumcm\nsource: a.md\nhighlight:\n  style: minted", "highlight.style must be"},
 		{"linespread too small", "version: 1\nprofile: cumcm\nsource: a.md\nlinespread: 0.9", "linespread must be between 1.0 and 1.3"},

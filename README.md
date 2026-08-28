@@ -175,6 +175,7 @@ nodepaper init D:\papers\cumcm-a --ai-guide
 cumcm-a/
 ├── nodepaper.yaml
 ├── paper.md
+├── ai-usage.md
 ├── references.bib
 ├── images/
 ├── dist/
@@ -186,7 +187,8 @@ cumcm-a/
 - `paper.md`：论文正文；
 - `references.bib`：参考文献；
 - `images/`：图片资源；
-- `nodepaper.yaml`：项目配置。
+- `nodepaper.yaml`：项目配置；
+- `ai-usage.md`：AI 工具使用详情（可选，默认不构建，见第 6 步）。
 
 复杂表格、TikZ 绘图等 Markdown 表达不了的内容，以 LaTeX Fragment 形式存在项目内自建的目录（如 `tables/`、`figures/`）中，在 `nodepaper.yaml` 声明后用 `\input{...}` 插入正文，见下文「Markdown 示例」。
 
@@ -211,17 +213,26 @@ nodepaper export . --to ..\paper-latex
 
 > **关于 Overleaf**：导出的工程可以上传 Overleaf（编译器选 XeLaTeX），但一份完整的 CUMCM 论文几十页、要跑多遍 XeLaTeX，在 Overleaf **免费版 10 秒编译限时**（[官方 Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)）内跑不完。想在 Overleaf 编译完整论文，要么用付费会员（240 秒），要么用会员的 7 天免费试用；否则更顺的路线是装本地 TeX，用下面一条 `nodepaper build` 直接出 PDF。
 
-### 6. 用过 AI 工具？还要交一份「AI工具使用详情」
+### 6. 用过 AI 工具？改一行配置
 
 竞赛规定：使用了 AI 工具的参赛队，须在正文标注生成内容、在参考文献中列出所用工具，并在支撑材料中提交一份文件名为「AI工具使用详情」的 PDF；未使用的参赛队则要在参考文献之后声明「本参赛队未使用任何AI工具」。
 
-发布包的 `examples\cumcm-single-file\ai-usage\` 是这份材料的填空模板——它就放在示例论文工程里，本身是一个独立的 NodePaper Project。复制到自己的论文工程下改内容，然后：
+`nodepaper init` 已经在项目里放好了填空模板 `ai-usage.md`，**默认不构建**。用了 AI 工具的话，把 `nodepaper.yaml` 里那行注释取消：
 
-```powershell
-nodepaper build ai-usage
+```yaml
+aiStatement: ai-usage.md
 ```
 
-产物是 `ai-usage\dist\AI工具使用详情.pdf`，文件名已经符合要求。申报要求、论文侧的两种声明写法和填写要点，见 [AI 工具使用声明指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md)。
+填完 `ai-usage.md`，照常 `nodepaper build`，一条命令出两份 PDF：
+
+```text
+dist/paper.pdf              论文
+dist/AI工具使用详情.pdf      支撑材料，文件名已经是规定要求的名字
+```
+
+这份文档不需要 `problem`、`keywords`，`# 摘要` 也是可选的，Front Matter 留一个 `title` 就够。没装 TeX 时 `nodepaper export` 会把两份文档一起导出（`paper.tex` 和 `ai-statement.tex`）。
+
+申报要求、论文侧的两种声明写法和填写要点，见 [AI 工具使用声明指南](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md)。
 
 ## 在本机直接出 PDF：安装 TeX
 
@@ -367,6 +378,14 @@ output:
 ```
 
 Source 按配置顺序处理，不自动扫描目录。
+
+用了 AI 工具时再加一行 `aiStatement`，`nodepaper build` 会连同论文一起生成 `dist/AI工具使用详情.pdf`：
+
+```yaml
+aiStatement: ai-usage.md
+```
+
+它是同一个项目里的第二份文档，不是论文的 Source：不进论文 PDF，也不受论文的 `problem`/`keywords`/`# 摘要` 要求约束。产物文件名由竞赛规定固定，不可配置。
 
 常用可选配置：
 
