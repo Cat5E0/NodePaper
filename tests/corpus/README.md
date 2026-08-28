@@ -22,6 +22,8 @@ nodepaper build tests/corpus/real-world/C063
 .\scripts\build-test-corpus.ps1 -Version 0.1.0-beta.1
 ```
 
+每次 `build` 产出两份 PDF：论文（`dist/` 下各自的文件名）与 `dist/AI工具使用详情.pdf`。论文侧的回归判据不变——A163 为 52 页、3 条 `NP6101`，C063 为 54 页、0 条。
+
 打包脚本按各工程白名单分别生成 `nodepaper-<version>-test-corpus-A163.zip`、`nodepaper-<version>-test-corpus-C063.zip` 及各自的 `.sha256`；每个 ZIP 只含一个可独立构建的工程。程序 ZIP 和 Setup 的发布白名单不包含 `tests/corpus`。
 
 人工 PDF 抽查至少覆盖首页、目录、公式密集页、宽表/图片页、参考文献和附录；结果记录在发布检查记录中，不把生成 PDF 提交到此目录。

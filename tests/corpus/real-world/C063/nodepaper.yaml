@@ -8,3 +8,7 @@ appendix:
   numbering: none
 output:
   file: dist/c063-nodepaper-single-file-latex-tables.pdf
+
+# 语料同时作为试用样例：启用它，试用者构建一次就能同时拿到论文和
+# 「AI工具使用详情」两份 PDF。ai-usage.md 是占位模板，与原论文作者无关。
+aiStatement: ai-usage.md

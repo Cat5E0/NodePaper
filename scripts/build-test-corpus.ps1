@@ -69,7 +69,12 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($project in $projects) {
     $projectRoot = Join-Path $corpusRoot ("real-world\" + $project.Name)
     if (-not (Test-Path -LiteralPath $projectRoot -PathType Container)) { throw "Corpus project missing: $projectRoot" }
-    foreach ($required in @("CORPUS.json", "nodepaper.yaml", "references.bib") + $project.Sources) {
+    # ai-usage.md is required, not optional: both corpus projects enable
+    # aiStatement so a tester exercises the whole feature set in one build, and
+    # a package that omitted it would hand out a Project that cannot build -
+    # the M4-10 failure, where the sample shipped without the Fragments its
+    # configuration declared.
+    foreach ($required in @("CORPUS.json", "nodepaper.yaml", "references.bib", "ai-usage.md") + $project.Sources) {
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $required) -PathType Leaf)) {
             throw "$($project.Name) is missing required file: $required"
         }
@@ -87,7 +92,7 @@ foreach ($project in $projects) {
     }
 
     $allowed = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($name in @("CORPUS.json", "nodepaper.yaml", "references.bib") + $project.Sources) { [void]$allowed.Add($name) }
+    foreach ($name in @("CORPUS.json", "nodepaper.yaml", "references.bib", "ai-usage.md") + $project.Sources) { [void]$allowed.Add($name) }
     foreach ($name in $referencedImages) { [void]$allowed.Add("images/$name") }
     foreach ($name in $project.Tables) { [void]$allowed.Add("tables/$name") }
 

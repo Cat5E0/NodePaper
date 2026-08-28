@@ -7,11 +7,16 @@
   "sourceMode": "single-file",
   "markdownSourceCount": 1,
   "latexFragmentCount": 2,
+  "aiStatementSource": "ai-usage.md",
   "referencedImageCount": 23,
   "expected": {
     "validateExitCode": 0,
     "buildExitCode": 0,
     "allowedDiagnostics": {},
-    "forbiddenDiagnostics": ["NP6101", "NP6102", "NP6105"]
+    "forbiddenDiagnostics": [
+      "NP6101",
+      "NP6102",
+      "NP6105"
+    ]
   }
 }

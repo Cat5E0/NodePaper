@@ -7,6 +7,7 @@
   "sourceMode": "multi-file",
   "markdownSourceCount": 8,
   "latexFragmentCount": 4,
+  "aiStatementSource": "ai-usage.md",
   "referencedImageCount": 29,
   "expected": {
     "validateExitCode": 0,
@@ -14,6 +15,9 @@
     "allowedDiagnostics": {
       "NP6101": 3
     },
-    "forbiddenDiagnostics": ["NP6102", "NP6105"]
+    "forbiddenDiagnostics": [
+      "NP6102",
+      "NP6105"
+    ]
   }
 }
