@@ -26,24 +26,34 @@ type verifyStep struct {
 // \citation commands" on a project whose PDF is already correct. Deciding this
 // from the emitted file keeps the chain honest for a paper that maintains its
 // references by hand.
-func compileChain(mode BibMode, hasBibliography bool) []verifyStep {
+func compileChain(mode BibMode, hasBibliography, hasAIStatement bool) []verifyStep {
 	xelatex := verifyStep{tool: "xelatex", args: []string{"paper.tex"}}
-	if !hasBibliography {
-		return []verifyStep{xelatex, xelatex}
-	}
-	switch mode {
-	case BibBibTeX:
-		return []verifyStep{xelatex, {tool: "bibtex", args: []string{"paper"}}, xelatex, xelatex}
-	case BibBibLaTeX:
-		return []verifyStep{xelatex, {tool: "biber", args: []string{"paper"}}, xelatex, xelatex}
+	var steps []verifyStep
+	switch {
+	case !hasBibliography:
+		steps = []verifyStep{xelatex, xelatex}
+	case mode == BibBibTeX:
+		steps = []verifyStep{xelatex, {tool: "bibtex", args: []string{"paper"}}, xelatex, xelatex}
+	case mode == BibBibLaTeX:
+		steps = []verifyStep{xelatex, {tool: "biber", args: []string{"paper"}}, xelatex, xelatex}
 	default:
-		return []verifyStep{xelatex, xelatex}
+		steps = []verifyStep{xelatex, xelatex}
 	}
+	// The AI tool usage statement is a document of its own and compiles on its
+	// own. Two passes, and no bibliography step whatever the paper's mode is:
+	// the statement is a supporting material that cites nothing, and a bibtex
+	// run against it would fail with "I found no \\citation commands" on a
+	// document that is perfectly fine.
+	if hasAIStatement {
+		statement := verifyStep{tool: "xelatex", args: []string{aiStatementTexName}}
+		steps = append(steps, statement, statement)
+	}
+	return steps
 }
 
 // CompileCommands renders the chain as the command lines a person would type.
-func CompileCommands(mode BibMode, hasBibliography bool) []string {
-	steps := compileChain(mode, hasBibliography)
+func CompileCommands(mode BibMode, hasBibliography, hasAIStatement bool) []string {
+	steps := compileChain(mode, hasBibliography, hasAIStatement)
 	commands := make([]string, 0, len(steps))
 	for _, step := range steps {
 		commands = append(commands, strings.TrimSpace(step.tool+" "+strings.Join(step.args, " ")))
@@ -65,8 +75,8 @@ func batchArgs(tool string, args []string) []string {
 // succeeded. It never writes into the delivered directory: the copy lives in a
 // temporary directory that is removed before this function returns, so no
 // .aux, .log, .bbl or .pdf is left behind for the recipient to wonder about.
-func verify(ctx context.Context, executor commandExecutor, logger *logWriter, exportDir string, mode BibMode, hasBibliography bool) (bool, []diagnostic.Diagnostic) {
-	steps := compileChain(mode, hasBibliography)
+func verify(ctx context.Context, executor commandExecutor, logger *logWriter, exportDir string, mode BibMode, hasBibliography, hasAIStatement bool) (bool, []diagnostic.Diagnostic) {
+	steps := compileChain(mode, hasBibliography, hasAIStatement)
 
 	resolved := make([]verifyStep, 0, len(steps))
 	for _, step := range steps {

@@ -78,6 +78,60 @@ func TestExportWithoutAIStatementDeliversPaperOnly(t *testing.T) {
 	}
 }
 
+// The recipient compiles by hand from README.txt, and the same list drives the
+// terminal's next-step hint and --verify. A second delivered document that no
+// chain ever mentions is a document the recipient does not know to build.
+func TestExportCompileChainCoversTheAIStatement(t *testing.T) {
+	projectDir := fixtureProject(t)
+	enableAIStatement(t, projectDir)
+	target := filepath.Join(t.TempDir(), "out")
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Bib: BibBibTeX}, &fakeExecutor{})
+	if !result.Success {
+		t.Fatalf("export failed: %#v", result.Diagnostics)
+	}
+
+	statementRuns := 0
+	for _, command := range result.CompileCommands {
+		if strings.Contains(command, "ai-statement.tex") {
+			statementRuns++
+		}
+		if strings.Contains(command, "bibtex ai-statement") || strings.Contains(command, "biber ai-statement") {
+			t.Fatalf("the statement cites nothing but the chain runs a bibliography pass on it: %q", command)
+		}
+	}
+	if statementRuns != 2 {
+		t.Fatalf("compile chain runs xelatex on the statement %d times, want 2: %#v", statementRuns, result.CompileCommands)
+	}
+
+	readmeText, err := os.ReadFile(filepath.Join(target, "README.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The published name is prescribed by the rules; the exported .tex is ASCII,
+	// so the recipient has to be told to rename the result.
+	for _, required := range []string{"ai-statement.pdf", "AI工具使用详情.pdf", "rename"} {
+		if !strings.Contains(string(readmeText), required) {
+			t.Fatalf("README.txt does not tell the recipient about %q:\n%s", required, readmeText)
+		}
+	}
+}
+
+func TestExportCompileChainStaysPaperOnlyWithoutAIStatement(t *testing.T) {
+	projectDir := fixtureProject(t)
+	target := filepath.Join(t.TempDir(), "out")
+
+	result := runExport(t, Options{ProjectDir: projectDir, ToPath: target, Bib: BibBibTeX}, &fakeExecutor{})
+	if !result.Success {
+		t.Fatalf("export failed: %#v", result.Diagnostics)
+	}
+	for _, command := range result.CompileCommands {
+		if strings.Contains(command, "ai-statement") {
+			t.Fatalf("compile chain mentions a document that was not exported: %q", command)
+		}
+	}
+}
+
 func enableAIStatement(t *testing.T, projectDir string) {
 	t.Helper()
 	configPath := filepath.Join(projectDir, "nodepaper.yaml")

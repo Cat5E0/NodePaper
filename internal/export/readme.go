@@ -26,7 +26,8 @@ func readme(mode BibMode, hasBibliography, usesPgfplots, hasAIStatement bool) st
 		b.WriteString("  references.bib  the bibliography database\n")
 	}
 	if hasAIStatement {
-		b.WriteString("  ai-statement.tex the CUMCM AI tool usage statement, a separate document\n")
+		b.WriteString("  ai-statement.tex\n")
+		b.WriteString("                  the CUMCM AI tool usage statement, a separate document\n")
 	}
 	b.WriteString("  images/         only the images the document actually references\n")
 	b.WriteString("  *.tex elsewhere any LaTeX fragments the document \\input{}s\n")
@@ -46,14 +47,23 @@ func readme(mode BibMode, hasBibliography, usesPgfplots, hasAIStatement bool) st
 		b.WriteString("citations later; a reference list written by hand in the text stays as text.\n")
 	}
 	b.WriteString("Run these commands in this directory, in this order:\n\n")
-	for _, step := range compileChain(mode, hasBibliography) {
+	for _, step := range compileChain(mode, hasBibliography, hasAIStatement) {
 		b.WriteString(fmt.Sprintf("  %s %s\n", step.tool, strings.Join(step.args, " ")))
 	}
 	b.WriteString("\n")
+	if hasAIStatement {
+		b.WriteString("The last two runs build ai-statement.tex, which is a second, independent\n")
+		b.WriteString("document: the CUMCM AI tool usage statement. It cites nothing, so it needs no\n")
+		b.WriteString("bibliography pass of its own.\n\n")
+		b.WriteString("It compiles to ai-statement.pdf. The competition requires that file to be\n")
+		b.WriteString("submitted under the name AI\u5de5\u5177\u4f7f\u7528\u8be6\u60c5.pdf, so rename it before handing it in.\n")
+		b.WriteString("The .tex is named in ASCII on purpose: a LaTeX command line is not a safe\n")
+		b.WriteString("place for that file name on every machine this export may land on.\n\n")
+	}
 	b.WriteString("The engine must be XeLaTeX. pdflatex and lualatex will not work: the document\n")
 	b.WriteString("selects Chinese fonts through ctex/fontspec, which requires XeLaTeX or LuaLaTeX,\n")
 	b.WriteString("and the layout was set for XeLaTeX.\n\n")
-	if len(compileChain(mode, hasBibliography)) > 2 {
+	if len(compileChain(mode, hasBibliography, false)) > 2 {
 		b.WriteString("The repeated XeLaTeX runs are not redundant: the first pass writes the\n")
 		b.WriteString("citation and cross-reference data, and the later passes read it back.\n\n")
 	}

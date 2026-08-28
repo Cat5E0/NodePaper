@@ -257,7 +257,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	}
 	// The nominal chain for the mode; refined once paper.tex exists and it is
 	// known whether a bibliography was actually emitted.
-	result := Result{BibMode: string(mode), CompileCommands: CompileCommands(mode, true)}
+	result := Result{BibMode: string(mode), CompileCommands: CompileCommands(mode, true, false)}
 
 	// 1. Discover the project, read its configuration and load the Profile,
 	// exactly as a build does, before touching anything on disk.
@@ -409,7 +409,6 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 		return result
 	}
 	hasBibliography := texHasBibliography(texPath)
-	result.CompileCommands = CompileCommands(mode, hasBibliography)
 	if mode.needsBibFile() && !hasBibliography {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityInfo,
@@ -461,6 +460,8 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 		}
 	}
 
+	result.CompileCommands = CompileCommands(mode, hasBibliography, aiStatementTex != "")
+
 	// 8. Assemble the deliverable. ZIP exports are assembled in the private
 	// work directory first, so --verify sees the exact tree that is archived.
 	deliverableDir := target
@@ -477,7 +478,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 	// 9. Optional verification, always in a scratch directory so the
 	// delivered project keeps no .aux, .log, .bbl or .pdf behind.
 	if opts.Verify {
-		verified, verifyDiags := verify(ctx, executor, logger, deliverableDir, mode, hasBibliography)
+		verified, verifyDiags := verify(ctx, executor, logger, deliverableDir, mode, hasBibliography, aiStatementTex != "")
 		result.Verified = verified
 		result.Diagnostics = append(result.Diagnostics, verifyDiags...)
 		if hasError(result.Diagnostics) {
@@ -714,6 +715,14 @@ func canonicalPathWithMissingTail(path string) (string, error) {
 	}
 }
 
+// aiStatementTexName is the AI statement's file name inside the exported
+// project. It is ASCII on purpose. The published PDF carries the Chinese name
+// the rules prescribe, but that name cannot be put on a LaTeX command line
+// safely - M4-13 caught XeLaTeX reading its own command-line file name as TeX
+// tokens - and the recipient may be compiling on Overleaf or a machine whose
+// console code page mangles it. README.txt tells them to rename the PDF.
+const aiStatementTexName = "ai-statement.tex"
+
 // ---------- conversion ---------------------------------------------------
 
 type conversionRequest struct {
@@ -853,7 +862,7 @@ func assemble(p project.Project, cfg config.ProjectConfig, mode BibMode, hasBibl
 
 	place("tex", texPath, "paper.tex")
 	if aiStatementTex != "" {
-		place("ai-statement-tex", aiStatementTex, "ai-statement.tex")
+		place("ai-statement-tex", aiStatementTex, aiStatementTexName)
 	}
 
 	if mode.needsBibFile() {

@@ -948,7 +948,7 @@ func TestReadmeExplainsOverleaf(t *testing.T) {
 // \citation commands" on a project whose PDF is already correct.
 func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
 	for _, mode := range []BibMode{BibBibTeX, BibBibLaTeX} {
-		commands := CompileCommands(mode, false)
+		commands := CompileCommands(mode, false, false)
 		if len(commands) != 2 {
 			t.Fatalf("%s chain without a bibliography = %v, want two xelatex runs", mode, commands)
 		}
@@ -978,7 +978,7 @@ func TestChainAndReadmeDropTheBibliographyPassWhenNothingIsCited(t *testing.T) {
 
 	// The normal case keeps its bibliography pass.
 	for mode, tool := range map[BibMode]string{BibBibTeX: "bibtex paper", BibBibLaTeX: "biber paper"} {
-		commands := CompileCommands(mode, true)
+		commands := CompileCommands(mode, true, false)
 		found := false
 		for _, command := range commands {
 			if command == tool {

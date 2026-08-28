@@ -96,7 +96,9 @@ dist/AI工具使用详情.pdf      支撑材料，文件名已经是规定要求
 nodepaper export . --to D:\out\paper.zip
 ```
 
-导出的工程里，`paper.tex` 是论文，`ai-statement.tex` 是声明，各自 `xelatex` 编译（声明通常不引用文献，`bibtex` 那步可以跳过）。编出来的 PDF 叫 `ai-statement.pdf`，**提交前自己改名为「AI工具使用详情.pdf」**。
+导出的工程里，`paper.tex` 是论文，`ai-statement.tex` 是声明。`README.txt` 给出的命令链已经包含声明的两遍 `xelatex`（它不引用文献，不需要 `bibtex`），`--verify` 也会把两份都编一遍。
+
+编出来的 PDF 叫 `ai-statement.pdf`，**提交前自己改名为「AI工具使用详情.pdf」**。导出件里用 ASCII 文件名是刻意的：中文名放在 LaTeX 命令行上并不是每台机器都安全（M4-13 就撞到过 XeLaTeX 把命令行文件名当 TeX token 解析），而收件人可能在 Overleaf 或别的编码环境里编译。`README.txt` 里写了这个改名提醒。
 
 ### 3.4 论文侧还有两件事
 
