@@ -70,6 +70,22 @@ jobs:
               if (-not $tex.Contains($needle)) { throw "export --bib $mode is missing '$needle'" }
             }
           }
+      - name: Show the NodePaper logs when the export fails
+        if: failure()
+        shell: pwsh
+        run: |
+          # Without this the job reports only the CLI's own NP8005 line and the
+          # reason stays inside the runner. The transition layer writes both the
+          # Go-side build log and the PowerShell conversion log into the
+          # Project, which is thrown away with the runner.
+          foreach ($mode in @("inline", "bibtex")) {
+            $logs = Join-Path $env:RUNNER_TEMP "project-$mode\.nodepaper\logs"
+            if (-not (Test-Path -LiteralPath $logs)) { continue }
+            foreach ($file in (Get-ChildItem -LiteralPath $logs -Recurse -File -Filter "*.log")) {
+              Write-Host "===== $($file.FullName) ====="
+              Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
+            }
+          }
       - name: Upload the exported projects
         uses: actions/upload-artifact@v4
         with:
