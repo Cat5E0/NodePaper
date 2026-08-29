@@ -17,7 +17,7 @@ NodePaper is a Windows command-line tool that builds a Markdown Project identifi
 
 The current v0.1 targets the CUMCM 2026 electronic-paper workflow, including Chinese typesetting, equations, figures, tables, cross-references, citations, code blocks, appendices, and ordered multi-file projects.
 
-> NodePaper is still under beta development and has not been formally released. It is not endorsed by the competition organizers.
+> NodePaper is not endorsed by the competition organizers. The competition's own rules and format requirements are the authority.
 
 ## Showcase
 
@@ -56,7 +56,7 @@ For project structure, the full configuration reference, abstract-page fitting, 
 
 Requires Windows 10/11 x64. The NodePaper Setup is about 52 MB and installs in seconds. **It does not bundle TeX, and the whole "Quick start" below works without a local TeX installation** — export only calls the pandoc shipped inside the release package. Install TeX later if you want a PDF from a single local command; see "Producing a PDF locally: installing TeX".
 
-> The official repository, <https://github.com/Cat5E0/NodePaper>, has no public GitHub Release assets yet. Test candidates are handed out directly by the maintainer. Obtain `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP) together with the matching `release-manifest-<version>.json`; do not use third-party downloads or GitHub's Source code ZIP.
+> Download from the repository's [Releases page](https://github.com/Cat5E0/NodePaper/releases): `NodePaper-Setup-<version>-windows-x64.exe` (or the portable ZIP), together with the matching `release-manifest-<version>.json` to check the file size and SHA-256. Do not use third-party downloads or GitHub's Source code ZIP — the Source code ZIP contains no compiled `nodepaper.exe`. The installer is not code-signed, so Windows SmartScreen may warn about an unknown publisher; check the hash and decide for yourself.
 
 Run the Setup, then open a new terminal:
 

@@ -17,7 +17,7 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 当前 v0.1 面向 CUMCM 2026 电子版论文场景，支持中文排版、公式、图表、交叉引用、参考文献、代码块、附录和多文件项目。
 
-> 当前仍处于测试版开发阶段，尚未正式发布。NodePaper 不代表比赛官方认证。
+> NodePaper 不代表比赛官方认证。竞赛规则与格式要求以官方最新原文为准。
 
 ## 构建展示
 
@@ -56,7 +56,7 @@ NodePaper 是一个面向 Windows 的命令行工具，用于将包含 `nodepape
 
 需要 Windows 10/11 x64。NodePaper 的 Setup 约 52 MB，几秒装完。**它不自带 TeX，而下面的「快速开始」全程无需本地 TeX 环境**——导出只调用发布包内置的 pandoc。想在本机一条命令直接出 PDF，再回头装 TeX，见「在本机直接出 PDF：安装 TeX」。
 
-> 官方仓库 <https://github.com/Cat5E0/NodePaper> 当前尚无公开 GitHub Release 资产。测试候选由维护者直接提供；请同时取得 `NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP）和同批 `release-manifest-<版本>.json`，不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包。
+> 从官方仓库的 [Releases 页面](https://github.com/Cat5E0/NodePaper/releases) 下载：`NodePaper-Setup-<版本>-windows-x64.exe`（或便携 ZIP），并取同批的 `release-manifest-<版本>.json` 核对文件大小与 SHA-256。不要从第三方来源或 GitHub 的 Source code ZIP 获取安装包——Source code ZIP 里没有编译好的 `nodepaper.exe`。安装包未做代码签名，Windows SmartScreen 可能提示未知发布者，核对哈希后自行决定是否继续。
 
 双击 Setup 安装，然后打开新终端：
 
