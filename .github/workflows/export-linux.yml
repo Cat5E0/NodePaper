@@ -36,6 +36,23 @@ jobs:
           cache: true
       - name: Bootstrap pinned Pandoc tools
         run: .\scripts\dev\Bootstrap-Tools.ps1 -SkipSources
+      - name: Put the pinned tools where the conversion looks for them
+        shell: pwsh
+        run: |
+          # Convert-CumcmProjectToLatex.ps1 resolves pandoc and pandoc-crossref
+          # under the resource root's tools\ directory - the release package's
+          # own layout - and does not fall back to PATH unless it is asked to
+          # with -AllowSystemPandoc, which neither build nor export passes. The
+          # bootstrap installs into LOCALAPPDATA, so putting the tools on PATH
+          # was never enough; a developer machine only passed because it has a
+          # tools\ directory left over from packaging.
+          $toolchains = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains\windows-x64"
+          $target = Join-Path $PWD "tools\windows-x64"
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          foreach ($tool in @("pandoc", "pandoc-crossref")) {
+            Copy-Item -LiteralPath (Join-Path $toolchains $tool) -Destination (Join-Path $target $tool) -Recurse -Force
+          }
+          Get-ChildItem -Recurse -File $target | ForEach-Object { $_.FullName }
       - name: Build nodepaper.exe
         run: go build -o nodepaper.exe ./cmd/nodepaper
       - name: Confirm this runner has no XeLaTeX

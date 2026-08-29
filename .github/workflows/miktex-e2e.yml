@@ -46,6 +46,18 @@ jobs:
           cache: true
       - name: Bootstrap pinned Pandoc tools
         run: .\scripts\dev\Bootstrap-Tools.ps1
+      - name: Put the pinned tools where the conversion looks for them
+        shell: pwsh
+        run: |
+          # Same reason as export-linux: the conversion resolves pandoc and
+          # pandoc-crossref under the resource root's tools\ directory and does
+          # not fall back to PATH. The bootstrap installs into LOCALAPPDATA.
+          $toolchains = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "NodePaper\toolchains\windows-x64"
+          $target = Join-Path $PWD "tools\windows-x64"
+          New-Item -ItemType Directory -Force -Path $target | Out-Null
+          foreach ($tool in @("pandoc", "pandoc-crossref")) {
+            Copy-Item -LiteralPath (Join-Path $toolchains $tool) -Destination (Join-Path $target $tool) -Recurse -Force
+          }
       - name: Install Poppler utilities
         run: choco install poppler -y --no-progress
       - name: Install MiKTeX (not present on this runner image)
