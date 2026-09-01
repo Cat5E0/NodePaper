@@ -213,11 +213,17 @@ Export is for **people who already work in LaTeX and want to take over the sourc
 
 > **About Overleaf**: the exported project can be uploaded to Overleaf (set the compiler to XeLaTeX), but a full CUMCM paper is dozens of pages and needs several XeLaTeX passes, which **will not finish inside Overleaf's free-plan 10-second compile cap** ([official Plan Limits](https://docs.overleaf.com/getting-started/free-and-premium-plans/plan-limits)). To compile a full paper on Overleaf you need a paid plan (240 s) or its 7-day free trial; otherwise the smoother path is to install a local TeX and use `nodepaper build` below.
 
-### 6. Used an AI tool? Uncomment one line
+### 6. AI tool usage statement
 
-CUMCM rules: a team that used AI tools must mark the generated content in the paper body, list the tools in the references, and submit a PDF named 「AI工具使用详情」 with the supporting materials; a team that used none must state 「本参赛队未使用任何AI工具」 after the references.
+CUMCM rules: **every paper needs an 「AI工具使用声明」 section placed before the references**, carrying one of two sentences the rules spell out verbatim. NodePaper generates that section; you only state the fact in `nodepaper.yaml`:
 
-`nodepaper init` already puts the fill-in-the-blanks template `ai-usage.md` in the Project, and **builds nothing by default**. If your team used an AI tool, uncomment the line in `nodepaper.yaml`:
+```yaml
+aiUsage: false         # if the team did use one: true, plus aiUsagePurpose: 语言润色、代码调试
+```
+
+`aiUsage` is mandatory - a build without it fails, because reading "unset" as "used none" would print a false declaration into the paper of a team that did use one. Every build prints back what was declared so you can check it.
+
+A team that used AI tools also submits `AI工具使用详情.pdf` with the supporting materials. `nodepaper init` already puts the fill-in-the-blanks template `ai-usage.md` in the Project, and **builds nothing by default**; uncomment the line in `nodepaper.yaml`:
 
 ```yaml
 aiStatement: ai-usage.md
@@ -232,7 +238,7 @@ dist/AI工具使用详情.pdf      the supporting material, already under the pr
 
 That document needs no `problem` and no `keywords`, and its `# 摘要` section is optional - a `title` in the front matter is enough. Without a local TeX, `nodepaper export` carries both documents out (`paper.tex` and `ai-statement.tex`).
 
-The rules, both forms of the paper-side declaration and what to write are covered in the [AI usage statement guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md) (written in Chinese, as the rules are).
+Both forms of `aiUsage`, what to put in `ai-usage.md` and the rules they come from are covered in the [AI usage statement guide](https://github.com/Cat5E0/NodePaper/blob/main/docs/guides/ai-usage-statement.md) (written in Chinese, as the rules are).
 
 ## Producing a PDF locally: installing TeX
 
