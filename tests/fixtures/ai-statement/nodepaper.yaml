@@ -6,3 +6,6 @@ output:
 
 # 本 Fixture 刻意启用它：一个工程要出两份 PDF，第二份的文件名由竞赛规定固定。
 aiStatement: ai-usage.md
+
+aiUsage: true
+aiUsagePurpose: 语言润色、代码调试

@@ -116,7 +116,23 @@ try {
     # paper, under the file name the CUMCM rules prescribe. That name is not
     # configurable, and it is the only non-ASCII artifact path NodePaper
     # produces, so the assertions below check it verbatim.
-    $aiStatementConfigured = (Get-Content -LiteralPath (Join-Path $projectDir "nodepaper.yaml") -Raw -Encoding UTF8) -match '(?m)^\s*aiStatement:\s*\S'
+    $configText = Get-Content -LiteralPath (Join-Path $projectDir "nodepaper.yaml") -Raw -Encoding UTF8
+    $aiStatementConfigured = $configText -match '(?m)^\s*aiStatement:\s*\S'
+    # aiUsage drives the AI usage declaration section the Profile filter injects
+    # into the paper before its references. Every Fixture declares one, because
+    # the config refuses a Project that does not. aiUsage is a bool and the
+    # wording is its own key, so a purpose reading "none" cannot flip the fact.
+    if ($configText -notmatch '(?m)^aiUsage:\s*(true|false)\s*$') {
+        throw "Fixture does not declare aiUsage: $Fixture"
+    }
+    $aiUsageUsed = $Matches[1] -eq "true"
+    $aiUsagePurpose = ""
+    if ($configText -match '(?m)^aiUsagePurpose:\s*(\S.*?)\s*$') {
+        $aiUsagePurpose = $Matches[1]
+    }
+    if ($aiUsageUsed -and [string]::IsNullOrWhiteSpace($aiUsagePurpose)) {
+        throw "Fixture declares AI tool use without a purpose: $Fixture"
+    }
     $aiStatementPdfRelative = "dist\" + ([string][char]0x41) + ([char]0x49) + ([char]0x5DE5) + ([char]0x5177) + ([char]0x4F7F) + ([char]0x7528) + ([char]0x8BE6) + ([char]0x60C5) + ".pdf"
     $before = Get-FixtureSnapshot $fixtureRoot
     $profileDir = if ([string]::IsNullOrWhiteSpace($ProfileOverride)) { Join-Path $root "profiles\cumcm" } else { $ProfileOverride }
@@ -613,6 +629,48 @@ try {
         throw "PDF contains an unresolved citation or cross-reference"
     }
 
+    # ---------- the generated AI usage declaration section --------------------
+    #
+    # The author never types this sentence, so nothing but an assertion on the
+    # rendered PDF proves it reached the page. Every probe is built from code
+    # points rather than written literally: this script is read as ANSI on a
+    # non-UTF-8 console, and a CJK literal here can swallow the line after it.
+    # The probes are CJK-only substrings because xeCJK sets a space between
+    # Latin and CJK runs, so the heading renders as "AI <heading>" and a probe
+    # spanning that boundary would miss it.
+    #
+    # heading: the four characters after "AI" in the section title
+    $aiDeclarationHeading = ([string][char]0x5DE5) + ([char]0x5177) + ([char]0x4F7F) + ([char]0x7528) + ([char]0x58F0) + ([char]0x660E)
+    # opening: "this team, during the competition, ..."
+    $aiDeclarationOpening = ([string][char]0x672C) + ([char]0x53C2) + ([char]0x8D5B) + ([char]0x961F) + ([char]0x5728) + ([char]0x7ADE) + ([char]0x8D5B) + ([char]0x8FC7) + ([char]0x7A0B) + ([char]0x4E2D)
+    # none: "used no"; used: "see the supporting materials for details"
+    $aiDeclarationNone = ([string][char]0x672A) + ([char]0x4F7F) + ([char]0x7528) + ([char]0x4EFB) + ([char]0x4F55)
+    $aiDeclarationUsed = ([string][char]0x8BE6) + ([char]0x7EC6) + ([char]0x4F7F) + ([char]0x7528) + ([char]0x60C5) + ([char]0x51B5) + ([char]0x89C1) + ([char]0x652F) + ([char]0x6491) + ([char]0x6750) + ([char]0x6599)
+    # The declaration is one long sentence, so pdftotext wraps it and a probe
+    # spanning the break would miss. Whitespace carries no meaning inside a CJK
+    # run, so the probes run against a flattened copy.
+    $pdfTextFlat = $pdfText -replace '\s', ''
+    foreach ($required in @($aiDeclarationHeading, $aiDeclarationOpening)) {
+        if (-not $pdfTextFlat.Contains($required)) {
+            throw "the paper PDF is missing the generated AI usage declaration: $required"
+        }
+    }
+    if (-not $aiUsageUsed) {
+        if (-not $pdfTextFlat.Contains($aiDeclarationNone)) {
+            throw "aiUsage is none but the paper does not declare non-use"
+        }
+        if ($pdfTextFlat.Contains($aiDeclarationUsed)) {
+            throw "aiUsage is none but the paper declares that AI tools were used"
+        }
+    } else {
+        if (-not $pdfTextFlat.Contains($aiDeclarationUsed)) {
+            throw "aiUsage declares use but the paper does not point at the supporting material"
+        }
+        if (-not $pdfTextFlat.Contains(($aiUsagePurpose -replace '\s', ''))) {
+            throw "the declared purpose did not reach the paper: $aiUsagePurpose"
+        }
+    }
+
     # ---------- the AI tool usage statement, when the Project declares one ----
     #
     # One Project, two published documents. The paper above must be unaffected,
@@ -657,6 +715,12 @@ try {
         # the author that the tool list must match the paper's references.
         if ($statementText.Contains($bibliographyProbe)) {
             throw "the AI statement PDF carries the paper reference list"
+        }
+        # The declaration belongs to the paper alone. The statement document is
+        # converted by the same filter, so a regression that injected it here
+        # would put a second declaration in front of the graders.
+        if (($statementText -replace '\s', '').Contains($aiDeclarationOpening)) {
+            throw "the AI statement PDF carries an AI usage declaration of its own"
         }
         # Each document gets its own LaTeX log and its own transition log
         # directory, so a failure names the document it came from.

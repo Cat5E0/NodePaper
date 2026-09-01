@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"nodepaper/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,10 +52,56 @@ func TestInitShipsTheAIStatementDisabled(t *testing.T) {
 	}
 
 	statement := readFile(t, filepath.Join(projectDir, "ai-usage.md"))
-	for _, required := range []string{"title: AI工具使用详情", "# 工具清单", "# 关键交互记录", "# 采纳与修改情况"} {
+	// The sections mirror the four items 《人工智能工具使用规定（2026 年试行）》
+	// 第 4 条 asks the supporting document to cover.
+	for _, required := range []string{
+		"title: AI工具使用详情",
+		"# 工具清单",
+		"# 使用目的与环节",
+		"# 提示方式与使用过程",
+		"# 采纳、修改与核验",
+	} {
 		if !strings.Contains(statement, required) {
 			t.Fatalf("ai-usage.md is missing %q:\n%s", required, statement)
 		}
+	}
+	// 2025 asked for verbatim interaction records and for AI-generated content
+	// to be marked in the body. 2026 asks for neither, and a template that
+	// still demanded them would push teams past what the rules require.
+	for _, gone := range []string{"# 关键交互记录", "正文相应位置标注"} {
+		if strings.Contains(statement, gone) {
+			t.Fatalf("ai-usage.md still carries the superseded 2025 requirement %q", gone)
+		}
+	}
+}
+
+func TestInitDeclaresNoAIToolUseByDefault(t *testing.T) {
+	// aiUsage has no default in the config loader - an unset value is refused
+	// rather than read as none - so init has to write one, and the safe default
+	// is the declaration the majority of teams need.
+	projectDir := filepath.Join(t.TempDir(), "project")
+	if _, err := (&appImpl{}).Init(context.Background(), InitRequest{ProjectDir: projectDir}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Parsing rather than string matching: what matters is the value the loader
+	// reads, not the shape of the line it came from.
+	cfg, err := config.Load(filepath.Join(projectDir, "nodepaper.yaml"))
+	if err != nil {
+		t.Fatalf("the generated config does not load: %v", err)
+	}
+	if cfg.AIUsage == nil || *cfg.AIUsage {
+		t.Fatalf("nodepaper.yaml does not declare aiUsage: false; got %v", cfg.AIUsage)
+	}
+	if cfg.AIUsagePurpose != "" {
+		t.Fatalf("a Project that used no AI tool must ship no purpose; got %q", cfg.AIUsagePurpose)
+	}
+
+	// The declaration is generated in front of the references, so the paper
+	// template has to give the filter that anchor to sit in front of.
+	paper := readFile(t, filepath.Join(projectDir, "paper.md"))
+	if !strings.Contains(paper, "# 参考文献") || !strings.Contains(paper, "::: {#refs}") {
+		t.Fatalf("paper.md does not carry the references section and its refs div:\n%s", paper)
 	}
 }
 

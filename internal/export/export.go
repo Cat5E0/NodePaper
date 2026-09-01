@@ -434,7 +434,7 @@ func runWithExecutorAndResources(ctx context.Context, opts Options, executor com
 			return result
 		}
 		statementManifest := filepath.Join(workDir, "ai-statement-sources.json")
-		if err := writeSourceManifestForSources(statementManifest, []string{statementPath}, cfg, nil); err != nil {
+		if err := writeSourceManifestForSources(statementManifest, []string{statementPath}, cfg, nil, nil); err != nil {
 			result.Diagnostics = append(result.Diagnostics, errorDiag("NP1306", fmt.Sprintf("cannot write AI statement source manifest: %v", err), ""))
 			return result
 		}
@@ -786,13 +786,15 @@ func writeSourceManifest(path, projectRoot string, cfg config.ProjectConfig, fra
 	for _, relative := range cfg.SourceFiles() {
 		absoluteSources = append(absoluteSources, filepath.Join(projectRoot, relative))
 	}
-	return writeSourceManifestForSources(path, absoluteSources, cfg, fragments)
+	return writeSourceManifestForSources(path, absoluteSources, cfg, fragments, paperDeclaration(cfg))
 }
 
 // writeSourceManifestForSources writes the manifest for an explicit Source
 // list. The AI tool usage statement is one document of the Project that is not
 // a paper Source, so it cannot be derived from cfg the way the paper is.
-func writeSourceManifestForSources(path string, absoluteSources []string, cfg config.ProjectConfig, fragments []fragment.File) error {
+// aiUsage mirrors internal/build: only the paper carries the declaration, so
+// the AI statement pass hands over an empty value.
+func writeSourceManifestForSources(path string, absoluteSources []string, cfg config.ProjectConfig, fragments []fragment.File, declaration *aiDeclaration) error {
 	if absoluteSources == nil {
 		absoluteSources = []string{}
 	}
@@ -811,6 +813,9 @@ func writeSourceManifestForSources(path string, absoluteSources []string, cfg co
 		AbstractKeywordsSkip float64  `json:"abstractKeywordsSkip"`
 		MathFont             string   `json:"mathFont"`
 		AppendixNewPage      bool     `json:"appendixNewPage"`
+		AIUsageDeclared      bool     `json:"aiUsageDeclared"`
+		AIUsageUsed          bool     `json:"aiUsageUsed"`
+		AIUsagePurpose       string   `json:"aiUsagePurpose"`
 	}{
 		Sources:              absoluteSources,
 		LatexFragments:       absoluteFragments,
@@ -822,11 +827,36 @@ func writeSourceManifestForSources(path string, absoluteSources []string, cfg co
 		AbstractKeywordsSkip: cfg.AbstractKeywordsSkipEm(),
 		MathFont:             cfg.MathFont,
 		AppendixNewPage:      cfg.Appendix.NewPageEnabled(),
+		AIUsageDeclared:      declaration != nil,
+		AIUsageUsed:          declaration != nil && declaration.used,
+		AIUsagePurpose:       purposeOf(declaration),
 	}, "", "  ")
+
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+// aiDeclaration is the paper's AI usage declaration as the manifest carries it.
+// A nil pointer means there is nothing to declare - the AI statement document's
+// own conversion pass, which runs through the same filter and must not grow a
+// declaration section of its own.
+type aiDeclaration struct {
+	used    bool
+	purpose string
+}
+
+// paperDeclaration is what the paper declares. Only the paper gets one.
+func paperDeclaration(cfg config.ProjectConfig) *aiDeclaration {
+	return &aiDeclaration{used: cfg.UsedAITool(), purpose: cfg.AIUsagePurpose}
+}
+
+func purposeOf(declaration *aiDeclaration) string {
+	if declaration == nil {
+		return ""
+	}
+	return declaration.purpose
 }
 
 // ---------- assembling the deliverable -----------------------------------

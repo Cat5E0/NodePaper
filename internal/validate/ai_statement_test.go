@@ -10,7 +10,7 @@ import (
 func TestValidateAcceptsAIStatementWithoutPaperMetadata(t *testing.T) {
 	// The supporting document deliberately carries none of what a paper must
 	// have: no problem number, no keywords, no 摘要 section. Only a title.
-	projectDir := fragmentProject(t, "aiStatement: ai-usage.md\n")
+	projectDir := fragmentProject(t, "aiUsage: true\naiUsagePurpose: 语言润色、代码调试\naiStatement: ai-usage.md\n")
 	writeStatement(t, projectDir, "---\ntitle: AI工具使用详情\n---\n\n# 工具清单\n\n（填写）\n")
 
 	result := Run(context.Background(), projectDir)
@@ -25,7 +25,7 @@ func TestValidateAcceptsAIStatementWithoutPaperMetadata(t *testing.T) {
 }
 
 func TestValidateReportsMissingAIStatement(t *testing.T) {
-	projectDir := fragmentProject(t, "aiStatement: ai-usage.md\n")
+	projectDir := fragmentProject(t, "aiUsage: true\naiUsagePurpose: 语言润色、代码调试\naiStatement: ai-usage.md\n")
 
 	result := Run(context.Background(), projectDir)
 	if result.Success {
@@ -40,7 +40,7 @@ func TestValidateWarnsWhenAIStatementHasNoTitle(t *testing.T) {
 	// Without a title the Profile template still starts the body on a fresh
 	// page, so the document opens on a page carrying nothing. That is worth a
 	// warning and not an error: it builds, and the author may have meant it.
-	projectDir := fragmentProject(t, "aiStatement: ai-usage.md\n")
+	projectDir := fragmentProject(t, "aiUsage: true\naiUsagePurpose: 语言润色、代码调试\naiStatement: ai-usage.md\n")
 	writeStatement(t, projectDir, "# 工具清单\n\n（填写）\n")
 
 	result := Run(context.Background(), projectDir)
@@ -53,7 +53,7 @@ func TestValidateWarnsWhenAIStatementHasNoTitle(t *testing.T) {
 }
 
 func TestValidateReportsAIStatementOutsideProject(t *testing.T) {
-	projectDir := fragmentProject(t, "aiStatement: ../ai-usage.md\n")
+	projectDir := fragmentProject(t, "aiUsage: true\naiUsagePurpose: 语言润色、代码调试\naiStatement: ../ai-usage.md\n")
 	if err := os.WriteFile(filepath.Join(filepath.Dir(projectDir), "ai-usage.md"), []byte("# x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

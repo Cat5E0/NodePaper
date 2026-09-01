@@ -54,6 +54,46 @@ local function is_references_div(block)
   return block.t == "Div" and block.identifier == "refs"
 end
 
+-- AI tool usage declaration (《人工智能工具使用规定（2026 年试行）》第 3 条).
+-- Every paper must carry this section before its references, with one of two
+-- sentences the rules give verbatim. Only the 【简要用途】 of the second one is
+-- the author's; both sentences live here, in one place, rather than being
+-- assembled anywhere upstream, so the wording cannot drift between the build
+-- and the export routes.
+local AI_STATEMENT_TITLE = "AI工具使用声明"
+local AI_STATEMENT_NONE = "本参赛队在竞赛过程中未使用任何AI工具。"
+local AI_STATEMENT_USED_PREFIX = "本参赛队在竞赛过程中使用了AI工具，主要用于"
+local AI_STATEMENT_USED_SUFFIX = "，详细使用情况见支撑材料。"
+
+local function is_ai_statement_header(block)
+  return block.t == "Header"
+    and block.level == 1
+    and stringify(block.content):match("^%s*" .. AI_STATEMENT_TITLE .. "%s*$") ~= nil
+end
+
+-- ai_statement_blocks turns the declaration into the section to inject. The
+-- fact and the wording arrive as two separate values so that no purpose text
+-- can be mistaken for "no AI tool was used"; an absent `used` yields nothing,
+-- which is the AI statement document's own conversion pass - it is run through
+-- this same filter and must not grow a declaration section of its own.
+local function ai_statement_blocks(used, purpose)
+  if used ~= "true" and used ~= "false" then
+    return nil
+  end
+  local sentence
+  if used == "false" then
+    sentence = AI_STATEMENT_NONE
+  else
+    if purpose == nil or purpose == "" then
+      error("nodepaper-ai-usage-used is true but nodepaper-ai-usage-purpose is empty")
+    end
+    sentence = AI_STATEMENT_USED_PREFIX .. purpose .. AI_STATEMENT_USED_SUFFIX
+  end
+  local header = pandoc.Header(1, pandoc.Inlines(pandoc.Str(AI_STATEMENT_TITLE)))
+  header.classes:insert("unnumbered")
+  return pandoc.List({ header, pandoc.Para(pandoc.Inlines(pandoc.Str(sentence))) })
+end
+
 -- Only the two modes `nodepaper export` can request. An unset or unknown value
 -- yields nil, which leaves every block below untouched.
 --
@@ -346,6 +386,7 @@ function Pandoc(doc)
   local appendix_index = nil
   local references_index = nil
   local references_div_index = nil
+  local author_statement_index = nil
   for index, block in ipairs(doc.blocks) do
     if is_appendix_header(block) then
       appendix_index = index
@@ -356,8 +397,28 @@ function Pandoc(doc)
     if is_references_div(block) then
       references_div_index = index
     end
+    if is_ai_statement_header(block) then
+      author_statement_index = index
+    end
   end
-  if bib_commands == nil and appendix_index == nil and references_index == nil then
+
+  -- An author who wrote the section by hand keeps it: two declarations in one
+  -- paper would be worse than none. `nodepaper validate` reports the skip so
+  -- the choice is visible rather than silent.
+  local ai_statement = nil
+  if author_statement_index == nil then
+    ai_statement = ai_statement_blocks(
+      stringify(doc.meta["nodepaper-ai-usage-used"]),
+      stringify(doc.meta["nodepaper-ai-usage-purpose"]))
+  end
+  -- The declaration belongs before the references, so the references heading is
+  -- the anchor; a paper with no references section takes the appendix heading
+  -- instead, and one with neither takes the end of the body. Whichever it is,
+  -- the section goes in ahead of that heading's own \clearpage so it closes the
+  -- body rather than opening the next page.
+  local statement_index = references_index or appendix_index
+
+  if bib_commands == nil and appendix_index == nil and references_index == nil and ai_statement == nil then
     return doc
   end
 
@@ -381,6 +442,10 @@ function Pandoc(doc)
 
   local output = pandoc.List()
   for index, block in ipairs(doc.blocks) do
+    if ai_statement ~= nil and index == statement_index then
+      output:extend(ai_statement)
+      ai_statement = nil
+    end
     if index == references_index then
       output:insert(pandoc.RawBlock("latex", "\\clearpage"))
       output:insert(block)
@@ -413,6 +478,12 @@ function Pandoc(doc)
       end
       output:insert(pandoc.RawBlock("latex", bib_command))
     end
+  end
+  -- A paper with neither a references nor an appendix heading has no anchor to
+  -- sit in front of, so the declaration closes the body instead of being lost.
+  if ai_statement ~= nil then
+    output:extend(ai_statement)
+    ai_statement = nil
   end
   if bib_command ~= nil and bib_index == nil then
     if nocite_raw ~= nil then

@@ -156,6 +156,19 @@ if ($null -ne $manifestValue.appendixNewPage) {
     $appendixNewPage = [bool]$manifestValue.appendixNewPage
 }
 $appendixNewPageMetadata = if ($appendixNewPage) { "true" } else { "false" }
+# aiUsage drives the 「AI工具使用声明」 section layout.lua injects before the
+# references. aiUsageDeclared is false for the AI statement document, which is
+# converted by this same script and must not grow a declaration of its own, so
+# the metadata is simply not passed then. The fact and the wording travel as two
+# values rather than one sentinel string: a purpose that happens to read "none"
+# must not be able to flip the declaration. The two sentences themselves live in
+# the filter, not here.
+$aiUsageDeclared = [bool]$manifestValue.aiUsageDeclared
+$aiUsageUsed = [bool]$manifestValue.aiUsageUsed
+$aiUsagePurpose = [string]$manifestValue.aiUsagePurpose
+if ($aiUsageDeclared -and $aiUsageUsed -and [string]::IsNullOrWhiteSpace($aiUsagePurpose)) {
+    throw "aiUsage declares AI tool use without a purpose"
+}
 $highlightStyle = [string]$manifestValue.highlightStyle
 if ([string]::IsNullOrWhiteSpace($highlightStyle)) {
     $highlightStyle = [string]$profileConfig.highlightStyle
@@ -307,6 +320,13 @@ switch ($CiteMethod) {
 if ($ExportMode) {
     $arguments += @("--metadata", "nodepaper-export=true")
 }
+if ($aiUsageDeclared) {
+    $aiUsageUsedMetadata = if ($aiUsageUsed) { "true" } else { "false" }
+    $arguments += @("--metadata", "nodepaper-ai-usage-used=$aiUsageUsedMetadata")
+    if ($aiUsageUsed) {
+        $arguments += @("--metadata", "nodepaper-ai-usage-purpose=$aiUsagePurpose")
+    }
+}
 $arguments += @(
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
@@ -345,6 +365,13 @@ if ($ExportMode) {
 }
 Write-Output "Ordered Sources: $($resolvedSources -join ' | ')"
 Write-Output "LaTeX Fragments: $($resolvedFragments -join ' | ')"
+if (-not $aiUsageDeclared) {
+    Write-Output "AI usage declaration: not applicable (this document is not the paper)"
+} elseif ($aiUsageUsed) {
+    Write-Output "AI usage declaration: used, for $aiUsagePurpose"
+} else {
+    Write-Output "AI usage declaration: no AI tool used"
+}
 Write-Output "Appendix numbering: $appendixNumbering"
 Write-Output "Appendix new page: $appendixNewPageMetadata"
 Write-Output "Highlight style: $highlightStyle"

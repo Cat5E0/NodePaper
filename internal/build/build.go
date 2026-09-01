@@ -298,7 +298,10 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 	for _, file := range fragmentFiles {
 		absoluteFragments = append(absoluteFragments, file.Path)
 	}
-	if err := writeSourceManifest(sourceManifestPath, absoluteSources, absoluteFragments, cfg); err != nil {
+	// What the paper will declare, recorded before the conversion that prints it.
+	logger.Printf("AI Usage Declaration: used=%t purpose=%s", cfg.UsedAITool(), cfg.AIUsagePurpose)
+
+	if err := writeSourceManifest(sourceManifestPath, absoluteSources, absoluteFragments, cfg, paperDeclaration(cfg)); err != nil {
 		result.Diagnostics = append(result.Diagnostics, diagnostic.Diagnostic{
 			Severity: diagnostic.SeverityError,
 			Code:     "NP1306",
@@ -420,6 +423,16 @@ func runWithExecutorAndResources(ctx context.Context, projectDir string, executo
 		artifacts = append(artifacts, Artifact{Kind: "ai-statement", Path: statementPDF})
 	}
 
+	// The declaration is generated, so the author never typed the sentence that
+	// ends up in their paper. Saying so on every successful build is what makes
+	// the generated text something they check rather than something they
+	// discover after submitting. It is added here rather than earlier because
+	// the fragment and Profile gates above treat any accumulated diagnostic as
+	// fatal, and because a build that produced no PDF has nothing to check.
+	// The sentence itself is not repeated: it lives in the Profile filter, and
+	// the author reads the real one in the PDF.
+	result.Diagnostics = append(result.Diagnostics, aiUsageNotice(cfg))
+
 	result.Success = true
 	result.Artifacts = append(artifacts, Artifact{Kind: "log", Path: bctx.LogPath})
 	return result
@@ -447,7 +460,7 @@ func buildAIStatement(ctx context.Context, executor commandExecutor, logger *bui
 			Source:   "build",
 		}}
 	}
-	if err := writeSourceManifest(manifestPath, []string{statementPath}, nil, cfg); err != nil {
+	if err := writeSourceManifest(manifestPath, []string{statementPath}, nil, cfg, nil); err != nil {
 		return "", []diagnostic.Diagnostic{{
 			Severity: diagnostic.SeverityError,
 			Code:     "NP1306",
@@ -509,6 +522,53 @@ func buildAIStatement(ctx context.Context, executor commandExecutor, logger *bui
 	return finalPDF, diags
 }
 
+// aiDeclaration is the paper's AI usage declaration as the manifest carries it.
+// A nil pointer means there is nothing to declare - the AI statement document's
+// own conversion pass, which runs through the same filter and must not grow a
+// declaration section of its own.
+type aiDeclaration struct {
+	used    bool
+	purpose string
+}
+
+// paperDeclaration is what the paper declares. Only the paper gets one.
+func paperDeclaration(cfg config.ProjectConfig) *aiDeclaration {
+	return &aiDeclaration{used: cfg.UsedAITool(), purpose: cfg.AIUsagePurpose}
+}
+
+func purposeOf(declaration *aiDeclaration) string {
+	if declaration == nil {
+		return ""
+	}
+	return declaration.purpose
+}
+
+// aiUsageNotice reports what the build declared on the author's behalf.
+// Info rather than Warning: the declaration is correct by construction once
+// aiUsage is set, and a Warning on every single build is a Warning nobody
+// reads. What it has to carry is the fact that the paper now contains a
+// sentence the author did not type.
+func aiUsageNotice(cfg config.ProjectConfig) diagnostic.Diagnostic {
+	if cfg.UsedAITool() {
+		return diagnostic.Diagnostic{
+			Severity:   diagnostic.SeverityInfo,
+			Code:       "NP2608",
+			Message:    fmt.Sprintf("the paper declares that AI tools were used, for: %s", cfg.AIUsagePurpose),
+			File:       "nodepaper.yaml",
+			Suggestion: "Check the 「AI工具使用声明」 section before the references in the PDF, and submit 「AI工具使用详情.pdf」 with the supporting materials.",
+			Source:     "build",
+		}
+	}
+	return diagnostic.Diagnostic{
+		Severity:   diagnostic.SeverityInfo,
+		Code:       "NP2608",
+		Message:    "the paper declares that this team used no AI tool",
+		File:       "nodepaper.yaml",
+		Suggestion: "Check the 「AI工具使用声明」 section before the references in the PDF. If the team did use an AI tool, describe the use in aiUsage instead of none.",
+		Source:     "build",
+	}
+}
+
 // AIStatementFileName is the file name the competition prescribes for the AI
 // tool usage supporting document. It is not configurable: the rules name the
 // file, and a Project that renames it is not compliant.
@@ -521,7 +581,10 @@ const aiStatementFileName = AIStatementFileName
 // only while the build lock is held. The Sources are passed explicitly rather
 // than read from cfg: the AI statement pass builds one document that is not a
 // paper Source at all.
-func writeSourceManifest(path string, sources, fragments []string, cfg config.ProjectConfig) error {
+// aiUsage is passed explicitly rather than read from cfg because only the
+// paper carries the declaration: the AI statement document is converted by the
+// same filter and would otherwise grow a declaration section of its own.
+func writeSourceManifest(path string, sources, fragments []string, cfg config.ProjectConfig, declaration *aiDeclaration) error {
 	if sources == nil {
 		sources = []string{}
 	}
@@ -539,6 +602,9 @@ func writeSourceManifest(path string, sources, fragments []string, cfg config.Pr
 		AbstractKeywordsSkip float64  `json:"abstractKeywordsSkip"`
 		MathFont             string   `json:"mathFont"`
 		AppendixNewPage      bool     `json:"appendixNewPage"`
+		AIUsageDeclared      bool     `json:"aiUsageDeclared"`
+		AIUsageUsed          bool     `json:"aiUsageUsed"`
+		AIUsagePurpose       string   `json:"aiUsagePurpose"`
 	}{
 		Sources:              sources,
 		LatexFragments:       fragments,
@@ -550,6 +616,9 @@ func writeSourceManifest(path string, sources, fragments []string, cfg config.Pr
 		AbstractKeywordsSkip: cfg.AbstractKeywordsSkipEm(),
 		MathFont:             cfg.MathFont,
 		AppendixNewPage:      cfg.Appendix.NewPageEnabled(),
+		AIUsageDeclared:      declaration != nil,
+		AIUsageUsed:          declaration != nil && declaration.used,
+		AIUsagePurpose:       purposeOf(declaration),
 	}, "", "  ")
 	if err != nil {
 		return err

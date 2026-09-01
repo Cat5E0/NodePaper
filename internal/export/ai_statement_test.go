@@ -139,7 +139,10 @@ func enableAIStatement(t *testing.T, projectDir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(configPath, append(data, []byte("\naiStatement: ai-usage.md\n")...), 0o644); err != nil {
+	// aiUsage and aiStatement have to agree: the config refuses a Project that
+	// ships 「AI工具使用详情」 while declaring that no AI tool was used.
+	updated := strings.Replace(string(data), "aiUsage: false", "aiUsage: true\naiUsagePurpose: 语言润色、代码调试", 1)
+	if err := os.WriteFile(configPath, []byte(updated+"\naiStatement: ai-usage.md\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

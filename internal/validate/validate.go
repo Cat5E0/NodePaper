@@ -63,11 +63,13 @@ func Run(ctx context.Context, projectDir string) Result {
 	result.Diagnostics = append(result.Diagnostics, validateConfigPaths(p, cfg)...)
 	result.Diagnostics = append(result.Diagnostics, validateSources(p, cfg)...)
 	result.Diagnostics = append(result.Diagnostics, validateAIStatement(p, cfg)...)
+	result.Diagnostics = append(result.Diagnostics, validateAIUsage(cfg)...)
 	validFragments, fragmentDiags := validateFragments(p, cfg)
 	result.Diagnostics = append(result.Diagnostics, fragmentDiags...)
 
 	files := readableSources(p, cfg)
 	if len(files) > 0 {
+		result.Diagnostics = append(result.Diagnostics, validateAuthorWrittenAIStatement(files, cfg)...)
 		result.Diagnostics = append(result.Diagnostics, validateFrontMatter(files[0].abs, files[0].rel)...)
 		result.Diagnostics = append(result.Diagnostics, validateAbstract(files[0].abs, files[0].rel)...)
 		result.Diagnostics = append(result.Diagnostics, validateLaterFrontMatter(files[1:])...)
@@ -308,6 +310,52 @@ func validateAIStatement(p project.Project, cfg config.ProjectConfig) []diagnost
 			Message:    fmt.Sprintf("aiStatement has no title in front matter: %s", rel),
 			File:       rel,
 			Suggestion: "Add front matter with title: AI工具使用详情, or the document opens on a page with nothing on it.",
+			Source:     "validate",
+		}}
+	}
+	return nil
+}
+
+// validateAIUsage covers the half of the AI declaration contract that lives in
+// the config alone. The hard cases - aiUsage missing, an aiUsagePurpose that
+// contradicts it, and aiUsage false while aiStatement is set - are rejected by
+// config.Validate before this runs,
+// because they must stop `nodepaper build` too, not only `nodepaper validate`.
+// What is left is the mirror image of the second one, and it is a Warning
+// rather than an Error: a team that declares AI use must submit
+// 「AI工具使用详情.pdf」, but nothing says it has to be built by NodePaper.
+func validateAIUsage(cfg config.ProjectConfig) []diagnostic.Diagnostic {
+	if !cfg.UsedAITool() || cfg.AIStatement != "" {
+		return nil
+	}
+	return []diagnostic.Diagnostic{{
+		Severity:   diagnostic.SeverityWarning,
+		Code:       "NP2606",
+		Message:    fmt.Sprintf("aiUsage declares AI tool use (%s) but no aiStatement is set", cfg.AIUsagePurpose),
+		File:       "nodepaper.yaml",
+		Suggestion: "The rules require 「AI工具使用详情.pdf」 in the supporting materials. Set aiStatement to a Markdown file so nodepaper build produces it, or ignore this if the document is prepared elsewhere.",
+		Source:     "validate",
+	}}
+}
+
+// aiStatementHeadingPattern matches the level-one 「AI工具使用声明」 heading a
+// author may have written by hand. The Profile filter stands down when it finds
+// one, so this reports the skip: a paper whose declaration is hand-written is
+// not covered by aiUsage, and the two can disagree without anything else
+// noticing.
+var aiStatementHeadingPattern = regexp.MustCompile(`(?m)^#[ \t]+AI工具使用声明[ \t]*(\{[^}]*\})?[ \t]*$`)
+
+func validateAuthorWrittenAIStatement(files []sourceFile, cfg config.ProjectConfig) []diagnostic.Diagnostic {
+	for _, file := range files {
+		if !aiStatementHeadingPattern.Match(file.data) {
+			continue
+		}
+		return []diagnostic.Diagnostic{{
+			Severity:   diagnostic.SeverityWarning,
+			Code:       "NP2607",
+			Message:    "the paper already has a hand-written 「AI工具使用声明」 section, so aiUsage is not applied to it",
+			File:       file.rel,
+			Suggestion: "Two declarations in one paper would be worse than one, so NodePaper leaves yours alone. Delete the section to have it generated from aiUsage, or keep it and make sure it says what aiUsage says.",
 			Source:     "validate",
 		}}
 	}

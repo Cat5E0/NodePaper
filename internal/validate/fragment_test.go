@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -98,7 +99,13 @@ func fragmentProject(t *testing.T, configSuffix string) string {
 	repo := repositoryRoot(t)
 	projectDir := filepath.Join(t.TempDir(), "project")
 	copyTree(t, filepath.Join(repo, "tests", "fixtures", "minimal-valid"), projectDir)
+	// aiUsage is mandatory, so every test Project needs one; a suffix that
+	// declares its own wins, which is how the AI statement tests opt into
+	// declaring use.
 	config := "version: 1\nprofile: cumcm\nsource: paper.md\n" + configSuffix
+	if !strings.Contains(config, "aiUsage:") {
+		config += "aiUsage: false\n"
+	}
 	if err := os.WriteFile(filepath.Join(projectDir, "nodepaper.yaml"), []byte(config), 0o644); err != nil {
 		t.Fatal(err)
 	}

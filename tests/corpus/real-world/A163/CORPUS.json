@@ -8,6 +8,7 @@
   "markdownSourceCount": 8,
   "latexFragmentCount": 4,
   "aiStatementSource": "ai-usage.md",
+  "aiUsage": "语言润色、代码调试",
   "referencedImageCount": 29,
   "expected": {
     "validateExitCode": 0,

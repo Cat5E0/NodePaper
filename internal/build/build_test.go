@@ -218,7 +218,7 @@ func TestBuildRejectsFragmentMutation(t *testing.T) {
 		t.Fatal(err)
 	}
 	configPath := filepath.Join(projectDir, "nodepaper.yaml")
-	configData := "version: 1\nprofile: cumcm\nsource: paper.md\nlatexFragments:\n  - tables/result.tex\n"
+	configData := "version: 1\nprofile: cumcm\naiUsage: false\nsource: paper.md\nlatexFragments:\n  - tables/result.tex\n"
 	if err := os.WriteFile(configPath, []byte(configData), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestBuildRejectsFragmentMutation(t *testing.T) {
 func TestBuildUsesConfiguredOutputPath(t *testing.T) {
 	projectDir := copyBuildFixture(t, "minimal-valid")
 	configPath := filepath.Join(projectDir, "nodepaper.yaml")
-	configData := "version: 1\nprofile: cumcm\nsource: paper.md\noutput:\n  file: exports/result.pdf\n"
+	configData := "version: 1\nprofile: cumcm\naiUsage: false\nsource: paper.md\noutput:\n  file: exports/result.pdf\n"
 	if err := os.WriteFile(configPath, []byte(configData), 0o644); err != nil {
 		t.Fatal(err)
 	}

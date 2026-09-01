@@ -44,6 +44,29 @@ type ProjectConfig struct {
 	// not apply to it. Empty means the Project does not declare one, which is
 	// what a team that used no AI tool wants.
 	AIStatement string `yaml:"aiStatement,omitempty"`
+	// AIUsage states whether the team used an AI tool, which the 2026 rules
+	// require every paper to declare before its references. It is a bool and
+	// nothing else, so that YAML type-checks it: an earlier design folded the
+	// fact and the wording into one free-text field with `none` as the sentinel
+	// for "no", and every near-miss - 无, 没有, None, NONE, false - then built
+	// cleanly and printed "主要用于无，详细使用情况见支撑材料。" into a submitted
+	// paper. A typo must become an error, never a declaration.
+	//
+	// It has no default. An unset value is refused rather than read as false,
+	// because defaulting would print "本参赛队在竞赛过程中未使用任何AI工具。" into
+	// the paper of a team that never saw the field and did use one - the false
+	// declaration rule 5 disqualifies for. Refusing to build costs one line.
+	AIUsage *bool `yaml:"aiUsage"`
+	// AIUsagePurpose is the 【简要用途】 of the rules' second sentence. Required
+	// when AIUsage is true, rejected when it is false.
+	AIUsagePurpose string `yaml:"aiUsagePurpose,omitempty"`
+}
+
+// UsedAITool reports whether the config declares that an AI tool was used. It
+// is only meaningful once Validate has accepted the config, which rejects an
+// unset AIUsage outright.
+func (c ProjectConfig) UsedAITool() bool {
+	return c.AIUsage != nil && *c.AIUsage
 }
 
 // AppendixConfig controls numbering after the retained level-one appendix
@@ -224,6 +247,34 @@ func validate(cfg ProjectConfig) error {
 	case "cm", "newtx":
 	default:
 		return fmt.Errorf("mathFont must be cm or newtx")
+	}
+
+	// aiUsage is checked last on purpose. It is the field most likely to be
+	// absent - every Project created before it existed lacks it - and reporting
+	// it ahead of a genuinely malformed source list or an unknown highlight
+	// style would bury the structural problem behind a field the author has
+	// never heard of. A config that is otherwise sound reaches here anyway.
+	if cfg.AIUsage == nil {
+		return fmt.Errorf("aiUsage is required: the competition requires every paper to declare whether AI tools were used. Write `aiUsage: false`, or `aiUsage: true` with `aiUsagePurpose: <简要用途>` such as 语言润色、代码调试")
+	}
+	purpose := strings.TrimSpace(cfg.AIUsagePurpose)
+	if cfg.UsedAITool() {
+		if purpose == "" {
+			return fmt.Errorf("aiUsagePurpose is required when aiUsage is true: the declaration reads 「主要用于……」 and the rules give 语言润色、代码调试 as the example")
+		}
+		if purpose != cfg.AIUsagePurpose {
+			return fmt.Errorf("aiUsagePurpose must not begin or end with whitespace")
+		}
+	} else if cfg.AIUsagePurpose != "" {
+		return fmt.Errorf("aiUsagePurpose is set but aiUsage is false: a team that used no AI tool declares only that, with no purpose")
+	}
+	// The two fields describe the same fact from opposite ends: aiUsage is the
+	// declaration printed in the paper, aiStatement is the supporting document
+	// only a team that used AI tools submits. Declaring no use while shipping
+	// that document is the "作出虚假声明" case rule 5 disqualifies for, so it is
+	// an error rather than a warning.
+	if cfg.AIStatement != "" && !cfg.UsedAITool() {
+		return fmt.Errorf("aiUsage is false but aiStatement is set: a team that submits 「AI工具使用详情」 declared that it used AI tools. Set aiUsage to true with an aiUsagePurpose, or remove aiStatement")
 	}
 
 	return nil

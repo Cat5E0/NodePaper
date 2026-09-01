@@ -23,3 +23,9 @@ output:
 # 语料同时作为试用样例：启用它，试用者构建一次就能同时拿到论文和
 # 「AI工具使用详情」两份 PDF。ai-usage.md 是占位模板，与原论文作者无关。
 aiStatement: ai-usage.md
+
+# 本语料是 NodePaper 的功能演示样例包，这里刻意启用了 AI 相关的两项，
+# 以便试用者一次试全。声明内容与本语料原论文的作者无关，不代表该论文的
+# 任何 AI 工具使用情况。用户自己的项目默认是 aiUsage: false 且不启用 aiStatement。
+aiUsage: true
+aiUsagePurpose: 语言润色、代码调试
