@@ -242,7 +242,90 @@ Fragment 被刻意限制在文档正文片段的范围内：不要在其中放 `
 
 外部工具如何导出、Matplotlib PGF 的字体一致性、可用 TikZ 库和诊断码，见 [TikZ / PGF Fragment 指南](tikz-pgf.md)。当前已验证的是基本 TikZ、纯 PGF 命令文件（`pgfpicture`）和 `pgfplots` 坐标轴图表（`axis` / `addplot`，2026-08-25 起）。`pgfplots` 由 Profile **条件加载**：装了才有，没装时只有用到它的图会失败（`nodepaper doctor` 会报告是否可用）。图表数据必须内联进 Fragment，引用外部数据文件的写法不受支持。
 
-## 7. 哪些文件提交，哪些文件只留在本机
+## 7. 参考文献：两条路线，不要混着走
+
+`nodepaper init` 会生成一个只有两行注释的 `references.bib`，并在 `paper.md` 的参考文献章节里放一个 `::: {#refs}`。这两样对应的是**同一条路线**，但它不是唯一受支持的写法。
+
+### 路线一：写进 `references.bib`，正文用 `[@key]` 引用
+
+```bibtex
+@book{jiang2007,
+  author    = {姜启源},
+  title     = {数学模型},
+  publisher = {高等教育出版社},
+  year      = {2007}
+}
+```
+
+```markdown
+该方法可用于需求预测 [@jiang2007]。
+
+# 参考文献 {-}
+
+::: {#refs}
+:::
+```
+
+`::: {#refs}` 标出文献表的位置，Citeproc 按 GB/T 7714-2015 numeric 排版，正文里得到数字上标引用。有条目要列出但正文没引用的，在 Front Matter 里写 `nocite`：
+
+```yaml
+nocite: '@jiang2007'
+```
+
+`nodepaper validate` 会检查每个 `[@key]` 在 `.bib` 里真实存在，拼错的键当场报错。
+
+### 路线二：整篇手写编号列表
+
+不用 `.bib`，不用 `[@key]`，直接在参考文献章节里写编号条目：
+
+```markdown
+# 参考文献 {#sec:references}
+
+[1]潘思宇,姚有利,寇杰,等.基于风险评估的我国煤矿安责险费率厘定研究[J].煤,2024,33(09):19-24.
+
+[2]邢观华.基于二维云模型和 ALARP 准则的风险评价法[J].特种结构,2024,41(04):94-100.
+```
+
+这条路线是**受支持的选择，不是将就**。论文没有任何行内引用也没有 `nocite` 时，`nodepaper export` 不会生成任何文献机制，命令链里也不会有 `bibtex`／`biber` 这一步，只给一条 `NP8012` 信息提示——那是正常结果。此时 `::: {#refs}` 可以删掉，留着也只会渲染成一个不占版面的空锚点。
+
+### 不要两条路线各写一半
+
+技术上能编出来：`.bib` 那几条排在前面，手写条目紧随其后，编号也接得上。但有两个代价，第二个能让你交错稿子：
+
+- **排版对不齐。** Citeproc 生成的条目有悬挂缩进——编号占一个固定左栏，回行的文字对齐到编号右边；手写条目是普通段落，回行顶到最左边。条目一长到换行，两半的观感立刻不同。
+- **编号要自己数，而且改一处就全错。** Citeproc 只给**被引用过**的条目编号，顺序按引用出现的先后。手写部分从几开始，只有你自己知道。中途在正文里多引一篇 `.bib` 文献，后面手写条目的编号就全部错位，**而且不会有任何 Warning**——NodePaper 无法判断一行 `[7] 张三……` 是文献条目还是普通正文。
+
+需要引用 `.bib` 表达不好的东西（网页、标准、报告）时，优先把它塞进 `.bib` 而不是手写：
+
+```bibtex
+@online{spec2026,
+  author  = {某机构},
+  title   = {某在线资料},
+  year    = {2026},
+  url     = {https://example.org/doc},
+  urldate = {2026-09-05}
+}
+```
+
+实测 `@online` 输出 `[4] 某机构. 某在线资料[EB/OL]. (2026)[2026-09-05]. https://example.org/doc.`——访问日期由 `urldate` 保留，类型标识 `[EB/OL]` 正确。换成 `@misc` 则只得到 `[Z]`，写在 `note` 里的日期**会被丢掉**。拉丁作者名会被 CSL 转成全大写（`OPENAI`），这是 GB/T 7714 的规矩，不是缺陷。
+
+### `.bib` 从哪来：导出，不是手写改后缀
+
+`.bib` 就是 UTF-8 纯文本，扩展名只是约定，不存在「先写成别的格式再改后缀」这一步。常规做法是从文献源直接导出：
+
+| 来源 | 位置 |
+| --- | --- |
+| 知网 CNKI | 检索结果勾选 → 导出与分析 → 导出文献 → BibTeX |
+| Google Scholar | 每条结果下方的引号图标 → BibTeX |
+| arXiv | 文章页右侧 Export BibTeX citation |
+| IEEE Xplore / ACM DL / SpringerLink / ScienceDirect | 文章页 Cite / Export citation → BibTeX |
+| Zotero / JabRef / Mendeley | 平时收集，导出时选 BibTeX |
+
+竞赛的实际情况是中文文献居多，而**知网导出的 BibTeX 常有字段缺失或作者分隔不当**，导完基本都要手工补一遍。手写整条也完全合法。
+
+一个容易误会的字段：`language = {zh}` **在当前 Profile 下不起作用**。同一条 `@book` 带与不带这个字段，输出逐字相同。仓库里的 A163 语料写了它，那是历史遗留，不是必需项，漏写不会有任何后果。
+
+## 8. 哪些文件提交，哪些文件只留在本机
 
 | 类别 | 典型内容 | Git / 公开语料包 |
 | --- | --- | --- |
@@ -267,7 +350,7 @@ nodepaper clean . --all
 
 这会删除本地生成物，先确认其中没有只存在于本机、尚未备份的 PDF。
 
-## 8. 导出可编辑的 LaTeX 工程
+## 9. 导出可编辑的 LaTeX 工程
 
 `build` 生成 PDF；`export` 生成的是可编辑 LaTeX 交付物，而不是 PDF。基本的文件夹导出：
 
@@ -308,7 +391,7 @@ nodepaper export . --to ..\paper-latex.zip --force
 
 Linux/Overleaf 与本机的字体回退不同，版面可能有轻微差异，因此重要交付仍应在目标环境检查首页、宽表和参考文献。
 
-## 9. 构建前后的最小检查清单
+## 10. 构建前后的最小检查清单
 
 ```powershell
 # 1. 先检查项目结构、Front Matter、资源和 Fragment 声明
@@ -328,7 +411,7 @@ nodepaper export . --to ..\paper-latex.zip --verify
 - 公式密集页、参考文献和附录的分页；
 - 每个已声明的 Fragment、图片与引用是否出现在正确位置。
 
-## 10. 常见问题定位
+## 11. 常见问题定位
 
 | 现象 | 先做什么 |
 | --- | --- |
@@ -340,7 +423,9 @@ nodepaper export . --to ..\paper-latex.zip --verify
 | Fragment 未被插入或校验失败 | 检查路径是否相对 Project 根目录、是否在 `latexFragments` 白名单、`\input{...}` 是否完全一致，以及 Fragment 是否含嵌套输入或不允许的导言区命令。 |
 | 改了 `.nodepaper/build/paper.tex` 但下次又丢失 | 这是生成文件。把修改转回 Markdown、`nodepaper.yaml`、图片或已声明 Fragment。 |
 | `export` 拒绝已有目标 | 先确认不会覆盖不相关交付物，再加 `--force`。 |
-| 上传 Overleaf 后无法编译 | 先看是不是免费版 10 秒超时（见 §8 的 Overleaf 小节）；不是超时则检查编译器为 XeLaTeX、主文档为 `paper.tex`，再查看导出目录中的 `README.txt`。 |
+| 文献表是空的 | 确认正文里确实有 `[@key]` 引用，或 Front Matter 里写了 `nocite`；两者都没有时 Citeproc 不产生任何条目，这是设计行为（见 §7）。 |
+| 手写条目的编号和上面的文献表对不上 | 不要一半 `.bib` 一半手写。整篇统一走一条路线；`.bib` 表达不了的条目用 `@online` 塞进 `.bib`（见 §7）。 |
+| 上传 Overleaf 后无法编译 | 先看是不是免费版 10 秒超时（见 §9 的 Overleaf 小节）；不是超时则检查编译器为 XeLaTeX、主文档为 `paper.tex`，再查看导出目录中的 `README.txt`。 |
 
 ## 当前边界与尚未提供的设置
 
