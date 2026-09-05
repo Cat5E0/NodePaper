@@ -722,6 +722,39 @@ try {
         if (($statementText -replace '\s', '').Contains($aiDeclarationOpening)) {
             throw "the AI statement PDF carries an AI usage declaration of its own"
         }
+        # The supporting document is not a paper and must not be typeset as
+        # one. Routed through the Profile's abstract block it picked up a
+        # centred 摘要 heading, the abstract linespread and a 摘要 PDF
+        # bookmark, and the page break that puts a paper's body on page 2 left
+        # its first page holding nothing but the title. Assert the structure,
+        # not the wording, and assert the paper still gets both.
+        $statementTexPath = Join-Path $projectDir ".nodepaper\build\ai-statement.tex"
+        $statementTex = Get-Content -LiteralPath $statementTexPath -Raw -Encoding UTF8
+        $abstractWord = ([string][char]0x6458) + ([char]0x8981)
+        if ($statementTex.Contains('\pdfbookmark[1]{' + $abstractWord + '}')) {
+            throw "the AI statement went through the paper abstract block"
+        }
+        if ($statementTex.Contains('\newpage')) {
+            throw "the AI statement carries the paper front-matter page break"
+        }
+        if (-not $texText.Contains('\newpage')) {
+            throw "the paper lost the page break between its abstract and its body"
+        }
+        if (-not $texText.Contains('\pdfbookmark[1]{' + $abstractWord + '}')) {
+            throw "the paper lost its abstract bookmark"
+        }
+        # Without the page break the first page has to carry real content, not
+        # just the title. The tool list is the first thing the rules ask for.
+        $statementPage1 = Join-Path $inspectDir "ai-statement-p1.txt"
+        & $pdfToText.Source -enc UTF-8 -f 1 -l 1 $statementCopy $statementPage1
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $statementPage1 -PathType Leaf)) {
+            throw "pdftotext failed on the first page of the AI statement"
+        }
+        $statementPage1Text = Get-Content -LiteralPath $statementPage1 -Raw -Encoding UTF8
+        if (-not $statementPage1Text.Contains($toolListHeading)) {
+            throw "the AI statement wastes its first page on the title alone"
+        }
+
         # Each document gets its own LaTeX log and its own transition log
         # directory, so a failure names the document it came from.
         foreach ($required in @("ai-statement.tex", "ai-statement.pdf", "ai-statement.log")) {

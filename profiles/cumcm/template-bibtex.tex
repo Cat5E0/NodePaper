@@ -407,7 +407,13 @@ $endif$
 \noindent{\heiti 关键词：}$for(keywords)$$keywords$$sep$；$endfor$
 $endif$
 
+% 竞赛格式要求摘要独占首页、正文另起一页，所以论文一定要这个分页。但同一套模板
+% 也排 aiStatement 那份支撑材料，它没有摘要——无条件分页会让它的第一页只剩一个
+% 标题、其余全空（实测：去掉摘要后正文从第 2 页起）。论文的摘要由 validate 强制
+% 存在，因此按 abstract 判断对论文逐字节无影响，只让没有摘要的文档不再空掉首页。
+$if(abstract)$
 \newpage
+$endif$
 $body$
 
 % There is no \bibliography here on purpose. filters/layout.lua emits it inside

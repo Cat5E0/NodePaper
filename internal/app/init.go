@@ -321,17 +321,22 @@ aiUsage: false
 // line-start punctuation defect M4-11 recorded and has not been fixed at the
 // engine level. And nothing here names a real tool or invents an interaction -
 // every value is a placeholder the team replaces with what it actually did.
+//
+// It opens with plain paragraphs and no 摘要 heading. This is a supporting
+// document, not a paper: routing it through the Profile's abstract block gave
+// it a centred 三号 「摘要」 title, the abstract's 0.9 linespread and a PDF
+// bookmark reading 摘要, with none of the 关键词 line that follows an abstract
+// in a paper - a paper's front page with half of it missing. The closing
+// responsibility sentence lived here too and repeated 「原创性与责任声明」 at
+// the end, so it now appears once, at the end.
 func aiStatementMarkdown() string {
 	return `---
 title: AI工具使用详情
 ---
 
-# 摘要
-
 本参赛队在竞赛期间使用了下表所列的 AI 工具，用于（此处填写实际环节，例如资料检索、
 代码调试、文字润色）。竞赛作品的核心建模、求解与分析由本参赛队主导，AI 参与完成的
-内容均已由本队逐项人工审查与核实后采用。本参赛队对所提交作品的原创性、真实性和准
-确性负全部责任。
+内容均已由本队逐项人工审查与核实后采用。
 
 以上为填写示例，请按本队真实情况改写。本文件只有在 ` + "`nodepaper.yaml`" + ` 中取消
 ` + "`aiStatement`" + ` 那行注释后才会被构建；未使用任何 AI 工具的参赛队不需要提交它。
