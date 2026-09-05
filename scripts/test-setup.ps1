@@ -16,6 +16,8 @@
          Path entry, and the persistent-window launcher command line
       5. non-TTY, pipeline, JSON and CI behaviour of the installed executable
       6. repeat (repair) installation of the same version
+      6.5 a second installation without /DIR inherits the previous directory
+          and the previously selected tasks, and creates no second copy
       7. uninstall after deleting the downloaded Setup, using only the
          uninstaller registered for the current user
       8. no residue: directory, exact Path entry, shortcuts, uninstall entry
@@ -118,13 +120,20 @@ function Test-UserPathContains {
 }
 
 function Invoke-Setup {
-    param([string]$SetupPath, [string]$InstallDirectory, [string]$LogPath = "", [string[]]$ExtraArguments = @())
+    param([string]$SetupPath, [string]$InstallDirectory = "", [string]$LogPath = "", [string[]]$ExtraArguments = @())
     # Quote explicitly: install directories legitimately contain spaces and
     # Chinese characters.
     # The language is pinned so the mechanical expectations (Chinese shortcut
     # names) are deterministic on any locale; the English wizard remains a
     # manual gate.
-    $arguments = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=chinesesimplified", ('/DIR="' + $InstallDirectory + '"'))
+    # An empty InstallDirectory omits /DIR on purpose. /DIR on the command line
+    # overrides UsePreviousAppDir, so every install that passes it is blind to
+    # whether a second install would have remembered the previous directory -
+    # which is exactly what section 6.5 below tests.
+    $arguments = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LANG=chinesesimplified")
+    if (-not [string]::IsNullOrWhiteSpace($InstallDirectory)) {
+        $arguments += ('/DIR="' + $InstallDirectory + '"')
+    }
     if (-not [string]::IsNullOrWhiteSpace($LogPath)) {
         $arguments += ('/LOG="' + $LogPath + '"')
     }
@@ -407,6 +416,47 @@ try {
         if ((Get-NormalizedPathEntry ($entry.Trim().Trim('"'))) -eq (Get-NormalizedPathEntry $script:InstallRoot)) { $pathEntryCount++ }
     }
     Assert-True ($pathEntryCount -eq 1) "the repeated installation did not duplicate the Path entry"
+
+    # ---------- 6.5 a second install inherits directory and tasks -----------
+
+    # Every install above passes /DIR and runs /VERYSILENT. /DIR overrides
+    # UsePreviousAppDir and /VERYSILENT skips the directory and task pages, so
+    # "does a second install remember where it went and what was ticked?" was
+    # never covered by anything here. The maintainer ran into exactly that
+    # question on 2026-09-02 after a reinstall showed the directory page; a
+    # manual check said the mechanism was sound, and this is that check written
+    # down so the next regression is caught by the suite instead of by a person.
+    #
+    # A task has to be ticked first: the desktop icon ships unchecked, and with
+    # nothing selected "tasks were remembered" and "tasks were reset" look the
+    # same.
+    $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "NodePaper.lnk"
+    $exitCode = Invoke-Setup $setupPath $script:InstallRoot (Join-Path $script:WorkRoot "install-tasks.log") @('/TASKS="desktopicon"')
+    Assert-True ($exitCode -eq 0) "installing with the desktop-icon task selected succeeds"
+    Assert-True (Test-Path -LiteralPath $desktopShortcut) "the desktop-icon task created the desktop shortcut"
+
+    $beforeEntry = Get-ItemProperty -LiteralPath $UninstallKey
+    $beforeAppPath = [string]$beforeEntry."Inno Setup: App Path"
+    $beforeTasks = [string]$beforeEntry."Inno Setup: Selected Tasks"
+    $beforePathRaw = Get-UserPathRaw
+    Assert-True ($beforeTasks -match '(?i)desktopicon') "the uninstall entry records the selected desktop-icon task"
+
+    Write-Host "Installing a second time without /DIR and without /TASKS..."
+    $exitCode = Invoke-Setup $setupPath "" (Join-Path $script:WorkRoot "install-inherit.log")
+    Assert-True ($exitCode -eq 0) "a second installation without /DIR succeeds"
+
+    $afterEntry = Get-ItemProperty -LiteralPath $UninstallKey
+    Assert-True ((Get-NormalizedPathEntry ([string]$afterEntry."Inno Setup: App Path")) -eq (Get-NormalizedPathEntry $beforeAppPath)) "the second installation kept the previous install directory"
+    Assert-True (([string]$afterEntry."Inno Setup: Selected Tasks") -eq $beforeTasks) "the second installation kept the previously selected tasks"
+    Assert-True (Test-Path -LiteralPath $desktopShortcut) "the second installation kept the desktop shortcut"
+    Assert-True ((Get-UserPathRaw) -eq $beforePathRaw) "the second installation left the user Path byte-for-byte unchanged"
+    Assert-True (Test-Path -LiteralPath $installedExe -PathType Leaf) "the second installation kept the payload in the inherited directory"
+    # Falling back to DefaultDirName instead of inheriting would leave a second
+    # copy behind that nothing uninstalls, which is what M4-10 recorded.
+    $defaultDir = Join-Path $env:LOCALAPPDATA "Programs\NodePaper"
+    if ((Get-NormalizedPathEntry $defaultDir) -ne (Get-NormalizedPathEntry $script:InstallRoot)) {
+        Assert-True (-not (Test-Path -LiteralPath $defaultDir)) "the second installation did not fall back to the default directory"
+    }
 
     # ---------- 7. uninstall after deleting the downloaded Setup ------------
 
