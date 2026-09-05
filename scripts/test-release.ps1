@@ -13,12 +13,15 @@
       7. build log, PDF and repeat-build / atomic-publish behaviour
       8. package contents, versions and SHA-256 record
       9. cleanup on success / retained diagnostics on failure
-     10. unfinished manual/platform gates fail explicitly via -ManualGatesFile
 
-    The Windows 11 + TeX Live mechanical flow is exercised by this script. The
-    remaining release gates (MiKTeX, Windows 10, race detector, PDF manual
-    review and maintainer sign-off) must be recorded as evidence in the JSON
-    file passed via -ManualGatesFile; missing or failed gates fail the script.
+    This script covers the Windows 11 + TeX Live mechanical flow and nothing
+    else. It used to also refuse to pass until a JSON gates file recorded
+    MiKTeX, Windows 10, race detector, PDF review and a maintainer signature.
+    That gate was removed on 2026-09-05: it was never once satisfied, both
+    v0.1.0 and v0.2.0 shipped around it, and a gate that is always bypassed
+    documents nothing while making a green mechanical run impossible. Those
+    platform checks live in docs/testing/release-checklist.md sections 4, 5
+    and 7, where a human records what was actually run.
 
 .PARAMETER ReleaseZip
     Path to nodepaper-<version>-windows-x64.zip. Extracted to a unique temp dir.
@@ -29,12 +32,6 @@
 .PARAMETER FixtureDirectory
     Directory of the Fixture project to copy. Defaults to the repository's
     tests/fixtures copy of -Fixture.
-.PARAMETER ManualGatesFile
-    JSON file with confirmed manual gate evidence:
-    { "schemaVersion": 1,
-      "gates": { "miktex": {"date":..., "environment":..., "result":"pass"},
-                 "windows10": {...}, "raceDetector": {...},
-                 "pdfReview": {...}, "maintainer": {"result":"allow-release"} } }
 .PARAMETER SkipTools
     Skip the bundled tools existence check (layout-only packages built with
     build-release.ps1 -SkipTools; not valid release candidates).
@@ -46,7 +43,6 @@ param(
     [string]$ReleaseDirectory = "",
     [string]$Fixture = "complete-single-file",
     [string]$FixtureDirectory = "",
-    [string]$ManualGatesFile = "",
     [switch]$SkipTools,
     [switch]$KeepWorkDirectory
 )
@@ -185,36 +181,6 @@ function Test-UserInstallation {
     finally {
         [Environment]::SetEnvironmentVariable("Path", $originalProcessPath, "Process")
     }
-}
-
-function Assert-ManualGates {
-    param([string]$GatesFile)
-    if ([string]::IsNullOrWhiteSpace($GatesFile)) {
-        throw "FAIL: -ManualGatesFile is required. The release gates (MiKTeX, Windows 10, race detector, PDF manual review, maintainer sign-off) are not verified by this script and cannot be assumed to pass."
-    }
-    if (-not (Test-Path -LiteralPath $GatesFile -PathType Leaf)) {
-        throw "FAIL: Manual gates file not found: $GatesFile"
-    }
-    $gates = Get-Content -LiteralPath $GatesFile -Raw -Encoding UTF8 | ConvertFrom-Json
-    $required = @(
-        @{ Name = "miktex"; Expect = "pass" },
-        @{ Name = "windows10"; Expect = "pass" },
-        @{ Name = "raceDetector"; Expect = "pass" },
-        @{ Name = "pdfReview"; Expect = "pass" },
-        @{ Name = "maintainer"; Expect = "allow-release" }
-    )
-    $missing = @()
-    foreach ($gate in $required) {
-        $entry = $gates.gates.($gate.Name)
-        if ($null -eq $entry -or [string]::IsNullOrWhiteSpace([string]$entry.result) -or
-            ([string]$entry.result).ToLowerInvariant() -ne $gate.Expect) {
-            $missing += "$($gate.Name) (expected result '$($gate.Expect)')"
-        }
-    }
-    if ($missing.Count -gt 0) {
-        throw "FAIL: manual gates not confirmed: $($missing -join '; ')"
-    }
-    Write-Host "Manual gates confirmed: MiKTeX, Windows 10, race detector, PDF review, maintainer sign-off."
 }
 
 # ---------- input validation and extraction --------------------------------
@@ -570,10 +536,6 @@ try {
     $recordPath = Join-Path $script:WorkRoot "release-test-results.json"
     $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $recordPath -Encoding UTF8
     Write-Host "Release test record: $recordPath"
-
-    # ---------- 10. manual gates -----------------------------------------------------
-
-    Assert-ManualGates $ManualGatesFile
 
     $script:Passed = $true
     Write-Host ""
