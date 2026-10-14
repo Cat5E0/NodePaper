@@ -271,6 +271,15 @@ $else$
 \linespread{1.25}
 $endif$
 \setcounter{secnumdepth}{3}
+
+% Body heading numbering (nodepaper-heading-numbering). The default is
+% ctexart's arabic style (1, 1.1, 1.1.1). The chinese route renumbers
+% level-one sections via the zhnumber package; deeper levels keep their
+% numeric form, matching common Chinese paper conventions.
+$if(nodepaper-heading-numbering)$
+\usepackage{zhnumber}
+\renewcommand{\thesection}{\zhnum{section}、}
+$endif$
 \setcounter{tocdepth}{0}
 \newcounter{none}
 \setlength{\emergencystretch}{3em}

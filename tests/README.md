@@ -148,6 +148,7 @@ E2E 在这个 Fixture 上额外断言：两份 PDF 都存在且 Header 合法；
 
 ```powershell
 .\scripts\test-e2e.ps1 -Fixture layout-stress -AppendixNumbering continuous
+.\scripts\test-e2e.ps1 -Fixture layout-stress -HeadingNumbering chinese
 .\scripts\test-e2e.ps1 -Fixture layout-stress -AppendixNumbering none
 .\scripts\test-e2e.ps1 -Fixture layout-stress -HighlightStyle pygments
 .\scripts\test-e2e.ps1 -Fixture layout-stress -HighlightStyle kate

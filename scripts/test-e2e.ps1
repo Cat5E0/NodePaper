@@ -2,6 +2,8 @@ param(
     [string]$Fixture = "",
     [ValidateSet("", "alpha", "continuous", "none")]
     [string]$AppendixNumbering = "",
+    [ValidateSet("", "arabic", "chinese")]
+    [string]$HeadingNumbering = "",
     [ValidateSet("", "tango", "pygments", "kate")]
     [string]$HighlightStyle = "",
     [string]$ReviewOutput = "",
@@ -100,6 +102,18 @@ try {
         Set-Content -LiteralPath $configPath -Value $configText -Encoding UTF8
     }
     $effectiveAppendixNumbering = if ([string]::IsNullOrWhiteSpace($AppendixNumbering)) { "alpha" } else { $AppendixNumbering }
+    if (-not [string]::IsNullOrWhiteSpace($HeadingNumbering)) {
+        $configPath = Join-Path $projectDir "nodepaper.yaml"
+        $configText = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
+        if ($configText -match "(?m)^\s*headings:") {
+            $configText = $configText -replace "(?m)^(\s*headings:\s*\r?\n\s*numbering:\s*)(arabic|chinese)(\s*)$", "`$1$HeadingNumbering`$3"
+        }
+        else {
+            $configText = $configText.TrimEnd() + "`r`n" + "headings:`r`n  numbering: $HeadingNumbering`r`n"
+        }
+        Set-Content -LiteralPath $configPath -Value $configText -Encoding UTF8
+    }
+    $effectiveHeadingNumbering = if ([string]::IsNullOrWhiteSpace($HeadingNumbering)) { "arabic" } else { $HeadingNumbering }
     $effectiveHighlightStyle = if ([string]::IsNullOrWhiteSpace($HighlightStyle)) { "tango" } else { $HighlightStyle }
     if (-not [string]::IsNullOrWhiteSpace($HighlightStyle)) {
         $configPath = Join-Path $projectDir "nodepaper.yaml"
@@ -303,6 +317,18 @@ try {
         )) {
             if (-not $texText.Contains($requiredTableWidth)) {
                 throw "layout-stress Markdown table-width contract is missing: $requiredTableWidth"
+            }
+        }
+        # Heading numbering contract: the default arabic route emits nothing
+        # special; chinese must reach the LaTeX as the zhnumber redefinition.
+        if ($effectiveHeadingNumbering -eq "chinese") {
+            if (-not $texText.Contains("\usepackage{zhnumber}") -or -not $texText.Contains("\renewcommand{\thesection}{\zhnum{section}" + [string][char]0x3001 + "}")) {
+                throw "chinese heading numbering LaTeX contract failed"
+            }
+        }
+        else {
+            if ($texText.Contains("\usepackage{zhnumber}")) {
+                throw "arabic heading numbering must not emit zhnumber"
             }
         }
         $appendixText = ([string][char]0x9644) + ([char]0x5F55)
@@ -882,6 +908,9 @@ try {
         if (-not [string]::IsNullOrWhiteSpace($AppendixNumbering)) {
             $reviewDir = Join-Path $reviewDir $AppendixNumbering
         }
+        if (-not [string]::IsNullOrWhiteSpace($HeadingNumbering)) {
+            $reviewDir = Join-Path $reviewDir $HeadingNumbering
+        }
         New-Item -ItemType Directory -Force -Path $reviewDir | Out-Null
         Copy-Item -LiteralPath $pdf -Destination (Join-Path $reviewDir "generated.pdf") -Force
         Copy-Item -LiteralPath $tex -Destination (Join-Path $reviewDir "generated.tex") -Force
@@ -890,6 +919,7 @@ try {
             schemaVersion = 1
             fixture = $Fixture
             appendixNumbering = $effectiveAppendixNumbering
+            headingNumbering = $effectiveHeadingNumbering
             highlightStyle = $effectiveHighlightStyle
             generatedAt = (Get-Date).ToString("o")
             profileVersion = [string]$profileMetadata.version

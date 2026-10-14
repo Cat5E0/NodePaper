@@ -21,6 +21,7 @@ type ProjectConfig struct {
 	Sources            []string        `yaml:"sources,omitempty"`
 	LatexFragments     []string        `yaml:"latexFragments,omitempty"`
 	Appendix           AppendixConfig  `yaml:"appendix,omitempty"`
+	Headings           HeadingsConfig  `yaml:"headings,omitempty"`
 	Highlight          HighlightConfig `yaml:"highlight,omitempty"`
 	LineSpread         float64         `yaml:"linespread,omitempty"`
 	AbstractLineSpread float64         `yaml:"abstractLinespread,omitempty"`
@@ -75,6 +76,13 @@ func (c ProjectConfig) UsedAITool() bool {
 type AppendixConfig struct {
 	Numbering string `yaml:"numbering,omitempty"`
 	NewPage   *bool  `yaml:"newPage,omitempty"`
+}
+
+// HeadingsConfig controls body heading numbering. Numbering selects between
+// the LaTeX default arabic style (1, 1.1; the default) and the Chinese style
+// for sections that some papers prefer.
+type HeadingsConfig struct {
+	Numbering string `yaml:"numbering,omitempty"`
 }
 
 // NewPageEnabled reports whether the appendix must start on a fresh page.
@@ -145,6 +153,9 @@ func Parse(data []byte) (ProjectConfig, error) {
 	}
 	if cfg.Appendix.Numbering == "" {
 		cfg.Appendix.Numbering = "alpha"
+	}
+	if cfg.Headings.Numbering == "" {
+		cfg.Headings.Numbering = "arabic"
 	}
 	if cfg.Highlight.Style == "" {
 		cfg.Highlight.Style = "tango"
@@ -217,6 +228,11 @@ func validate(cfg ProjectConfig) error {
 	case "alpha", "continuous", "none":
 	default:
 		return fmt.Errorf("appendix.numbering must be alpha, continuous, or none")
+	}
+	switch cfg.Headings.Numbering {
+	case "arabic", "chinese":
+	default:
+		return fmt.Errorf("headings.numbering must be arabic or chinese")
 	}
 	switch cfg.Highlight.Style {
 	case "tango", "pygments", "kate":

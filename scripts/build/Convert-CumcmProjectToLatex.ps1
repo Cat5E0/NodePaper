@@ -151,6 +151,16 @@ if ([string]::IsNullOrWhiteSpace($appendixNumbering)) {
 if ($appendixNumbering -notin @("alpha", "continuous", "none")) {
     throw "Unsupported appendix numbering mode: $appendixNumbering"
 }
+# Body heading numbering: arabic is the LaTeX/ctexart default (1, 1.1);
+# chinese renumbers level-one sections with the zhnumber package (一、二、)
+# and keeps deeper levels numeric. Defaults for manifests written by older builds.
+$headingNumbering = [string]$manifestValue.headingNumbering
+if ([string]::IsNullOrWhiteSpace($headingNumbering)) {
+    $headingNumbering = "arabic"
+}
+if ($headingNumbering -notin @("arabic", "chinese")) {
+    throw "Unsupported heading numbering mode: $headingNumbering"
+}
 $appendixNewPage = $true
 if ($null -ne $manifestValue.appendixNewPage) {
     $appendixNewPage = [bool]$manifestValue.appendixNewPage
@@ -327,6 +337,11 @@ if ($aiUsageDeclared) {
         $arguments += @("--metadata", "nodepaper-ai-usage-purpose=$aiUsagePurpose")
     }
 }
+if ($headingNumbering -eq "chinese") {
+    # Only chinese is signalled; the template keys on the metadata existing,
+    # because Pandoc templates cannot compare strings.
+    $arguments += @("--metadata", "nodepaper-heading-numbering=chinese")
+}
 $arguments += @(
     "--syntax-highlighting=$highlightStyle",
     "--metadata", "nodepaper-appendix-numbering=$appendixNumbering",
@@ -373,6 +388,7 @@ if (-not $aiUsageDeclared) {
     Write-Output "AI usage declaration: no AI tool used"
 }
 Write-Output "Appendix numbering: $appendixNumbering"
+Write-Output "Heading numbering: $headingNumbering"
 Write-Output "Appendix new page: $appendixNewPageMetadata"
 Write-Output "Highlight style: $highlightStyle"
 Write-Output "Linespread: $linespreadMetadata"

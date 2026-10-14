@@ -395,6 +395,8 @@ Common optional settings:
 ```yaml
 appendix:
   numbering: alpha
+headings:
+  numbering: arabic
 highlight:
   style: tango
 linespread: 1.25
@@ -501,6 +503,7 @@ Run the plotting script outside NodePaper; NodePaper only validates and compiles
 - BibTeX citations with numeric superscripts;
 - syntax highlighting and long code blocks;
 - configurable appendix numbering;
+- configurable body heading numbering (arabic or chinese);
 - PDF bookmark outlines;
 - Project validation, environment diagnostics, build logs, and build locking;
 - human-readable and JSON output.

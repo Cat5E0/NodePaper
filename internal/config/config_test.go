@@ -89,6 +89,9 @@ func TestAppendixNumberingDefaultsToAlpha(t *testing.T) {
 	if cfg.MathFont != "cm" {
 		t.Fatalf("MathFont = %q, want default cm", cfg.MathFont)
 	}
+	if cfg.Headings.Numbering != "arabic" {
+		t.Fatalf("Headings.Numbering = %q, want default arabic", cfg.Headings.Numbering)
+	}
 }
 
 func TestLineSpreadSelection(t *testing.T) {
@@ -295,6 +298,7 @@ func TestParseRejects(t *testing.T) {
 		{"aiStatement duplicates the source", "version: 1\nprofile: cumcm\naiUsage: false\nsource: paper.md\naiStatement: paper.md", "must not also be the paper source"},
 		{"aiStatement duplicates one of sources", "version: 1\nprofile: cumcm\naiUsage: false\nsources:\n  - a.md\n  - b.md\naiStatement: b.md", "must not also be a paper source"},
 		{"invalid appendix numbering", "version: 1\nprofile: cumcm\naiUsage: false\nsource: a.md\nappendix:\n  numbering: roman", "appendix.numbering must be"},
+		{"invalid heading numbering", "version: 1\nprofile: cumcm\naiUsage: false\nsource: a.md\nheadings:\n  numbering: roman", "headings.numbering must be"},
 		{"invalid highlight style", "version: 1\nprofile: cumcm\naiUsage: false\nsource: a.md\nhighlight:\n  style: minted", "highlight.style must be"},
 		{"linespread too small", "version: 1\nprofile: cumcm\naiUsage: false\nsource: a.md\nlinespread: 0.9", "linespread must be between 1.0 and 1.3"},
 		{"linespread too large", "version: 1\nprofile: cumcm\naiUsage: false\nsource: a.md\nlinespread: 1.4", "linespread must be between 1.0 and 1.3"},

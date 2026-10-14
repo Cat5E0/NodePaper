@@ -82,6 +82,7 @@ reference-section-title: 参考文献
 | `source` / `sources` | 二选一。前者是单个 Markdown 文件；后者是按顺序拼接的 Markdown 列表。 |
 | `latexFragments` | 可选的 Project 内 `.tex` / `.pgf` 白名单。声明后才能在 Markdown 用 `\input{...}` 插入。 |
 | `appendix.numbering` | `alpha`（默认）、`continuous` 或 `none`。 |
+| `headings.numbering` | `arabic`（默认，正文一级标题 1、1.1…）或 `chinese`（一级标题 一、二、…；子级仍是数字）。 |
 | `appendix.newPage` | `true`（默认）时附录从新页开始；设为 `false` 才取消该换页。 |
 | `highlight.style` | `tango`（默认）、`pygments` 或 `kate`。控制代码块高亮主题。 |
 | `linespread` | 正文行距，范围 `1.0`–`1.3`，默认 `1.25`。 |

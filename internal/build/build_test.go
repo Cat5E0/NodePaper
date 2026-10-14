@@ -150,6 +150,7 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 		Sources            []string `json:"sources"`
 		LatexFragments     []string `json:"latexFragments"`
 		AppendixNumbering  string   `json:"appendixNumbering"`
+		HeadingNumbering   string   `json:"headingNumbering"`
 		HighlightStyle     string   `json:"highlightStyle"`
 		LineSpread         float64  `json:"linespread"`
 		AbstractLineSpread float64  `json:"abstractLinespread"`
@@ -162,7 +163,7 @@ func TestBuildWithFakeToolsPublishesPDF(t *testing.T) {
 	if len(manifest.Sources) != 1 || !samePath(manifest.Sources[0], filepath.Join(projectDir, "paper.md")) {
 		t.Fatalf("manifest sources = %#v", manifest.Sources)
 	}
-	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HighlightStyle != "tango" || manifest.LineSpread != 1.25 || manifest.AbstractLineSpread != 0.95 || manifest.MathFont != "cm" || !manifest.AppendixNewPage {
+	if len(manifest.LatexFragments) != 0 || manifest.AppendixNumbering != "alpha" || manifest.HeadingNumbering != "arabic" || manifest.HighlightStyle != "tango" || manifest.LineSpread != 1.25 || manifest.AbstractLineSpread != 0.95 || manifest.MathFont != "cm" || !manifest.AppendixNewPage {
 		t.Fatalf("manifest fragments=%#v appendix=%q highlight=%q linespread=%v abstractLinespread=%v mathFont=%q", manifest.LatexFragments, manifest.AppendixNumbering, manifest.HighlightStyle, manifest.LineSpread, manifest.AbstractLineSpread, manifest.MathFont)
 	}
 	if root := argumentValue(call.args, "-ProjectRoot"); !samePath(root, projectDir) {

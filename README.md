@@ -398,6 +398,8 @@ aiStatement: ai-usage.md
 ```yaml
 appendix:
   numbering: alpha
+headings:
+  numbering: arabic
 highlight:
   style: tango
 linespread: 1.25

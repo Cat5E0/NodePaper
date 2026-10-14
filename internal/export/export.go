@@ -806,6 +806,7 @@ func writeSourceManifestForSources(path string, absoluteSources []string, cfg co
 		Sources              []string `json:"sources"`
 		LatexFragments       []string `json:"latexFragments"`
 		AppendixNumbering    string   `json:"appendixNumbering"`
+		HeadingNumbering     string   `json:"headingNumbering"`
 		HighlightStyle       string   `json:"highlightStyle"`
 		LineSpread           float64  `json:"linespread"`
 		AbstractLineSpread   float64  `json:"abstractLinespread"`
@@ -820,6 +821,7 @@ func writeSourceManifestForSources(path string, absoluteSources []string, cfg co
 		Sources:              absoluteSources,
 		LatexFragments:       absoluteFragments,
 		AppendixNumbering:    cfg.Appendix.Numbering,
+		HeadingNumbering:     cfg.Headings.Numbering,
 		HighlightStyle:       cfg.Highlight.Style,
 		LineSpread:           cfg.LineSpread,
 		AbstractLineSpread:   cfg.AbstractLineSpread,
